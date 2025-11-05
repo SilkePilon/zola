@@ -21,7 +21,7 @@ const ANIMATION = {
 
 const TRANSITION = {
   duration: ANIMATION_DURATION,
-  ease: "easeInOut",
+  ease: [0.42, 0, 0.58, 1] as [number, number, number, number],
   repeat: Number.POSITIVE_INFINITY,
   repeatType: "loop" as const,
 }

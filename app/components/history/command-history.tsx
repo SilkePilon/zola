@@ -467,6 +467,19 @@ export function CommandHistory({
   )
 
   const { pinnedChats } = useChats()
+  
+  const handleDeleteGroup = useCallback(
+    async (groupChats: Chats[]) => {
+      const deletable = groupChats.filter((c) => !c.pinned && !c.project_id)
+      for (const chat of deletable) {
+        await onConfirmDelete(chat.id)
+      }
+      setSelectedChatId(null)
+      setHoveredChatId(null)
+      clearPreview()
+    },
+    [onConfirmDelete, clearPreview]
+  )
 
   const activePreviewChatId =
     hoveredChatId || (isPreviewPanelHovered ? hoveredChatId : null)
@@ -618,7 +631,28 @@ export function CommandHistory({
                 groupedChats?.map((group) => (
                   <CommandGroup
                     key={group.name}
-                    heading={group.name}
+                    heading={
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold break-all">{group.name}</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="group/delete text-muted-foreground hover:bg-primary/10 size-8 transition-colors duration-150"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                void handleDeleteGroup(group.chats)
+                              }}
+                              aria-label={`Delete ${group.name}`}
+                            >
+                              <TrashSimple className="group-hover/delete:text-primary size-4 transition-colors duration-150" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete this group</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    }
                     className="space-y-0 px-1.5"
                   >
                     {group.chats.map((chat) => renderChatItem(chat))}

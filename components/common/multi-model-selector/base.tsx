@@ -29,6 +29,7 @@ import { useModel } from "@/lib/model-store/provider"
 import { filterAndSortModels } from "@/lib/model-store/utils"
 import { ModelConfig } from "@/lib/models/types"
 import { PROVIDERS } from "@/lib/providers"
+import ProviderIcon from "@/components/common/provider-icon"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { cn } from "@/lib/utils"
 import {
@@ -125,7 +126,12 @@ export function MultiModelSelector({
             onClick={(e) => e.stopPropagation()}
             onChange={() => handleModelToggle(model.id, isLocked)}
           />
-          {provider?.icon && <provider.icon className="size-5" />}
+          <ProviderIcon
+            providerId={model.icon}
+            logoUrl={model.logoUrl}
+            className="size-5"
+            title={model.provider}
+          />
           <div className="flex flex-col gap-0">
             <span className="text-sm">{model.name}</span>
           </div>
@@ -165,7 +171,7 @@ export function MultiModelSelector({
     <Button
       variant="outline"
       className={cn(
-        "dark:bg-secondary min-w-[200px] justify-between rounded-full",
+        "dark:bg-secondary min-w-[200px] justify-between rounded-[8px]",
         className
       )}
       disabled={isLoadingModels}
@@ -192,25 +198,19 @@ export function MultiModelSelector({
               transition={{ duration: 0.15, ease: "easeOut" }}
               className="flex items-center gap-2"
             >
-              {(() => {
-                const provider = PROVIDERS.find(
-                  (p) => p.id === selectedModels[0].icon
-                )
-                return provider?.icon ? (
-                  <motion.div
-                    initial={{ scale: 0, rotate: -180 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    exit={{ scale: 0, rotate: 180 }}
-                    transition={{
-                      type: "spring",
-                      stiffness: 300,
-                      damping: 20,
-                    }}
-                  >
-                    <provider.icon className="size-5 flex-shrink-0" />
-                  </motion.div>
-                ) : null
-              })()}
+              <motion.div
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                exit={{ scale: 0, rotate: 180 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              >
+                <ProviderIcon
+                  providerId={selectedModels[0].icon}
+                  logoUrl={selectedModels[0].logoUrl}
+                  className="size-5 flex-shrink-0"
+                  title={selectedModels[0].provider}
+                />
+              </motion.div>
               <motion.span
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -232,8 +232,7 @@ export function MultiModelSelector({
               <div className="flex flex-shrink-0 -space-x-1">
                 <AnimatePresence mode="popLayout">
                   {selectedModels.slice(0, 3).map((model, index) => {
-                    const provider = PROVIDERS.find((p) => p.id === model.icon)
-                    return provider?.icon ? (
+                    return (
                       <motion.div
                         key={`${model.id}`}
                         layout="position"
@@ -265,9 +264,14 @@ export function MultiModelSelector({
                         className="bg-background border-border flex size-5 items-center justify-center rounded-full border"
                         style={{ zIndex: 3 - index }}
                       >
-                        <provider.icon className="size-3" />
+                        <ProviderIcon
+                          providerId={model.icon}
+                          logoUrl={model.logoUrl}
+                          className="size-3"
+                          title={model.provider}
+                        />
                       </motion.div>
-                    ) : null
+                    )
                   })}
                 </AnimatePresence>
               </div>
@@ -314,7 +318,7 @@ export function MultiModelSelector({
                 size="sm"
                 variant="secondary"
                 className={cn(
-                  "border-border dark:bg-secondary text-accent-foreground h-9 w-auto border bg-transparent",
+                  "border-border dark:bg-secondary text-accent-foreground h-9 w-auto border bg-transparent rounded-[8px]",
                   className
                 )}
                 type="button"
@@ -478,7 +482,12 @@ export function MultiModelSelector({
                       }}
                     >
                       <div className="flex items-center gap-3">
-                        {provider?.icon && <provider.icon className="size-5" />}
+                        <ProviderIcon
+                          providerId={model.icon}
+                          logoUrl={model.logoUrl}
+                          className="size-5"
+                          title={model.provider}
+                        />
                         <div className="flex flex-col gap-0">
                           <span className="text-sm">{model.name}</span>
                         </div>

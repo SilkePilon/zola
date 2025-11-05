@@ -1,8 +1,7 @@
 import { PROVIDERS } from "@/lib/providers"
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
-
-const SUPPORTED_PROVIDERS = PROVIDERS.map((p) => p.id)
+import { getAllModels } from "@/lib/models"
 
 export async function GET() {
   try {
@@ -29,15 +28,22 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Create status object for all supported providers
-    const userProviders = data?.map((k) => k.provider) || []
-    const providerStatus = SUPPORTED_PROVIDERS.reduce(
-      (acc, provider) => {
-        acc[provider] = userProviders.includes(provider)
-        return acc
-      },
-      {} as Record<string, boolean>
-    )
+    // Build dynamic list of providers from models + known list, then flag any provider in user_keys
+    const models = await getAllModels()
+    const dynamicProviders = new Set<string>([
+      ...PROVIDERS.map((p) => p.id),
+      ...models.map((m) => m.providerId),
+    ])
+
+    const userProviders = new Set<string>((data || []).map((k) => k.provider))
+    const providerStatus: Record<string, boolean> = {}
+    for (const id of dynamicProviders) {
+      providerStatus[id] = userProviders.has(id)
+    }
+    // Also include any stray providers that exist only in user_keys
+    for (const id of userProviders) {
+      providerStatus[id] = true
+    }
 
     return NextResponse.json(providerStatus)
   } catch (err) {

@@ -8,7 +8,10 @@ import {
   PromptInputTextarea,
 } from "@/components/prompt-kit/prompt-input"
 import { Button } from "@/components/ui/button"
-import { ArrowUp, Stop } from "@phosphor-icons/react"
+import { SendButtonIconAnimated } from "../chat-input/button-send-animated"
+import { ButtonFileUpload } from "../chat-input/button-file-upload"
+import { FileList } from "../chat-input/file-list"
+import { Stop } from "@phosphor-icons/react"
 import React, { useCallback } from "react"
 
 type MultiChatInputProps = {
@@ -32,8 +35,12 @@ export function MultiChatInput({
   onValueChange,
   onSend,
   isSubmitting,
+  files,
+  onFileUpload,
+  onFileRemove,
   selectedModelIds,
   onSelectedModelIdsChange,
+  isUserAuthenticated,
   stop,
   status,
   anyLoading,
@@ -86,13 +93,20 @@ export function MultiChatInput({
           value={value}
           onValueChange={onValueChange}
         >
+          <FileList files={files} onFileRemove={onFileRemove} />
           <PromptInputTextarea
-            placeholder="Ask all selected models..."
+            placeholder="Ask Zola"
             onKeyDown={handleKeyDown}
             className="min-h-[44px] pt-3 pl-4 text-base leading-[1.3] sm:text-base md:text-base"
           />
-          <PromptInputActions className="mt-5 w-full justify-between px-3 pb-3">
+          <PromptInputActions className="mt-3 w-full justify-between p-2">
             <div className="flex gap-2">
+              <ButtonFileUpload
+                onFileUpload={onFileUpload}
+                isUserAuthenticated={isUserAuthenticated}
+                model={selectedModelIds[0] || ""}
+                disabled
+              />
               <MultiModelSelector
                 selectedModelIds={selectedModelIds}
                 setSelectedModelIds={onSelectedModelIdsChange}
@@ -103,7 +117,7 @@ export function MultiChatInput({
             >
               <Button
                 size="sm"
-                className="size-9 rounded-full transition-all duration-300 ease-out"
+                className="size-9 rounded-md transition-all duration-300 ease-out"
                 disabled={
                   !value ||
                   isSubmitting ||
@@ -116,9 +130,11 @@ export function MultiChatInput({
                 aria-label={status === "streaming" ? "Stop" : "Send message"}
               >
                 {status === "streaming" || anyLoading ? (
-                  <Stop className="size-4" />
+                  <SendButtonIconAnimated mode="responding" />
+                ) : !isOnlyWhitespace(value) ? (
+                  <SendButtonIconAnimated mode="typing" />
                 ) : (
-                  <ArrowUp className="size-4" />
+                  <SendButtonIconAnimated mode="idle" />
                 )}
               </Button>
             </PromptInputAction>

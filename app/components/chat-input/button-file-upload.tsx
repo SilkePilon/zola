@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { getModelInfo } from "@/lib/models"
+import { useModel } from "@/lib/model-store/provider"
 import { isSupabaseEnabled } from "@/lib/supabase/config"
 import { cn } from "@/lib/utils"
 import { FileArrowUp, Paperclip } from "@phosphor-icons/react"
@@ -25,47 +26,118 @@ type ButtonFileUploadProps = {
   onFileUpload: (files: File[]) => void
   isUserAuthenticated: boolean
   model: string
+  disabled?: boolean
 }
 
 export function ButtonFileUpload({
   onFileUpload,
   isUserAuthenticated,
   model,
+  disabled = false,
 }: ButtonFileUploadProps) {
+  const { models } = useModel()
+  if (disabled) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="border-border dark:bg-secondary size-9 rounded-[8px] border bg-transparent opacity-50"
+            type="button"
+            aria-label="Add files"
+            disabled
+          >
+            <Paperclip className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Add files (disabled in multi-model)</TooltipContent>
+      </Tooltip>
+    )
+  }
   if (!isSupabaseEnabled) {
     return null
   }
 
-  const isFileUploadAvailable = getModelInfo(model)?.vision
+  // Derive accepted MIME types/extensions from model capabilities; text is always allowed
+  // Prefer client model-store (authoritative in client), fallback to sync cache
+  const info = models.find((m) => m.id === model) || getModelInfo(model)
+  const allowImage = Boolean(info?.vision)
+  const allowAudio = Boolean(info?.audio)
+  const allowVideo = Boolean(info?.video)
 
-  if (!isFileUploadAvailable) {
-    return (
-      <Popover>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="border-border dark:bg-secondary size-9 rounded-[8px] border bg-transparent"
-                type="button"
-                aria-label="Add files"
-              >
-                <Paperclip className="size-4" />
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Add files</TooltipContent>
-        </Tooltip>
-        <PopoverContent className="p-2">
-          <div className="text-secondary-foreground text-sm">
-            This model does not support file uploads.
-            <br />
-            Please select another model.
-          </div>
-        </PopoverContent>
-      </Popover>
-    )
+  const textAccept = [".txt", ".md"]
+  const imageAccept = [
+    "image/*",
+    // Keep explicit common types for broader compatibility
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
+    "image/heic",
+    "image/heif",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".heic",
+    ".heif",
+  ]
+  const audioAccept = [
+    "audio/*",
+    "audio/mpeg",
+    "audio/wav",
+    "audio/mp4",
+    "audio/aac",
+    "audio/ogg",
+    "audio/webm",
+    "audio/flac",
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".webm",
+    ".flac",
+  ]
+  const videoAccept = [
+    "video/*",
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",
+    "video/x-matroska",
+    "video/ogg",
+    ".mp4",
+    ".webm",
+    ".mov",
+    ".mkv",
+    ".avi",
+    ".ogv",
+  ]
+
+  const acceptParts: string[] = [...textAccept]
+  if (allowImage) acceptParts.push(...imageAccept)
+  if (allowAudio) acceptParts.push(...audioAccept)
+  if (allowVideo) acceptParts.push(...videoAccept)
+  const accept = acceptParts.join(",")
+
+  // Filter dropped/selected files to allowed types/extensions (text always allowed)
+  const handleFiles = (files: File[]) => {
+    const filtered = files.filter((f) => {
+      const name = f.name.toLowerCase()
+      const type = f.type.toLowerCase()
+      const hasExt = (ext: string) => name.endsWith(ext)
+      const isText = type.startsWith("text/") || hasExt(".txt") || hasExt(".md")
+      if (isText) return true
+      if (allowImage && (type.startsWith("image/") || [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".heic", ".heif"].some(hasExt))) return true
+      if (allowAudio && (type.startsWith("audio/") || [".mp3", ".wav", ".m4a", ".aac", ".ogg", ".webm", ".flac"].some(hasExt))) return true
+      if (allowVideo && (type.startsWith("video/") || [".mp4", ".webm", ".mov", ".mkv", ".avi", ".ogv"].some(hasExt))) return true
+      return false
+    })
+    if (filtered.length > 0) onFileUpload(filtered)
   }
 
   if (!isUserAuthenticated) {
@@ -94,10 +166,10 @@ export function ButtonFileUpload({
 
   return (
     <FileUpload
-      onFilesAdded={onFileUpload}
+      onFilesAdded={handleFiles}
       multiple
       disabled={!isUserAuthenticated}
-      accept=".txt,.md,image/jpeg,image/png,image/gif,image/webp,image/svg,image/heic,image/heif"
+      accept={accept}
     >
       <Tooltip>
         <TooltipTrigger asChild>

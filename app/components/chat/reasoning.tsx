@@ -1,17 +1,16 @@
 import { Markdown } from "@/components/prompt-kit/markdown"
 import { cn } from "@/lib/utils"
 import { CaretDownIcon } from "@phosphor-icons/react"
-import { AnimatePresence, motion } from "framer-motion"
-import { useState } from "react"
+import { AnimatePresence, motion, type Transition as FMTransition } from "framer-motion"
+import { useEffect, useState } from "react"
 
 type ReasoningProps = {
   reasoning: string
   isStreaming?: boolean
 }
 
-const TRANSITION = {
+const TRANSITION: FMTransition = {
   type: "spring",
-  duration: 0.2,
   bounce: 0,
 }
 
@@ -19,10 +18,14 @@ export function Reasoning({ reasoning, isStreaming }: ReasoningProps) {
   const [wasStreaming, setWasStreaming] = useState(isStreaming ?? false)
   const [isExpanded, setIsExpanded] = useState(() => isStreaming ?? true)
 
-  if (wasStreaming && isStreaming === false) {
-    setWasStreaming(false)
-    setIsExpanded(false)
-  }
+  useEffect(() => {
+    if (wasStreaming && isStreaming === false) {
+      setWasStreaming(false)
+      setIsExpanded(false)
+    }
+    // only react to changes in isStreaming/wasStreaming
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStreaming, wasStreaming])
 
   return (
     <div>

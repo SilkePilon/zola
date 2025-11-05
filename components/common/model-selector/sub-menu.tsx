@@ -1,13 +1,7 @@
-import { addUTM } from "@/app/components/chat/utils"
 import { ModelConfig } from "@/lib/models/types"
 import { PROVIDERS } from "@/lib/providers"
-import {
-  ArrowSquareOutIcon,
-  BrainIcon,
-  GlobeIcon,
-  ImageIcon,
-  WrenchIcon,
-} from "@phosphor-icons/react"
+import ProviderIcon from "@/components/common/provider-icon"
+import { BrainIcon, GlobeIcon, ImageIcon, WrenchIcon } from "@phosphor-icons/react"
 
 type SubMenuProps = {
   hoveredModelData: ModelConfig
@@ -22,13 +16,16 @@ export function SubMenu({ hoveredModelData }: SubMenuProps) {
     <div className="bg-popover border-border w-[280px] rounded-md border p-3 shadow-md">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-3">
-          {provider?.icon && <provider.icon className="size-5" />}
+          <ProviderIcon
+            providerId={hoveredModelData.icon}
+            logoUrl={hoveredModelData.logoUrl}
+            className="size-5"
+            title={hoveredModelData.provider}
+          />
           <h3 className="font-medium">{hoveredModelData.name}</h3>
         </div>
 
-        <p className="text-muted-foreground text-sm">
-          {hoveredModelData.description}
-        </p>
+        {/* API-only: omit description and long-form metadata */}
 
         <div className="flex flex-col gap-1">
           <div className="mt-1 flex flex-wrap gap-2">
@@ -63,38 +60,44 @@ export function SubMenu({ hoveredModelData }: SubMenuProps) {
         </div>
 
         <div className="mt-4 flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-2 text-sm">
-            <span className="font-medium">Context</span>
-            <span>
-              {Intl.NumberFormat("fr-FR", {
-                style: "decimal",
-              }).format(hoveredModelData.contextWindow ?? 0)}{" "}
-              tokens
-            </span>
-          </div>
+          {hoveredModelData.contextWindow != null && (
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="font-medium">Context</span>
+              <span>
+                {Intl.NumberFormat("fr-FR", {
+                  style: "decimal",
+                }).format(hoveredModelData.contextWindow)}{" "}
+                tokens
+              </span>
+            </div>
+          )}
 
           <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="font-medium">Input Pricing</span>
-              <span>
-                {Intl.NumberFormat("ja-JP", {
-                  style: "currency",
-                  currency: "USD",
-                }).format(hoveredModelData.inputCost ?? 0)}{" "}
-                / 1M tokens
-              </span>
-            </div>
+            {hoveredModelData.inputCost != null && (
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="font-medium">Input Pricing</span>
+                <span>
+                  {Intl.NumberFormat("ja-JP", {
+                    style: "currency",
+                    currency: "USD",
+                  }).format(hoveredModelData.inputCost)}{" "}
+                  / 1M tokens
+                </span>
+              </div>
+            )}
 
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="font-medium">Output Pricing</span>
-              <span>
-                {Intl.NumberFormat("ja-JP", {
-                  style: "currency",
-                  currency: "USD",
-                }).format(hoveredModelData.outputCost ?? 0)}{" "}
-                / 1M tokens
-              </span>
-            </div>
+            {hoveredModelData.outputCost != null && (
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="font-medium">Output Pricing</span>
+                <span>
+                  {Intl.NumberFormat("ja-JP", {
+                    style: "currency",
+                    currency: "USD",
+                  }).format(hoveredModelData.outputCost)}{" "}
+                  / 1M tokens
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between gap-2 text-sm">
@@ -109,26 +112,7 @@ export function SubMenu({ hoveredModelData }: SubMenuProps) {
             </span>
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-2 text-xs">
-            <a
-              href={addUTM(hoveredModelData.apiDocs ?? "")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-0.5"
-            >
-              <span className="">API Docs</span>
-              <ArrowSquareOutIcon className="size-3" />
-            </a>
-            <a
-              href={addUTM(hoveredModelData.modelPage ?? "")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-0.5"
-            >
-              <span className="">Model Page</span>
-              <ArrowSquareOutIcon className="size-3" />
-            </a>
-          </div>
+          {/* API-only: no external links section */}
         </div>
       </div>
     </div>

@@ -19,10 +19,9 @@ import {
   useState,
 } from "react"
 
-const TRANSITION = {
+const TRANSITION: Transition = {
   type: "spring",
   bounce: 0.1,
-  duration: 0.4,
 }
 
 type MorphingPopoverContextValue = {
