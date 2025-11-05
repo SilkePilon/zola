@@ -25,6 +25,7 @@ const MODEL_PROVIDER_MAP: Record<string, Provider> = {
   "gpt-4o-audio-preview-2024-12-17": "openai",
   "gpt-4o-search-preview": "openai",
   "gpt-4o-search-preview-2025-03-11": "openai",
+  "chatgpt-4o-latest": "openai",
   "gpt-4o-mini": "openai",
   "gpt-4o-mini-2024-07-18": "openai",
   "gpt-4-turbo": "openai",
@@ -66,6 +67,13 @@ const MODEL_PROVIDER_MAP: Record<string, Provider> = {
 
   // Google
   "gemini-2.0-flash-001": "google",
+  "gemini-2.5-pro": "google",
+  "gemini-2.5-flash": "google",
+  "gemini-2.5-flash-preview-09-2025": "google",
+  "gemini-2.5-flash-image": "google",
+  "gemini-2.5-flash-preview-tts": "google",
+  "gemini-2.5-pro-preview-tts": "google",
+  "gemini-2.5-computer-use-preview-10-2025": "google",
   "gemini-1.5-flash": "google",
   "gemini-1.5-flash-latest": "google",
   "gemini-1.5-flash-001": "google",

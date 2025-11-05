@@ -137,7 +137,7 @@ export function ModelSelector({
   const trigger = (
     <Button
       variant="outline"
-      className={cn("dark:bg-secondary justify-between", className)}
+      className={cn(className, "dark:bg-secondary justify-between rounded-[8px]")}
       disabled={isLoadingModels}
     >
       <div className="flex items-center gap-2">
@@ -164,10 +164,7 @@ export function ModelSelector({
               <Button
                 size="sm"
                 variant="secondary"
-                className={cn(
-                  "border-border dark:bg-secondary text-accent-foreground h-9 w-auto border bg-transparent",
-                  className
-                )}
+                className={cn(className, "border-border dark:bg-secondary text-accent-foreground h-9 w-auto border bg-transparent rounded-[8px]")}
                 type="button"
               >
                 {currentProvider?.icon && (

@@ -9,7 +9,8 @@ import {
 } from "@/components/prompt-kit/prompt-input"
 import { Button } from "@/components/ui/button"
 import { getModelInfo } from "@/lib/models"
-import { ArrowUpIcon, StopIcon } from "@phosphor-icons/react"
+// Icons replaced by animated primitives
+import { SendButtonIconAnimated } from "./button-send-animated"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { PromptSystem } from "../suggestions/prompt-system"
 import { ButtonFileUpload } from "./button-file-upload"
@@ -197,7 +198,7 @@ export function ChatInput({
                 selectedModelId={selectedModel}
                 setSelectedModelId={onSelectModel}
                 isUserAuthenticated={isUserAuthenticated}
-                className="rounded-full"
+                className="rounded-[8px]"
               />
               {hasSearchSupport ? (
                 <ButtonSearch
@@ -207,21 +208,21 @@ export function ChatInput({
                 />
               ) : null}
             </div>
-            <PromptInputAction
-              tooltip={status === "streaming" ? "Stop" : "Send"}
-            >
+            <PromptInputAction tooltip={status === "streaming" ? "Stop" : "Send"}>
               <Button
                 size="sm"
-                className="size-9 rounded-full transition-all duration-300 ease-out"
+                className="size-9 rounded-md transition-all duration-300 ease-out"
                 disabled={!value || isSubmitting || isOnlyWhitespace(value)}
                 type="button"
                 onClick={handleSend}
                 aria-label={status === "streaming" ? "Stop" : "Send message"}
               >
                 {status === "streaming" ? (
-                  <StopIcon className="size-4" />
+                  <SendButtonIconAnimated mode="responding" />
+                ) : !isOnlyWhitespace(value) ? (
+                  <SendButtonIconAnimated mode="typing" />
                 ) : (
-                  <ArrowUpIcon className="size-4" />
+                  <SendButtonIconAnimated mode="idle" />
                 )}
               </Button>
             </PromptInputAction>

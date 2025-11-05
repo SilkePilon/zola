@@ -47,7 +47,7 @@ export function ButtonFileUpload({
               <Button
                 size="sm"
                 variant="secondary"
-                className="border-border dark:bg-secondary size-9 rounded-full border bg-transparent"
+                className="border-border dark:bg-secondary size-9 rounded-[8px] border bg-transparent"
                 type="button"
                 aria-label="Add files"
               >
@@ -77,7 +77,7 @@ export function ButtonFileUpload({
               <Button
                 size="sm"
                 variant="secondary"
-                className="border-border dark:bg-secondary size-9 rounded-full border bg-transparent"
+                className="border-border dark:bg-secondary size-9 rounded-[8px] border bg-transparent"
                 type="button"
                 aria-label="Add files"
               >
@@ -106,7 +106,7 @@ export function ButtonFileUpload({
               size="sm"
               variant="secondary"
               className={cn(
-                "border-border dark:bg-secondary size-9 rounded-full border bg-transparent",
+                "border-border dark:bg-secondary size-9 rounded-[8px] border bg-transparent",
                 !isUserAuthenticated && "opacity-50"
               )}
               type="button"
