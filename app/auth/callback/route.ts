@@ -64,10 +64,13 @@ export async function GET(request: Request) {
     console.error("Unexpected user insert error:", err)
   }
 
-  const host = request.headers.get("host")
-  const protocol = host?.includes("localhost") ? "http" : "https"
+  // Respect proxy headers (Vercel) to ensure redirect goes back to the domain the flow started from
+  const hostHeader = request.headers.get("x-forwarded-host") ?? request.headers.get("host")
+  const protoHeader = request.headers.get("x-forwarded-proto") ?? (hostHeader?.includes("localhost") ? "http" : "https")
 
-  const redirectUrl = `${protocol}://${host}${next}`
+  // Ensure next is a path, not a full URL (avoid open redirects)
+  const safeNext = next?.startsWith("/") ? next : "/"
+  const redirectUrl = `${protoHeader}://${hostHeader}${safeNext}`
 
   return NextResponse.redirect(redirectUrl)
 }
