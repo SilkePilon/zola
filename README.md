@@ -54,7 +54,7 @@ cd zola
 docker-compose -f docker-compose.ollama.yml up
 ```
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ibelick/zola)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/SilkePilon/zola)
 
 To unlock features like auth, file uploads, see [INSTALL.md](./INSTALL.md).
 
