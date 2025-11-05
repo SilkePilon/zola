@@ -1,5 +1,5 @@
-export const TRANSITION_SUGGESTIONS = {
-  duration: 0.25,
+import type { Transition } from "motion/react"
+export const TRANSITION_SUGGESTIONS: Transition = {
   type: "spring",
   bounce: 0,
 }

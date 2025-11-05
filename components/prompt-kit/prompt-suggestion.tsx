@@ -28,7 +28,7 @@ function PromptSuggestion({
       <Button
         variant={variant || "outline"}
         size={size || "lg"}
-        className={cn("rounded-full", className)}
+        className={cn("rounded-[8px]", className)}
         {...props}
       >
         {children}

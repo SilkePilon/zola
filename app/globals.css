@@ -160,3 +160,9 @@ code {
 [data-sonner-toaster] > li {
   width: 100%;
 }
+
+/* Theme-aware monochrome SVGs: force provider icons to follow text color */
+.themed-icon * {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}

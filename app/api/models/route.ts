@@ -6,6 +6,7 @@ import {
 } from "@/lib/models"
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import { ensureProviderLogosCached } from "@/lib/server/provider-logos"
 
 export async function GET() {
   try {
@@ -13,6 +14,9 @@ export async function GET() {
 
     if (!supabase) {
       const allModels = await getAllModels()
+      await ensureProviderLogosCached(
+        Array.from(new Set(allModels.map((m) => m.providerId)))
+      )
       const models = allModels.map((model) => ({
         ...model,
         accessible: true,
@@ -29,6 +33,9 @@ export async function GET() {
 
     if (!authData?.user?.id) {
       const models = await getModelsWithAccessFlags()
+      await ensureProviderLogosCached(
+        Array.from(new Set(models.map((m) => m.providerId)))
+      )
       return new Response(JSON.stringify({ models }), {
         status: 200,
         headers: {
@@ -45,6 +52,9 @@ export async function GET() {
     if (error) {
       console.error("Error fetching user keys:", error)
       const models = await getModelsWithAccessFlags()
+      await ensureProviderLogosCached(
+        Array.from(new Set(models.map((m) => m.providerId)))
+      )
       return new Response(JSON.stringify({ models }), {
         status: 200,
         headers: {
@@ -57,6 +67,9 @@ export async function GET() {
 
     if (userProviders.length === 0) {
       const models = await getModelsWithAccessFlags()
+      await ensureProviderLogosCached(
+        Array.from(new Set(models.map((m) => m.providerId)))
+      )
       return new Response(JSON.stringify({ models }), {
         status: 200,
         headers: {
@@ -66,6 +79,9 @@ export async function GET() {
     }
 
     const models = await getModelsForUserProviders(userProviders)
+    await ensureProviderLogosCached(
+      Array.from(new Set(models.map((m) => m.providerId)))
+    )
 
     return new Response(JSON.stringify({ models }), {
       status: 200,

@@ -1,6 +1,45 @@
 import { createClient } from "@/lib/supabase/server"
 import { getEffectiveApiKey, ProviderWithoutOllama } from "@/lib/user-keys"
 import { NextRequest, NextResponse } from "next/server"
+import { getAllModels } from "@/lib/models"
+import { ensureProviderLogosCached } from "@/lib/server/provider-logos"
+
+export async function GET() {
+  try {
+    const models = await getAllModels()
+
+    const map = new Map<
+      string,
+      { id: string; name: string; logoUrl?: string; count: number }
+    >()
+    for (const m of models) {
+      const id = m.providerId
+      if (!map.has(id)) {
+        map.set(id, {
+          id,
+          name: m.provider,
+          logoUrl: m.logoUrl,
+          count: 1,
+        })
+      } else {
+        const entry = map.get(id)!
+        entry.count += 1
+      }
+    }
+
+    const providers = Array.from(map.values()).sort((a, b) => b.count - a.count)
+
+    // Ensure provider logos are cached locally for same-origin serving
+    await ensureProviderLogosCached(providers.map((p) => p.id))
+    return NextResponse.json({ providers })
+  } catch (error) {
+    console.error("Error listing providers:", error)
+    return NextResponse.json(
+      { error: "Failed to list providers" },
+      { status: 500 }
+    )
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

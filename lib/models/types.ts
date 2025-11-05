@@ -11,6 +11,9 @@ type ModelConfig = {
   description?: string // Short 1–2 line summary
   tags?: string[] // ["fast", "cheap", "vision", "OSS"]
 
+  // Optional remote assets
+  logoUrl?: string // absolute URL to provider logo
+
   contextWindow?: number // in tokens
   inputCost?: number // USD per 1M input tokens
   outputCost?: number // USD per 1M output tokens
@@ -19,6 +22,7 @@ type ModelConfig = {
   vision?: boolean
   tools?: boolean
   audio?: boolean
+  video?: boolean
   reasoning?: boolean
   webSearch?: boolean
   openSource?: boolean
@@ -30,6 +34,7 @@ type ModelConfig = {
   apiDocs?: string // official API docs (e.g. https://platform.openai.com/docs/api-reference)
   modelPage?: string // official product page (e.g. https://x.ai/news/grok-2)
   releasedAt?: string // "2024-12-01" (optional, for tracking changes)
+  updatedAt?: string // ISO timestamp for last update
 
   icon?: string // e.g. "gpt-4", "claude", "mistral", or custom string
 

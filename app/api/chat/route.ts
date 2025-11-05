@@ -1,6 +1,5 @@
 import { SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { getAllModels } from "@/lib/models"
-import { getProviderForModel } from "@/lib/openproviders/provider-map"
 import type { ProviderWithoutOllama } from "@/lib/user-keys"
 import { Attachment } from "@ai-sdk/ui-utils"
 import { Message as MessageAISDK, streamText, ToolSet } from "ai"
@@ -72,25 +71,47 @@ export async function POST(req: Request) {
     }
 
     const allModels = await getAllModels()
-    const modelConfig = allModels.find((m) => m.id === model)
+    // Find all candidates with this model id (could exist under multiple providers)
+    const candidates = allModels.filter((m) => m.id === model)
 
-    if (!modelConfig || !modelConfig.apiSdk) {
+    if (candidates.length === 0 || !candidates.some((c) => c.apiSdk)) {
       throw new Error(`Model ${model} not found`)
     }
 
     const effectiveSystemPrompt = systemPrompt || SYSTEM_PROMPT_DEFAULT
 
+    // Prefer a candidate with an available API key for the user/env
+    let selected = candidates[0]!
     let apiKey: string | undefined
     if (isAuthenticated && userId) {
       const { getEffectiveApiKey } = await import("@/lib/user-keys")
-      const provider = getProviderForModel(model)
-      apiKey =
-        (await getEffectiveApiKey(userId, provider as ProviderWithoutOllama)) ||
-        undefined
+      for (const c of candidates) {
+        if (c.providerId === "ollama") {
+          selected = c
+          apiKey = undefined
+          break
+        }
+        const key = await getEffectiveApiKey(userId, c.providerId as ProviderWithoutOllama)
+        if (key) {
+          selected = c
+          apiKey = key || undefined
+          break
+        }
+      }
+    } else {
+      // Unauthenticated: keep first candidate (already sorted by priority)
+      selected = candidates[0]!
+      apiKey = undefined
+    }
+
+    const modelConfig = selected
+    const makeModel = modelConfig.apiSdk
+    if (!makeModel) {
+      throw new Error(`Selected model ${model} is not invokable`)
     }
 
     const result = streamText({
-      model: modelConfig.apiSdk(apiKey, { enableSearch }),
+      model: makeModel(apiKey, { enableSearch }),
       system: effectiveSystemPrompt,
       messages: messages,
       tools: {} as ToolSet,

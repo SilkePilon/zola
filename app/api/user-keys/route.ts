@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // If this is a new API key, add provider models to favorites
+    // If this is a new API key, add only the most recently updated provider model to favorites
     if (isNewKey) {
       try {
         // Get current user's favorite models
@@ -64,26 +64,26 @@ export async function POST(request: Request) {
 
         const currentFavorites = userData?.favorite_models || []
 
-        // Get models for this provider
+        // Get models for this provider and pick the most recently updated
         const providerModels = await getModelsForProvider(provider)
-        const providerModelIds = providerModels.map((model) => model.id)
-
-        // Skip if no models found for this provider
-        if (providerModelIds.length === 0) {
+        if (!providerModels || providerModels.length === 0) {
           return NextResponse.json({
             success: true,
             isNewKey,
             message: "API key saved",
           })
         }
+        const mostRecent = providerModels
+          .slice()
+          .sort((a, b) => {
+            const ta = a.updatedAt || a.releasedAt || ""
+            const tb = b.updatedAt || b.releasedAt || ""
+            // Newest first
+            return (tb || "").localeCompare(ta || "")
+          })[0]
 
-        // Add provider models to favorites (only if not already there)
-        const newModelsToAdd = providerModelIds.filter(
-          (modelId) => !currentFavorites.includes(modelId)
-        )
-
-        if (newModelsToAdd.length > 0) {
-          const updatedFavorites = [...currentFavorites, ...newModelsToAdd]
+        if (mostRecent && !currentFavorites.includes(mostRecent.id)) {
+          const updatedFavorites = [...currentFavorites, mostRecent.id]
 
           // Update user's favorite models
           const { error: favoritesError } = await supabase

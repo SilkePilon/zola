@@ -11,6 +11,7 @@ import {
   KeyIcon,
   PaintBrushIcon,
   PlugsConnectedIcon,
+  NotePencilIcon,
   XIcon,
 } from "@phosphor-icons/react"
 import { useState } from "react"
@@ -22,6 +23,8 @@ import { ConnectionsPlaceholder } from "./connections/connections-placeholder"
 import { DeveloperTools } from "./connections/developer-tools"
 import { OllamaSection } from "./connections/ollama-section"
 import { AccountManagement } from "./general/account-management"
+import { HistoryManagement } from "./general/history-management"
+import { SystemPromptSection } from "./general/system-prompt"
 import { UserProfile } from "./general/user-profile"
 import { ModelsSettings } from "./models/models-settings"
 
@@ -29,7 +32,7 @@ type SettingsContentProps = {
   isDrawer?: boolean
 }
 
-type TabType = "general" | "appearance" | "models" | "connections"
+type TabType = "general" | "appearance" | "prompts" | "models" | "connections"
 
 export function SettingsContent({
   isDrawer = false,
@@ -82,6 +85,13 @@ export function SettingsContent({
                   <span>Appearance</span>
                 </TabsTrigger>
                 <TabsTrigger
+                  value="prompts"
+                  className="flex shrink-0 items-center gap-2"
+                >
+                  <NotePencilIcon className="size-4" />
+                  <span>Prompts</span>
+                </TabsTrigger>
+                <TabsTrigger
                   value="apikeys"
                   className="flex shrink-0 items-center gap-2"
                 >
@@ -111,6 +121,7 @@ export function SettingsContent({
               {isSupabaseEnabled && (
                 <>
                   <AccountManagement />
+                  <HistoryManagement />
                 </>
               )}
             </TabsContent>
@@ -119,6 +130,10 @@ export function SettingsContent({
               <ThemeSelection />
               <LayoutSettings />
               <InteractionPreferences />
+            </TabsContent>
+
+            <TabsContent value="prompts" className="space-y-6 px-6">
+              <SystemPromptSection />
             </TabsContent>
 
             <TabsContent value="apikeys" className="px-6">
@@ -162,6 +177,16 @@ export function SettingsContent({
                 </TabsTrigger>
 
                 <TabsTrigger
+                  value="prompts"
+                  className="w-full justify-start rounded-md px-3 py-2 text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <NotePencilIcon className="size-4" />
+                    <span>Prompts</span>
+                  </div>
+                </TabsTrigger>
+
+                <TabsTrigger
                   value="apikeys"
                   className="w-full justify-start rounded-md px-3 py-2 text-left"
                 >
@@ -198,6 +223,7 @@ export function SettingsContent({
                 {isSupabaseEnabled && (
                   <>
                     <AccountManagement />
+                    <HistoryManagement />
                   </>
                 )}
               </TabsContent>
@@ -206,6 +232,10 @@ export function SettingsContent({
                 <ThemeSelection />
                 <LayoutSettings />
                 <InteractionPreferences />
+              </TabsContent>
+
+              <TabsContent value="prompts" className="mt-0 space-y-6">
+                <SystemPromptSection />
               </TabsContent>
 
               <TabsContent value="apikeys" className="mt-0 space-y-6">

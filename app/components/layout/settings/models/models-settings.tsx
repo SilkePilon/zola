@@ -2,7 +2,7 @@
 
 import { useModel } from "@/lib/model-store/provider"
 import { ModelConfig } from "@/lib/models/types"
-import { PROVIDERS } from "@/lib/providers"
+import ProviderIcon from "@/components/common/provider-icon"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import {
   DotsSixVerticalIcon,
@@ -109,10 +109,7 @@ export function ModelsSettings() {
     updateFavoriteModels(newIds)
   }
 
-  const getProviderIcon = (model: ModelConfig) => {
-    const provider = PROVIDERS.find((p) => p.id === model.baseProviderId)
-    return provider?.icon
-  }
+  const getProviderIconId = (model: ModelConfig) => model.icon || model.baseProviderId
 
   return (
     <div className="space-y-6">
@@ -137,7 +134,7 @@ export function ModelsSettings() {
               className="space-y-2"
             >
               {favoriteModels.map((model) => {
-                const ProviderIcon = getProviderIcon(model)
+                const providerId = getProviderIconId(model)
 
                 return (
                   <Reorder.Item key={model.id} value={model} className="group">
@@ -148,9 +145,12 @@ export function ModelsSettings() {
                       </div>
 
                       {/* Provider Icon */}
-                      {ProviderIcon && (
-                        <ProviderIcon className="size-5 shrink-0" />
-                      )}
+                      <ProviderIcon
+                        providerId={providerId}
+                        logoUrl={model.logoUrl}
+                        className="size-5 shrink-0"
+                        title={model.provider}
+                      />
 
                       {/* Model Info */}
                       <div className="min-w-0 flex-1">
@@ -162,11 +162,7 @@ export function ModelsSettings() {
                             {model.provider}
                           </div>
                         </div>
-                        {model.description && (
-                          <p className="text-muted-foreground mt-1 truncate text-xs">
-                            {model.description}
-                          </p>
-                        )}
+                        {/* API-only: omit description */}
                       </div>
 
                       {/* Remove Button */}
@@ -227,13 +223,17 @@ export function ModelsSettings() {
           {Object.entries(availableModelsByProvider).map(
             ([iconKey, modelsGroup]) => {
               const firstModel = modelsGroup[0]
-              const provider = PROVIDERS.find((p) => p.id === firstModel.icon)
 
               return (
                 <div key={iconKey} className="space-y-3">
                   <div className="flex items-center gap-2">
-                    {provider?.icon && <provider.icon className="size-5" />}
-                    <h4 className="font-medium">{provider?.name || iconKey}</h4>
+                    <ProviderIcon
+                      providerId={firstModel.icon}
+                      logoUrl={firstModel.logoUrl}
+                      className="size-5"
+                      title={firstModel.provider}
+                    />
+                    <h4 className="font-medium">{firstModel.provider || iconKey}</h4>
                     <span className="text-muted-foreground text-sm">
                       ({modelsGroup.length} models)
                     </span>
@@ -241,10 +241,6 @@ export function ModelsSettings() {
 
                   <div className="space-y-2 pl-7">
                     {modelsGroup.map((model) => {
-                      const modelProvider = PROVIDERS.find(
-                        (p) => p.id === model.provider
-                      )
-
                       return (
                         <motion.div
                           key={model.id}
@@ -259,14 +255,10 @@ export function ModelsSettings() {
                             <div className="flex items-center gap-2">
                               <span className="text-sm">{model.name}</span>
                               <span className="text-muted-foreground bg-muted rounded px-1.5 py-0.5 text-xs">
-                                via {modelProvider?.name || model.provider}
+                                via {model.provider}
                               </span>
                             </div>
-                            {model.description && (
-                              <span className="text-muted-foreground text-xs">
-                                {model.description}
-                              </span>
-                            )}
+                            {/* API-only: omit description */}
                           </div>
                           <button
                             onClick={() => toggleFavorite(model.id)}

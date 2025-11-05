@@ -1,27 +1,6 @@
 import { FREE_MODELS_IDS } from "../config"
-import { claudeModels } from "./data/claude"
-import { deepseekModels } from "./data/deepseek"
-import { geminiModels } from "./data/gemini"
-import { grokModels } from "./data/grok"
-import { mistralModels } from "./data/mistral"
-import { getOllamaModels, ollamaModels } from "./data/ollama"
-import { openaiModels } from "./data/openai"
-import { openrouterModels } from "./data/openrouter"
-import { perplexityModels } from "./data/perplexity"
 import { ModelConfig } from "./types"
-
-// Static models (always available)
-const STATIC_MODELS: ModelConfig[] = [
-  ...openaiModels,
-  ...mistralModels,
-  ...deepseekModels,
-  ...claudeModels,
-  ...grokModels,
-  ...perplexityModels,
-  ...geminiModels,
-  ...ollamaModels, // Static fallback Ollama models
-  ...openrouterModels,
-]
+import { fetchModelsDevModels } from "./remote"
 
 // Dynamic models cache
 let dynamicModelsCache: ModelConfig[] | null = null
@@ -38,21 +17,36 @@ export async function getAllModels(): Promise<ModelConfig[]> {
   }
 
   try {
-    // Get dynamically detected Ollama models (includes enabled check internally)
-    const detectedOllamaModels = await getOllamaModels()
+    // API-only: load from models.dev and use as the single source of truth
+    const remote = await fetchModelsDevModels()
+    // Prefer direct providers over aggregators when duplicates exist
+    const providerPriority: Record<string, number> = {
+      openai: 100,
+      google: 100,
+      anthropic: 100,
+      mistral: 100,
+      perplexity: 100,
+      xai: 100,
+      ollama: 90,
+      // common aggregators/resellers get lower priority
+      openrouter: 20,
+      "github-copilot": 10,
+    }
 
-    // Combine static models (excluding static Ollama models) with detected ones
-    const staticModelsWithoutOllama = STATIC_MODELS.filter(
-      (model) => model.providerId !== "ollama"
-    )
-
-    dynamicModelsCache = [...staticModelsWithoutOllama, ...detectedOllamaModels]
-
+    dynamicModelsCache = remote.sort((a, b) => {
+      const pa = providerPriority[a.providerId] ?? 50
+      const pb = providerPriority[b.providerId] ?? 50
+      if (pa !== pb) return pb - pa
+      // Stable tie-break by id then providerId
+      if (a.id !== b.id) return a.id.localeCompare(b.id)
+      return (a.providerId || "").localeCompare(b.providerId || "")
+    })
     lastFetchTime = now
     return dynamicModelsCache
   } catch (error) {
-    console.warn("Failed to load dynamic models, using static models:", error)
-    return STATIC_MODELS
+    console.warn("Failed to load remote models from API:", error)
+    // On failure, return empty to signal no models available
+    return []
   }
 }
 
@@ -82,7 +76,7 @@ export async function getModelsWithAccessFlags(): Promise<ModelConfig[]> {
 export async function getModelsForProvider(
   provider: string
 ): Promise<ModelConfig[]> {
-  const models = STATIC_MODELS
+  const models = await getAllModels()
 
   const providerModels = models
     .filter((model) => model.providerId === provider)
@@ -108,19 +102,14 @@ export async function getModelsForUserProviders(
 }
 
 // Synchronous function to get model info for simple lookups
-// This uses cached data if available, otherwise falls back to static models
 export function getModelInfo(modelId: string): ModelConfig | undefined {
   // First check the cache if it exists
   if (dynamicModelsCache) {
     return dynamicModelsCache.find((model) => model.id === modelId)
   }
-
-  // Fall back to static models for immediate lookup
-  return STATIC_MODELS.find((model) => model.id === modelId)
+  // If cache is not ready, no synchronous fallback in API-only mode
+  return undefined
 }
-
-// For backward compatibility - static models only
-export const MODELS: ModelConfig[] = STATIC_MODELS
 
 // Function to refresh the models cache
 export function refreshModelsCache(): void {

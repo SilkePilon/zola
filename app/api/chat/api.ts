@@ -6,7 +6,7 @@ import type {
   SupabaseClientType,
 } from "@/app/types/api.types"
 import { FREE_MODELS_IDS, NON_AUTH_ALLOWED_MODELS } from "@/lib/config"
-import { getProviderForModel } from "@/lib/openproviders/provider-map"
+import { getAllModels } from "@/lib/models"
 import { sanitizeUserInput } from "@/lib/sanitize"
 import { validateUserIdentity } from "@/lib/server/api"
 import { checkUsageByModel, incrementUsage } from "@/lib/usage"
@@ -30,7 +30,14 @@ export async function validateAndTrackUsage({
     }
   } else {
     // For authenticated users, check API key requirements
-    const provider = getProviderForModel(model)
+    const allModels = await getAllModels()
+    const modelConfig = allModels.find((m) => m.id === model)
+
+    if (!modelConfig) {
+      throw new Error(`Model ${model} not found`)
+    }
+
+    const provider = modelConfig.providerId
 
     if (provider !== "ollama") {
       const userApiKey = await getUserKey(

@@ -6,10 +6,11 @@ import { createClient } from "@/lib/supabase/client"
 import { isSupabaseEnabled } from "@/lib/supabase/config"
 import { CaretLeft, SealCheck, Spinner } from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "motion/react"
+import { easeOut } from "motion"
 import { useState } from "react"
 
 const TRANSITION_CONTENT = {
-  ease: "easeOut",
+  ease: easeOut,
   duration: 0.2,
 }
 
