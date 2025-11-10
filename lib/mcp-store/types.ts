@@ -11,9 +11,6 @@ export type MCPServerConfig = {
   url?: string
   headers?: Record<string, string>
   
-  // UI
-  icon?: string
-  
   // Metadata
   createdAt: string
   updatedAt: string

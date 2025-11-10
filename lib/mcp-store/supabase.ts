@@ -35,7 +35,6 @@ export async function readMCPServersFromSupabase(userId: string): Promise<MCPSer
       transportType: row.transport_type as "http" | "sse",
       url: row.url || undefined,
       headers: row.headers as Record<string, string> | undefined,
-      icon: row.icon || undefined,
       createdAt: row.created_at || new Date().toISOString(),
       updatedAt: row.updated_at || new Date().toISOString(),
     }))
@@ -61,7 +60,6 @@ export async function addMCPServerToSupabase(
       transport_type: server.transportType,
       url: server.url || null,
       headers: (server.headers as any) || null,
-      icon: server.icon || null,
     }
     
     const { data, error } = await supabase
@@ -83,7 +81,6 @@ export async function addMCPServerToSupabase(
       transportType: data.transport_type as "http" | "sse",
       url: data.url || undefined,
       headers: data.headers as Record<string, string> | undefined,
-      icon: data.icon || undefined,
       createdAt: data.created_at || new Date().toISOString(),
       updatedAt: data.updated_at || new Date().toISOString(),
     }
@@ -108,7 +105,6 @@ export async function updateMCPServerInSupabase(
     if (updates.transportType !== undefined) updateData.transport_type = updates.transportType
     if (updates.url !== undefined) updateData.url = updates.url || null
     if (updates.headers !== undefined) updateData.headers = (updates.headers as any) || null
-    if (updates.icon !== undefined) updateData.icon = updates.icon || null
 
     const { error } = await supabase
       .from("mcp_servers")
