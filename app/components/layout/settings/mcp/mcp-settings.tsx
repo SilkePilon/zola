@@ -57,9 +57,6 @@ const defaultFormData: ServerFormData = {
   enabled: true,
   transportType: "http",
   url: "",
-  command: "",
-  args: [],
-  env: {},
   headers: {},
   icon: undefined,
 }
@@ -70,8 +67,6 @@ type MCPDirectoryEntry = {
   icon: string
   transportType: MCPTransportType
   url?: string
-  command?: string
-  args?: string[]
   requiresAuth: boolean
   authPlaceholder?: string
   authHeader?: string
@@ -266,9 +261,6 @@ export function MCPSettings() {
       enabled: server.enabled,
       transportType: server.transportType,
       url: server.url,
-      command: server.command,
-      args: server.args,
-      env: server.env,
       headers: server.headers,
       icon: server.icon,
     })
@@ -299,11 +291,6 @@ export function MCPSettings() {
         enabled: true,
         transportType: selectedPreset.transportType,
         url: selectedPreset.url,
-        command: selectedPreset.command,
-        args: selectedPreset.args,
-        env: selectedPreset.authEnvKey && authValue 
-          ? { [selectedPreset.authEnvKey]: authValue }
-          : undefined,
         headers: selectedPreset.authHeader && authValue
           ? { [selectedPreset.authHeader]: authValue }
           : undefined,
@@ -858,12 +845,6 @@ function ServerForm({
   formData: ServerFormData
   setFormData: (data: ServerFormData) => void
 }) {
-  const [argsText, setArgsText] = useState(formData.args?.join(" ") || "")
-  const [envText, setEnvText] = useState(
-    Object.entries(formData.env || {})
-      .map(([k, v]) => `${k}=${v}`)
-      .join("\n")
-  )
   const [headersText, setHeadersText] = useState(
     Object.entries(formData.headers || {})
       .map(([k, v]) => `${k}: ${v}`)
@@ -875,22 +856,6 @@ function ServerForm({
     value: ServerFormData[K]
   ) => {
     setFormData({ ...formData, [field]: value })
-  }
-
-  const parseArgs = (text: string) => {
-    const args = text.trim().split(/\s+/).filter(Boolean)
-    updateField("args", args)
-  }
-
-  const parseEnv = (text: string) => {
-    const env: Record<string, string> = {}
-    text.split("\n").forEach((line) => {
-      const [key, ...valueParts] = line.split("=")
-      if (key?.trim()) {
-        env[key.trim()] = valueParts.join("=").trim()
-      }
-    })
-    updateField("env", env)
   }
 
   const parseHeaders = (text: string) => {
