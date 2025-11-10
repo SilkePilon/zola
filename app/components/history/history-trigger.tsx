@@ -38,11 +38,16 @@ export function HistoryTrigger({
   }
 
   const handleConfirmDelete = async (id: string) => {
-    if (id === chatId) {
-      setIsOpen(false)
-    }
+    const isCurrentChat = id === chatId
+    
     await deleteMessages()
-    await deleteChat(id, chatId!, () => router.push("/"))
+    await deleteChat(id, chatId!, () => {
+      if (isCurrentChat) {
+        router.push("/")
+      }
+    })
+    
+    setIsOpen(false)
   }
 
   const defaultTrigger = (

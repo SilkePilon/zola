@@ -1,4 +1,4 @@
-import { Attachment } from "@ai-sdk/ui-utils"
+import type { Attachment } from "@/lib/file-handling"
 
 export type Json =
   | string
@@ -144,6 +144,7 @@ export type Database = {
       }
       messages: {
         Row: {
+          /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
           experimental_attachments: Attachment[]
           chat_id: string
           content: string | null
@@ -156,6 +157,7 @@ export type Database = {
           model: string | null
         }
         Insert: {
+          /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
           experimental_attachments?: Attachment[]
           chat_id: string
           content: string | null
@@ -168,6 +170,7 @@ export type Database = {
           model?: string | null
         }
         Update: {
+          /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
           experimental_attachments?: Attachment[]
           chat_id?: string
           content?: string | null

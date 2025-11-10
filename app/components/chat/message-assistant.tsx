@@ -6,7 +6,7 @@ import {
 } from "@/components/prompt-kit/message"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { cn } from "@/lib/utils"
-import type { Message as MessageAISDK } from "@ai-sdk/react"
+import type { UIMessage } from "ai"
 import { ArrowClockwise, Check, Copy } from "@phosphor-icons/react"
 import { useCallback, useRef } from "react"
 import { getSources } from "./get-sources"
@@ -16,6 +16,15 @@ import { SearchImages } from "./search-images"
 import { SourcesList } from "./sources-list"
 import { ToolInvocation } from "./tool-invocation"
 import { useAssistantMessageSelection } from "./useAssistantMessageSelection"
+import Image from "next/image"
+import {
+  MorphingDialog,
+  MorphingDialogClose,
+  MorphingDialogContainer,
+  MorphingDialogContent,
+  MorphingDialogImage,
+  MorphingDialogTrigger,
+} from "@/components/motion-primitives/morphing-dialog"
 
 type MessageAssistantProps = {
   children: string
@@ -24,7 +33,7 @@ type MessageAssistantProps = {
   copied?: boolean
   copyToClipboard?: () => void
   onReload?: () => void
-  parts?: MessageAISDK["parts"]
+  parts?: UIMessage["parts"]
   status?: "streaming" | "ready" | "submitted" | "error"
   className?: string
   messageId: string
@@ -47,28 +56,72 @@ export function MessageAssistant({
   const { preferences } = useUserPreferences()
   const sources = getSources(parts)
   const toolInvocationParts = parts?.filter(
-    (part) => part.type === "tool-invocation"
-  )
-  const reasoningParts = parts?.find((part) => part.type === "reasoning")
+    (part) => typeof part.type === "string" && part.type.startsWith("tool-")
+  ) as any[] | undefined
+  // Collect reasoning parts (support multiple chunks)
+  const reasoningParts = (parts?.filter((part) => part.type === "reasoning") || []) as any[]
+  const reasoningText: string | undefined = (() => {
+    if (!reasoningParts || reasoningParts.length === 0) return undefined
+    const collectText = (p: any): string | undefined => {
+      if (typeof p?.text === "string" && p.text.length > 0) return p.text
+      if (typeof p?.reasoning === "string" && p.reasoning.length > 0)
+        return p.reasoning
+      const details = p?.details
+      if (Array.isArray(details)) {
+        const textDetails = details
+          .map((d: any) => (typeof d?.text === "string" ? d.text : undefined))
+          .filter((t: any): t is string => !!t)
+        if (textDetails.length > 0) return textDetails.join("\n")
+      }
+      return undefined
+    }
+    const texts = reasoningParts
+      .map(collectText)
+      .filter((t): t is string => typeof t === "string" && t.length > 0)
+    if (texts.length === 0) return undefined
+    // Join multiple chunks with newlines to reflect streaming accumulation
+    return texts.join("\n")
+  })()
   const contentNullOrEmpty = children === null || children === ""
   const isLastStreaming = status === "streaming" && isLast
   const searchImageResults =
     parts
-      ?.filter(
-        (part) =>
-          part.type === "tool-invocation" &&
-          part.toolInvocation?.state === "result" &&
-          part.toolInvocation?.toolName === "imageSearch" &&
-          part.toolInvocation?.result?.content?.[0]?.type === "images"
-      )
-      .flatMap((part) =>
-        part.type === "tool-invocation" &&
-        part.toolInvocation?.state === "result" &&
-        part.toolInvocation?.toolName === "imageSearch" &&
-        part.toolInvocation?.result?.content?.[0]?.type === "images"
-          ? (part.toolInvocation?.result?.content?.[0]?.results ?? [])
-          : []
-      ) ?? []
+      ?.filter((part) => {
+        if (typeof part.type !== "string") return false
+        if (!part.type.startsWith("tool-")) return false
+        const name = part.type.slice(5)
+        const state = (part as any).state
+        return name === "imageSearch" && state === "output-available"
+      })
+      .flatMap((part) => {
+        const output: any = (part as any).output
+        if (!output) return []
+        // Prefer v5 structured results
+        if (Array.isArray(output.results)) return output.results
+        // Fallback for v4-style content wrapper
+        const content0 = output?.content?.[0]
+        if (content0?.type === "images") return content0.results ?? []
+        return []
+      }) ?? []
+
+  // Assistant-generated image/file parts (e.g. inline image outputs)
+  type ImagePart = { mimeType: string; data: string }
+  const assistantImageParts: ImagePart[] = []
+  
+  for (const p of parts || []) {
+    if (
+      typeof p === 'object' && p !== null && 
+      'type' in p && (p as { type?: string }).type === "file" && 
+      'mimeType' in p && typeof (p as { mimeType?: string }).mimeType === "string" &&
+      (p as { mimeType?: string }).mimeType?.startsWith("image") &&
+      'data' in p && typeof (p as { data?: string }).data === "string"
+    ) {
+      assistantImageParts.push({
+        mimeType: (p as { mimeType: string }).mimeType,
+        data: (p as { data: string }).data
+      })
+    }
+  }
 
   const isQuoteEnabled = !preferences.multiModelEnabled
   const messageRef = useRef<HTMLDivElement>(null)
@@ -99,9 +152,39 @@ export function MessageAssistant({
         )}
         {...(isQuoteEnabled && { "data-message-id": messageId })}
       >
-        {reasoningParts && reasoningParts.reasoning && (
+        {assistantImageParts?.length > 0 && (
+          <div className="flex flex-row flex-wrap gap-2">
+            {assistantImageParts.map((attachment, index) => (
+              <MorphingDialog
+                key={`${attachment.mimeType}-${index}`}
+                transition={{ type: "spring", stiffness: 280, damping: 18, mass: 0.3 }}
+              >
+                <MorphingDialogTrigger className="z-10">
+                  <Image
+                    className="mb-1 w-40 rounded-md"
+                    src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                    alt={"Generated image"}
+                    width={160}
+                    height={120}
+                  />
+                </MorphingDialogTrigger>
+                <MorphingDialogContainer>
+                  <MorphingDialogContent className="relative rounded-lg">
+                    <MorphingDialogImage
+                      src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                      alt={""}
+                      className="max-h-[90vh] max-w-[90vw] object-contain"
+                    />
+                  </MorphingDialogContent>
+                  <MorphingDialogClose className="text-primary" />
+                </MorphingDialogContainer>
+              </MorphingDialog>
+            ))}
+          </div>
+        )}
+        {reasoningText && (
           <Reasoning
-            reasoning={reasoningParts.reasoning}
+            reasoningText={reasoningText}
             isStreaming={status === "streaming"}
           />
         )}
@@ -109,7 +192,7 @@ export function MessageAssistant({
         {toolInvocationParts &&
           toolInvocationParts.length > 0 &&
           preferences.showToolInvocations && (
-            <ToolInvocation toolInvocations={toolInvocationParts} />
+            <ToolInvocation toolInvocations={toolInvocationParts as any[]} />
           )}
 
         {searchImageResults.length > 0 && (
@@ -182,5 +265,5 @@ export function MessageAssistant({
         )}
       </div>
     </Message>
-  )
+  );
 }

@@ -11,10 +11,11 @@ import { Button } from "@/components/ui/button"
 import { getModelInfo } from "@/lib/models"
 // Icons replaced by animated primitives
 import { SendButtonIconAnimated } from "./button-send-animated"
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { PromptSystem } from "../suggestions/prompt-system"
 import { ButtonFileUpload } from "./button-file-upload"
 import { ButtonSearch } from "./button-search"
+import { ButtonContextUsage } from "./button-context-usage"
 import { FileList } from "./file-list"
 
 type ChatInputProps = {
@@ -36,6 +37,11 @@ type ChatInputProps = {
   setEnableSearch: (enabled: boolean) => void
   enableSearch: boolean
   quotedText?: { text: string; messageId: string } | null
+  usageData?: {
+    inputTokens: number
+    outputTokens: number
+    totalTokens: number
+  }
 }
 
 export function ChatInput({
@@ -56,6 +62,7 @@ export function ChatInput({
   setEnableSearch,
   enableSearch,
   quotedText,
+  usageData,
 }: ChatInputProps) {
   const selectModelConfig = getModelInfo(selectedModel)
   const hasSearchSupport = Boolean(selectModelConfig?.webSearch)
@@ -205,6 +212,14 @@ export function ChatInput({
                   isSelected={enableSearch}
                   onToggle={setEnableSearch}
                   isAuthenticated={isUserAuthenticated}
+                />
+              ) : null}
+              {usageData && usageData.totalTokens > 0 ? (
+                <ButtonContextUsage
+                  model={selectedModel}
+                  inputTokens={usageData.inputTokens}
+                  outputTokens={usageData.outputTokens}
+                  totalTokens={usageData.totalTokens}
                 />
               ) : null}
             </div>

@@ -1,11 +1,18 @@
 import { createClient } from "@/lib/supabase/client"
 import { isSupabaseEnabled } from "@/lib/supabase/config"
-import type { Message as MessageAISDK } from "ai"
+import type { UIMessage as MessageAISDK } from "ai"
 import { readFromIndexedDB, writeToIndexedDB } from "../persist"
+
+type ChatMessage = MessageAISDK & {
+  content?: string
+  createdAt?: Date
+  message_group_id?: string | null
+  model?: string | null
+}
 
 export async function getMessagesFromDb(
   chatId: string
-): Promise<MessageAISDK[]> {
+): Promise<ChatMessage[]> {
   // fallback to local cache only
   if (!isSupabaseEnabled) {
     const cached = await getCachedMessages(chatId)
@@ -18,7 +25,7 @@ export async function getMessagesFromDb(
   const { data, error } = await supabase
     .from("messages")
     .select(
-      "id, content, role, experimental_attachments, created_at, parts, message_group_id, model"
+      "id, content, role, created_at, parts, message_group_id, model"
     )
     .eq("chat_id", chatId)
     .order("created_at", { ascending: true })
@@ -29,40 +36,44 @@ export async function getMessagesFromDb(
   }
 
   return data.map((message) => ({
-    ...message,
     id: String(message.id),
-    content: message.content ?? "",
+    role: message.role as ChatMessage["role"],
+    // Keep legacy content for fallbacks in UI during migration
+    content: (message as any).content ?? "",
+    // Prefer parts (v5); ensure correct typing
+    parts: (message as any)?.parts as ChatMessage["parts"],
+    // Extra fields we persist alongside
     createdAt: new Date(message.created_at || ""),
-    parts: (message?.parts as MessageAISDK["parts"]) || undefined,
-    message_group_id: message.message_group_id,
-    model: message.model,
+    message_group_id: (message as any).message_group_id ?? null,
+    model: (message as any).model ?? null,
   }))
 }
 
-async function insertMessageToDb(chatId: string, message: MessageAISDK) {
+async function insertMessageToDb(chatId: string, message: ChatMessage) {
   const supabase = createClient()
   if (!supabase) return
 
   await supabase.from("messages").insert({
     chat_id: chatId,
     role: message.role,
-    content: message.content,
-    experimental_attachments: message.experimental_attachments,
+    // Store both legacy content and new parts during transition
+    content: (message as any).content,
+    parts: message.parts as any,
     created_at: message.createdAt?.toISOString() || new Date().toISOString(),
     message_group_id: (message as any).message_group_id || null,
     model: (message as any).model || null,
   })
 }
 
-async function insertMessagesToDb(chatId: string, messages: MessageAISDK[]) {
+async function insertMessagesToDb(chatId: string, messages: ChatMessage[]) {
   const supabase = createClient()
   if (!supabase) return
 
   const payload = messages.map((message) => ({
     chat_id: chatId,
     role: message.role,
-    content: message.content,
-    experimental_attachments: message.experimental_attachments,
+    content: (message as any).content,
+    parts: message.parts as any,
     created_at: message.createdAt?.toISOString() || new Date().toISOString(),
     message_group_id: (message as any).message_group_id || null,
     model: (message as any).model || null,
@@ -87,12 +98,12 @@ async function deleteMessagesFromDb(chatId: string) {
 
 type ChatMessageEntry = {
   id: string
-  messages: MessageAISDK[]
+  messages: ChatMessage[]
 }
 
 export async function getCachedMessages(
   chatId: string
-): Promise<MessageAISDK[]> {
+): Promise<ChatMessage[]> {
   const entry = await readFromIndexedDB<ChatMessageEntry>("messages", chatId)
 
   if (!entry || Array.isArray(entry)) return []
@@ -104,14 +115,14 @@ export async function getCachedMessages(
 
 export async function cacheMessages(
   chatId: string,
-  messages: MessageAISDK[]
+  messages: ChatMessage[]
 ): Promise<void> {
   await writeToIndexedDB("messages", { id: chatId, messages })
 }
 
 export async function addMessage(
   chatId: string,
-  message: MessageAISDK
+  message: ChatMessage
 ): Promise<void> {
   await insertMessageToDb(chatId, message)
   const current = await getCachedMessages(chatId)
@@ -122,7 +133,7 @@ export async function addMessage(
 
 export async function setMessages(
   chatId: string,
-  messages: MessageAISDK[]
+  messages: ChatMessage[]
 ): Promise<void> {
   await insertMessagesToDb(chatId, messages)
   await writeToIndexedDB("messages", { id: chatId, messages })

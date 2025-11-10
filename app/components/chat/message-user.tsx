@@ -16,7 +16,6 @@ import {
 } from "@/components/prompt-kit/message"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Message as MessageType } from "@ai-sdk/react"
 import { Check, Copy, Trash } from "@phosphor-icons/react"
 import Image from "next/image"
 import { useRef, useState } from "react"
@@ -28,7 +27,7 @@ const getTextFromDataUrl = (dataUrl: string) => {
 
 export type MessageUserProps = {
   hasScrollAnchor?: boolean
-  attachments?: MessageType["experimental_attachments"]
+  parts?: any
   children: string
   copied: boolean
   copyToClipboard: () => void
@@ -41,7 +40,7 @@ export type MessageUserProps = {
 
 export function MessageUser({
   hasScrollAnchor,
-  attachments,
+  parts,
   children,
   copied,
   copyToClipboard,
@@ -80,12 +79,12 @@ export function MessageUser({
         className
       )}
     >
-      {attachments?.map((attachment, index) => (
+      {(parts || []).filter((p: any) => p?.type === "file").map((attachment: any, index: number) => (
         <div
           className="flex flex-row gap-2"
-          key={`${attachment.name}-${index}`}
+          key={`${attachment.mimeType}-${index}`}
         >
-          {attachment.contentType?.startsWith("image") ? (
+          {attachment.mimeType?.startsWith("image") ? (
             <MorphingDialog
               transition={{
                 type: "spring",
@@ -97,9 +96,9 @@ export function MessageUser({
               <MorphingDialogTrigger className="z-10">
                 <Image
                   className="mb-1 w-40 rounded-md"
-                  key={attachment.name}
-                  src={attachment.url}
-                  alt={attachment.name || "Attachment"}
+                  key={`${attachment.mimeType}-${index}`}
+                  src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                  alt={"Attachment"}
                   width={160}
                   height={120}
                 />
@@ -107,24 +106,24 @@ export function MessageUser({
               <MorphingDialogContainer>
                 <MorphingDialogContent className="relative rounded-lg">
                   <MorphingDialogImage
-                    src={attachment.url}
-                    alt={attachment.name || ""}
+                    src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                    alt={""}
                     className="max-h-[90vh] max-w-[90vw] object-contain"
                   />
                 </MorphingDialogContent>
                 <MorphingDialogClose className="text-primary" />
               </MorphingDialogContainer>
             </MorphingDialog>
-          ) : attachment.contentType?.startsWith("text") ? (
+          ) : attachment.mimeType?.startsWith("text") ? (
             <div className="text-primary mb-3 h-24 w-40 overflow-hidden rounded-md border p-2 text-xs">
-              {getTextFromDataUrl(attachment.url)}
+              {getTextFromDataUrl(`data:${attachment.mimeType};base64,${attachment.data}`)}
             </div>
           ) : null}
         </div>
       ))}
       {isEditing ? (
         <div
-          className="bg-accent relative flex min-w-[180px] flex-col gap-2 rounded-3xl px-5 py-2.5"
+          className="bg-accent relative flex min-w-[180px] flex-col gap-2 rounded-[8px] px-5 py-2.5"
           style={{
             width: contentRef.current?.offsetWidth,
           }}
@@ -155,7 +154,7 @@ export function MessageUser({
         </div>
       ) : (
         <MessageContent
-          className="bg-accent prose dark:prose-invert relative max-w-[70%] rounded-3xl px-5 py-2.5"
+          className="bg-accent prose dark:prose-invert relative max-w-[70%] rounded-[8px] px-5 py-2.5"
           markdown={true}
           ref={contentRef}
           components={{

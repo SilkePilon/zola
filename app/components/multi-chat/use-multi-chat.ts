@@ -1,7 +1,8 @@
 // todo: fix this
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { toast } from "@/components/ui/toast"
-import { useChat } from "@ai-sdk/react"
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai"
 import { useMemo } from "react"
 
 type ModelConfig = {
@@ -16,10 +17,14 @@ type ModelChat = {
   isLoading: boolean
   append: (message: any, options?: any) => void
   stop: () => void
+  completionTime?: number
 }
 
 // Maximum number of models we support
 const MAX_MODELS = 10
+
+const completionTimes: Record<number, number> = {}
+const startTimes: Record<number, number> = {}
 
 export function useMultiChat(models: ModelConfig[]): ModelChat[] {
   // Create a fixed number of useChat hooks to avoid conditional hook calls
@@ -27,7 +32,6 @@ export function useMultiChat(models: ModelConfig[]): ModelChat[] {
     // todo: fix this
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useChat({
-      api: "/api/chat",
       onError: (error) => {
         const model = models[index]
         if (model) {
@@ -39,6 +43,12 @@ export function useMultiChat(models: ModelConfig[]): ModelChat[] {
           })
         }
       },
+      onFinish: () => {
+        if (startTimes[index]) {
+          completionTimes[index] = Date.now() - startTimes[index]
+        }
+      },
+      transport: new DefaultChatTransport({ api: "/api/chat" })
     })
   )
 
@@ -46,22 +56,26 @@ export function useMultiChat(models: ModelConfig[]): ModelChat[] {
   const activeChatInstances = useMemo(() => {
     const instances = models.slice(0, MAX_MODELS).map((model, index) => {
       const chatHook = chatHooks[index]
+      const isLoading = chatHook.status === 'streaming'
 
       return {
         model,
         messages: chatHook.messages,
-        isLoading: chatHook.isLoading,
+        isLoading,
         append: (message: any, options?: any) => {
-          return chatHook.append(message, options)
+          startTimes[index] = Date.now()
+          completionTimes[index] = 0
+          return chatHook.sendMessage(message, options as any)
         },
         stop: chatHook.stop,
+        completionTime: isLoading ? undefined : completionTimes[index],
       }
     })
 
     return instances
     // todo: fix this
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [models, ...chatHooks.flatMap((chat) => [chat.messages, chat.isLoading])])
+  }, [models, ...chatHooks.flatMap((chat) => [chat.messages, chat.status])])
 
   return activeChatInstances
 }

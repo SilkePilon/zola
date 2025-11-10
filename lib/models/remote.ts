@@ -20,6 +20,7 @@ type RemoteModel = {
   id: string
   name: string
   attachment?: boolean
+  reasoningText?: boolean
   reasoning?: boolean
   temperature?: boolean
   tool_call?: boolean
@@ -47,7 +48,7 @@ export async function fetchModelsDevModels(): Promise<ModelConfig[]> {
   if (cache && now - cache.ts < TTL_MS) return cache.data
 
   try {
-    const res = await fetch(MODELS_DEV_URL, { next: { revalidate: 300 } as any })
+    const res = await fetch(MODELS_DEV_URL, { next: { revalidate: 300 } })
     if (!res.ok) throw new Error(`models.dev fetch failed: ${res.status}`)
     const json = (await res.json()) as Record<string, RemoteProvider>
 
@@ -84,7 +85,9 @@ export async function fetchModelsDevModels(): Promise<ModelConfig[]> {
           tools: Boolean(m.tool_call),
           audio,
           video,
-          reasoning: Boolean(m.reasoning),
+          // Support both legacy and newer reasoning flags
+          reasoningText: Boolean(m.reasoningText),
+          reasoning: Boolean(m.reasoning ?? m.reasoningText),
           openSource: Boolean(m.open_weights),
           icon: provider.id,
           logoUrl,
@@ -93,74 +96,85 @@ export async function fetchModelsDevModels(): Promise<ModelConfig[]> {
             switch (provider.id) {
               case "openai": {
                 const instance = createOpenAI({
-                  apiKey: apiKey || process.env.OPENAI_API_KEY,
-                  compatibility: "strict",
+                  apiKey: apiKey || process.env.OPENAI_API_KEY
                 })
-                return instance(m.id as any)
+                return instance(m.id)
               }
 
               case "mistral": {
                 const instance = createMistral({
                   apiKey: apiKey || process.env.MISTRAL_API_KEY,
                 })
-                return instance(m.id as any)
+                return instance(m.id)
               }
 
               case "google": {
                 const instance = createGoogleGenerativeAI({
                   apiKey: apiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
                 })
-                return instance(m.id as any)
+                return instance(m.id)
               }
 
               case "perplexity": {
                 const instance = createPerplexity({
                   apiKey: apiKey || process.env.PERPLEXITY_API_KEY,
                 })
-                return instance(m.id as any)
+                return instance(m.id)
               }
 
               case "anthropic": {
                 const instance = createAnthropic({
                   apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
                 })
-                return instance(m.id as any)
+                return instance(m.id)
               }
 
               case "xai": {
                 const instance = createXai({
                   apiKey: apiKey || process.env.XAI_API_KEY,
                 })
-                return instance(m.id as any)
+                return instance(m.id)
+              }
+
+              case "deepseek": {
+                // DeepSeek is OpenAI-compatible via chat/completions
+                const instance = createOpenAI({
+                  apiKey: apiKey || process.env.DEEPSEEK_API_KEY,
+                  baseURL: "https://api.deepseek.com/v1",
+                  name: "deepseek",
+                })
+                return instance.chat(m.id)
               }
 
               case "openrouter": {
                 const instance = createOpenAI({
                   apiKey: apiKey || process.env.OPENROUTER_API_KEY,
                   baseURL: "https://openrouter.ai/api/v1",
-                  compatibility: "strict",
                 })
-                return instance(m.id as any)
+                // Use Chat Completions for OpenAI-compatible routers
+                return instance.chat(m.id)
               }
             }
 
             // Generic OpenAI-compatible mapping if provider.api is given
             if (provider.npm === "@ai-sdk/openai-compatible" && provider.api) {
+              const base = provider.api.replace(/\/+$/, "")
+              const baseURL = base.includes("/v1") ? base : `${base}/v1`
               const instance = createOpenAI({
                 apiKey: apiKey || process.env.OPENAI_API_KEY,
-                baseURL: provider.api,
-                compatibility: "strict",
+                baseURL,
               })
-              return instance(m.id as any)
+              return instance.chat(m.id)
             }
 
             if (provider.api) {
+              const base = provider.api.replace(/\/+$/, "")
+              const baseURL = base.includes("/v1") ? base : `${base}/v1`
               const instance = createOpenAI({
                 apiKey: apiKey || process.env.OPENAI_API_KEY,
-                baseURL: provider.api,
-                compatibility: "strict",
+                baseURL,
               })
-              return instance(m.id as any)
+              return instance.chat(m.id)
             }
 
             // No mapping available

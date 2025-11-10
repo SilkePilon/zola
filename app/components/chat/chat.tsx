@@ -112,6 +112,7 @@ export function Chat() {
     isSubmitting,
     enableSearch,
     setEnableSearch,
+    usageData,
     submit,
     handleSuggestion,
     handleReload,
@@ -175,6 +176,7 @@ export function Chat() {
       setEnableSearch,
       enableSearch,
       quotedText,
+      usageData,
     }),
     [
       input,
@@ -196,6 +198,7 @@ export function Chat() {
       setEnableSearch,
       enableSearch,
       quotedText,
+      usageData,
     ]
   )
 

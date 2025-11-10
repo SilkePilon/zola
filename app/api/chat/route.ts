@@ -1,8 +1,9 @@
 import { SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { getAllModels } from "@/lib/models"
 import type { ProviderWithoutOllama } from "@/lib/user-keys"
-import { Attachment } from "@ai-sdk/ui-utils"
-import { Message as MessageAISDK, streamText, ToolSet } from "ai"
+import { getUserKey } from "@/lib/user-keys"
+import { streamText, ToolSet, stepCountIs, convertToModelMessages, type UIMessage } from "ai";
+import { buildMcpTools } from "@/lib/mcp/tools"
 import {
   incrementMessageCount,
   logUserMessage,
@@ -14,7 +15,7 @@ import { createErrorResponse, extractErrorMessage } from "./utils"
 export const maxDuration = 60
 
 type ChatRequest = {
-  messages: MessageAISDK[]
+  messages: UIMessage[]
   chatId: string
   userId: string
   model: string
@@ -55,19 +56,18 @@ export async function POST(req: Request) {
       await incrementMessageCount({ supabase, userId })
     }
 
-    const userMessage = messages[messages.length - 1]
+    const userMessage = messages[messages.length - 1] as any
 
     if (supabase && userMessage?.role === "user") {
       await logUserMessage({
         supabase,
         userId,
         chatId,
-        content: userMessage.content,
-        attachments: userMessage.experimental_attachments as Attachment[],
+        parts: (userMessage.parts || []) as any,
         model,
         isAuthenticated,
         message_group_id,
-      })
+      });
     }
 
     const allModels = await getAllModels()
@@ -91,7 +91,13 @@ export async function POST(req: Request) {
           apiKey = undefined
           break
         }
-        const key = await getEffectiveApiKey(userId, c.providerId as ProviderWithoutOllama)
+        let key = await getEffectiveApiKey(userId, c.providerId as ProviderWithoutOllama)
+        // Fallback to user-specific key lookup for unknown providers (e.g., deepseek, deepinfra)
+        if (!key) {
+          try {
+            key = await getUserKey(userId, c.providerId as any)
+          } catch {}
+        }
         if (key) {
           selected = c
           apiKey = key || undefined
@@ -110,18 +116,24 @@ export async function POST(req: Request) {
       throw new Error(`Selected model ${model} is not invokable`)
     }
 
+    const modelMessages = convertToModelMessages(messages as any)
+
+    // Optionally load MCP tools based on env configuration
+    const { tools: mcpTools, close: closeMcp } = await buildMcpTools()
+
     const result = streamText({
       model: makeModel(apiKey, { enableSearch }),
       system: effectiveSystemPrompt,
-      messages: messages,
-      tools: {} as ToolSet,
-      maxSteps: 10,
+      messages: modelMessages,
+      tools: mcpTools as ToolSet,
+      stopWhen: stepCountIs(10),
+
       onError: (err: unknown) => {
         console.error("Streaming error occurred:", err)
         // Don't set streamError anymore - let the AI SDK handle it through the stream
       },
 
-      onFinish: async ({ response }) => {
+      onFinish: async ({ response, usage }) => {
         if (supabase) {
           await storeAssistantMessage({
             supabase,
@@ -132,17 +144,32 @@ export async function POST(req: Request) {
             model,
           })
         }
-      },
+        // Log usage for debugging (v5 uses different property names)
+        if (usage) {
+          console.log("Token usage:", {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            totalTokens: usage.totalTokens,
+          })
+        }
+        try { closeMcp?.() } catch {}
+      }
     })
 
-    return result.toDataStreamResponse({
+    return result.toUIMessageStreamResponse({
       sendReasoning: true,
       sendSources: true,
-      getErrorMessage: (error: unknown) => {
+      messageMetadata: ({ part }) => {
+        // Send total usage when generation is finished
+        if (part.type === "finish") {
+          return { totalUsage: part.totalUsage }
+        }
+      },
+      onError: (error: unknown) => {
         console.error("Error forwarded to client:", error)
         return extractErrorMessage(error)
       },
-    })
+    });
   } catch (err: unknown) {
     console.error("Error in /api/chat:", err)
     const error = err as {
