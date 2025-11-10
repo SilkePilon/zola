@@ -15,9 +15,6 @@ export async function saveFinalAssistantMessage(
   const toolMap = new Map<string, ContentPart>()
   const textParts: string[] = []
 
-  // Debug: Log messages to understand structure
-  console.log('saveFinalAssistantMessage - messages:', JSON.stringify(messages, null, 2))
-
   for (const msg of messages) {
     if (msg.role === "assistant" && Array.isArray(msg.content)) {
       for (const part of msg.content) {

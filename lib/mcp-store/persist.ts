@@ -56,5 +56,7 @@ export async function deleteMCPServer(id: string): Promise<void> {
 }
 
 export async function clearAllMCPServers(): Promise<void> {
+  if (typeof window === "undefined") return
+  
   await del(MCP_STORE_KEY)
 }

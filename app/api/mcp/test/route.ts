@@ -1,5 +1,4 @@
 import { experimental_createMCPClient } from '@ai-sdk/mcp'
-import { Experimental_StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio'
 import type { MCPServerConfig } from '@/lib/mcp-store/types'
 import { NextResponse } from 'next/server'
 
@@ -17,17 +16,7 @@ async function createMCPClientFromConfig(
 
   switch (config.transportType) {
     case 'stdio': {
-      if (!config.command) {
-        throw new Error('STDIO transport requires a command')
-      }
-
-      const transport = new Experimental_StdioMCPTransport({
-        command: config.command,
-        args: config.args || [],
-        env: config.env || undefined,
-      })
-
-      return await experimental_createMCPClient({ transport })
+      throw new Error('STDIO transports cannot be tested through this endpoint')
     }
 
     case 'http': {
@@ -77,10 +66,10 @@ export async function POST(req: Request) {
       )
     }
 
-    if (config.transportType === 'stdio' && !config.command) {
+    if (config.transportType === 'stdio') {
       return NextResponse.json(
-        { success: false, error: 'Command is required for STDIO transport' },
-        { status: 400 }
+        { success: false, error: 'STDIO transports cannot be tested through this endpoint' },
+        { status: 403 }
       )
     }
 

@@ -19,10 +19,7 @@ type MCPServerConfig = {
   name: string
   description?: string
   enabled: boolean
-  transportType: "stdio" | "http" | "sse"
-  command?: string
-  args?: string[]
-  env?: Record<string, string>
+  transportType: "http" | "sse"
   url?: string
   headers?: Record<string, string>
 }
@@ -144,7 +141,20 @@ export async function POST(req: Request) {
     const enabledMcpServers = mcpServers?.filter(s => s.enabled) || []
     const { tools: mcpTools, close: closeMcp } = await buildMcpTools(enabledMcpServers)
 
-    const result = streamText({
+    // Ensure closeMcp is invoked exactly once
+    let mcpClosed = false
+    const safeCloseMcp = async () => {
+      if (mcpClosed || !closeMcp) return
+      mcpClosed = true
+      try {
+        await closeMcp()
+      } catch (closeError) {
+        console.error("Error closing MCP transports:", closeError)
+      }
+    }
+
+    try {
+      const result = streamText({
       model: makeModel(apiKey, { enableSearch }),
       system: effectiveSystemPrompt,
       messages: modelMessages,
@@ -175,7 +185,12 @@ export async function POST(req: Request) {
             model,
           })
         }
-        try { closeMcp?.() } catch {}
+        await safeCloseMcp()
+      },
+
+      onError: async (error: unknown) => {
+        await safeCloseMcp()
+        throw error
       }
     })
 
@@ -187,8 +202,16 @@ export async function POST(req: Request) {
           return { totalUsage: part.totalUsage }
         }
       },
-      onError: (error: unknown) => extractErrorMessage(error),
+      onError: async (error: unknown) => {
+        await safeCloseMcp()
+        return extractErrorMessage(error)
+      },
     });
+    } catch (streamError) {
+      // Ensure MCP is closed on early failure (e.g., during streamText setup)
+      await safeCloseMcp()
+      throw streamError
+    }
   } catch (err: unknown) {
     console.error("Error in /api/chat:", err)
     const error = err as {

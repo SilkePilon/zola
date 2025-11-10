@@ -1,4 +1,5 @@
 import type { NextConfig } from "next"
+import type { Configuration } from "webpack"
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -25,7 +26,7 @@ const nextConfig: NextConfig = {
   ...(process.env.ANALYZE === "true" &&
   process.env.NODE_ENV !== "development"
     ? {
-        webpack: (config: any) => {
+        webpack: (config: Configuration) => {
           const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer")
           config.plugins.push(
             new BundleAnalyzerPlugin({

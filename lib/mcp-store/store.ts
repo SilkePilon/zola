@@ -113,7 +113,12 @@ export const useMCPStore = create<MCPStore>((set, get) => ({
 
     try {
       if (userId) {
-        await updateMCPServerInSupabase(id, updates)
+        const success = await updateMCPServerInSupabase(id, updates)
+        if (!success) {
+          // Rollback on failure
+          set({ servers: prevServers })
+          throw new Error("Failed to update MCP server in database")
+        }
       } else {
         await updateServerInDb(id, updates)
       }
@@ -126,6 +131,7 @@ export const useMCPStore = create<MCPStore>((set, get) => ({
 
   deleteServer: async (id) => {
     const prevServers = get().servers
+    const prevStatuses = get().statuses
     const { userId } = get()
     
     set((state) => ({
@@ -137,13 +143,18 @@ export const useMCPStore = create<MCPStore>((set, get) => ({
 
     try {
       if (userId) {
-        await deleteMCPServerFromSupabase(id)
+        const success = await deleteMCPServerFromSupabase(id)
+        if (!success) {
+          // Rollback on failure
+          set({ servers: prevServers, statuses: prevStatuses })
+          throw new Error("Failed to delete MCP server from database")
+        }
       } else {
         await deleteServerFromDb(id)
       }
     } catch (error) {
       // Rollback on error
-      set({ servers: prevServers })
+      set({ servers: prevServers, statuses: prevStatuses })
       throw error
     }
   },

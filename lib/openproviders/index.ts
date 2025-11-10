@@ -29,7 +29,10 @@ const getOllamaBaseURL = () => {
   }
 
   // Server-side: check environment variables
-  return (process.env.OLLAMA_BASE_URL?.replace(/\/+$/, "") + "/v1" || "http://localhost:11434/v1");
+  const baseUrl = process.env.OLLAMA_BASE_URL 
+    ? process.env.OLLAMA_BASE_URL.replace(/\/+$/, "")
+    : "http://localhost:11434"
+  return baseUrl + "/v1"
 }
 
 // Create Ollama provider instance with configurable baseURL

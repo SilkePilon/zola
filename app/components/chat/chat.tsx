@@ -141,7 +141,8 @@ export function Chat() {
           input,
           selectedModel,
           isAuthenticated,
-          systemPrompt
+          systemPrompt,
+          undefined
         )
 
         if (!newChat) return null

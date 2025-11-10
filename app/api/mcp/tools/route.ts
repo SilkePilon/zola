@@ -1,5 +1,4 @@
 import { experimental_createMCPClient } from '@ai-sdk/mcp'
-import { Experimental_StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio'
 import type { MCPServerConfig } from '@/lib/mcp-store/types'
 import { NextResponse } from 'next/server'
 
@@ -12,20 +11,6 @@ async function createMCPClientFromConfig(
   config: MCPServerConfig
 ): Promise<MCPClient> {
   switch (config.transportType) {
-    case 'stdio': {
-      if (!config.command) {
-        throw new Error('STDIO transport requires a command')
-      }
-
-      const transport = new Experimental_StdioMCPTransport({
-        command: config.command,
-        args: config.args || [],
-        env: config.env || undefined,
-      })
-
-      return await experimental_createMCPClient({ transport })
-    }
-
     case 'http': {
       if (!config.url) {
         throw new Error('HTTP transport requires a URL')

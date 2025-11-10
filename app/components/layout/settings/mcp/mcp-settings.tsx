@@ -97,11 +97,6 @@ export function MCPSettings() {
       return
     }
 
-    if (formData.transportType === "stdio" && !formData.command) {
-      toast({ title: "Command is required for STDIO transport", status: "error" })
-      return
-    }
-
     if ((formData.transportType === "http" || formData.transportType === "sse") && !formData.url) {
       toast({ title: "URL is required for HTTP/SSE transport", status: "error" })
       return
@@ -275,6 +270,7 @@ export function MCPSettings() {
       args: server.args,
       env: server.env,
       headers: server.headers,
+      icon: server.icon,
     })
     setIsEditDialogOpen(true)
   }
@@ -404,7 +400,7 @@ export function MCPSettings() {
                         {preset.description}
                       </p>
                       <div className="flex items-center gap-2 mt-2">
-                        <Badge variant={preset.transportType === "stdio" ? "default" : "secondary"} className="text-xs">
+                        <Badge variant="secondary" className="text-xs">
                           {preset.transportType.toUpperCase()}
                         </Badge>
                         {preset.requiresAuth && (
@@ -701,7 +697,7 @@ function ServerCard({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h4 className="truncate font-medium">{server.name}</h4>
-              <Badge variant={server.transportType === "stdio" ? "default" : "secondary"} className="shrink-0">
+              <Badge variant="secondary" className="shrink-0">
                 {server.transportType.toUpperCase()}
               </Badge>
               {status && (
@@ -729,11 +725,6 @@ function ServerCard({
             )}
 
             <div className="text-muted-foreground mt-2 space-y-1 text-xs">
-              {server.transportType === "stdio" && server.command && (
-                <div className="font-mono">
-                  <span className="opacity-70">Command:</span> {server.command} {server.args?.join(" ")}
-                </div>
-              )}
               {(server.transportType === "http" || server.transportType === "sse") && server.url && (
                 <div className="flex items-center gap-1">
                   <ExternalLink className="size-3" />

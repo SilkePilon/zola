@@ -20,59 +20,6 @@ export async function getAllModels(): Promise<ModelConfig[]> {
     // API-only: load from models.dev and use as the single source of truth
     const remote = await fetchModelsDevModels()
     
-    // Enhance models with web search capability info (models.dev doesn't provide this)
-    const enhanced = remote.map(model => {
-      let webSearch = model.webSearch // Keep existing if set
-      
-      // OpenAI models: GPT-4o series and O-series support web search
-      if (model.providerId === 'openai') {
-        if (model.id.includes('gpt-4o') || model.id.includes('chatgpt-4o') || model.id.match(/^o[134](-|$)/)) {
-          webSearch = true
-        }
-      }
-      
-      // Google/Gemini models: Gemini 1.5+ and 2.x support web search
-      if (model.providerId === 'google') {
-        if (model.id.startsWith('gemini-1.5') || model.id.startsWith('gemini-2')) {
-          webSearch = true
-        }
-      }
-      
-      // Perplexity Sonar models have built-in web search
-      if (model.providerId === 'perplexity' || model.id.includes('sonar')) {
-        webSearch = true
-      }
-      
-      // OpenRouter models that support web search (via plugins)
-      if (model.providerId === 'openrouter') {
-        // GPT models on OpenRouter
-        if (model.id.includes('gpt-4') || model.id.includes('o3-') || model.id.includes('o4-')) {
-          webSearch = true
-        }
-        // Gemini models on OpenRouter
-        if (model.id.includes('gemini-2') || model.id.includes('gemini-1.5')) {
-          webSearch = true
-        }
-        // Claude models on OpenRouter
-        if (model.id.includes('claude')) {
-          webSearch = true
-        }
-        // Perplexity models on OpenRouter
-        if (model.id.includes('sonar') || model.id.includes('perplexity')) {
-          webSearch = true
-        }
-        // Grok models on OpenRouter
-        if (model.id.includes('grok')) {
-          webSearch = true
-        }
-      }
-      
-      return {
-        ...model,
-        webSearch,
-      }
-    })
-    
     // Prefer direct providers over aggregators when duplicates exist
     const providerPriority: Record<string, number> = {
       openai: 100,
@@ -87,7 +34,7 @@ export async function getAllModels(): Promise<ModelConfig[]> {
       "github-copilot": 10,
     }
 
-    dynamicModelsCache = enhanced.sort((a, b) => {
+    dynamicModelsCache = remote.sort((a, b) => {
       const pa = providerPriority[a.providerId] ?? 50
       const pb = providerPriority[b.providerId] ?? 50
       if (pa !== pb) return pb - pa

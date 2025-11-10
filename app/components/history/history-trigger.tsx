@@ -2,7 +2,7 @@
 
 import { useBreakpoint } from "@/app/hooks/use-breakpoint"
 import { useChats } from "@/lib/chat-store/chats/provider"
-import { useMessages } from "@/lib/chat-store/messages/provider"
+import { clearMessagesForChat } from "@/lib/chat-store/messages/api"
 import { useChatSession } from "@/lib/chat-store/session/provider"
 import { cn } from "@/lib/utils"
 import { ListMagnifyingGlass } from "@phosphor-icons/react"
@@ -29,7 +29,6 @@ export function HistoryTrigger({
   const isMobile = useBreakpoint(768)
   const router = useRouter()
   const { chats, updateTitle, deleteChat } = useChats()
-  const { deleteMessages } = useMessages()
   const [isOpen, setIsOpen] = useState(false)
   const { chatId } = useChatSession()
 
@@ -40,14 +39,23 @@ export function HistoryTrigger({
   const handleConfirmDelete = async (id: string) => {
     const isCurrentChat = id === chatId
     
-    await deleteMessages()
-    await deleteChat(id, chatId!, () => {
-      if (isCurrentChat) {
-        router.push("/")
-      }
-    })
-    
-    setIsOpen(false)
+    try {
+      // Delete messages for the specific chat being deleted
+      await clearMessagesForChat(id)
+      
+      // Delete the chat with redirect if it's the current chat
+      await deleteChat(id, chatId, isCurrentChat ? () => router.push("/") : undefined)
+    } catch (error) {
+      console.error("Error deleting chat:", error)
+      const { toast } = await import("@/components/ui/toast")
+      toast({
+        title: "Failed to delete chat",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        status: "error",
+      })
+    } finally {
+      setIsOpen(false)
+    }
   }
 
   const defaultTrigger = (

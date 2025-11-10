@@ -16,15 +16,34 @@ export async function testMCPConnection(
     })
 
     if (!response.ok) {
-      const error = await response.json()
+      let errorMessage = 'Failed to test connection'
+      try {
+        const error = await response.json()
+        errorMessage = error.error || errorMessage
+      } catch {
+        // If JSON parsing fails, try to get text or use status
+        try {
+          const text = await response.text()
+          errorMessage = text || `${response.status} ${response.statusText}`
+        } catch {
+          errorMessage = `${response.status} ${response.statusText}`
+        }
+      }
       return {
         success: false,
-        error: error.error || 'Failed to test connection',
+        error: errorMessage,
       }
     }
 
-    const result = await response.json()
-    return result
+    try {
+      const result = await response.json()
+      return result
+    } catch {
+      return {
+        success: false,
+        error: 'Invalid JSON response from server',
+      }
+    }
   } catch (error) {
     return {
       success: false,

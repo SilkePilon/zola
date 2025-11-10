@@ -6,10 +6,7 @@ export type MCPServerConfig = {
   name: string
   description?: string
   enabled: boolean
-  transportType: "stdio" | "http" | "sse"
-  command?: string
-  args?: string[]
-  env?: Record<string, string>
+  transportType: "http" | "sse"
   url?: string
   headers?: Record<string, string>
 }
@@ -33,10 +30,9 @@ export async function buildMcpTools(mcpServers?: MCPServerConfig[]): Promise<Mcp
   
   // Fallback to env-based configuration for backward compatibility
   const mcpUrl = process.env.MCP_URL
-  const mcpCmd = process.env.MCP_LOCAL_CMD
 
   // No MCP configured
-  if (!mcpUrl && !mcpCmd) {
+  if (!mcpUrl) {
     return { tools: {} }
   }
 
@@ -73,17 +69,6 @@ export async function buildMcpTools(mcpServers?: MCPServerConfig[]): Promise<Mcp
       await client.connect(transport)
       close = () => transport.close()
     }
-  } else if (mcpCmd) {
-    const args: string[] = safeParseJson(process.env.MCP_LOCAL_ARGS, ["stdio"]) || ["stdio"]
-    const env = safeParseJson<Record<string, string>>(process.env.MCP_LOCAL_ENV, {}) || {}
-
-    const { StdioClientTransport } = await import(
-      "@modelcontextprotocol/sdk/client/stdio.js"
-    ) as any
-    client = new Client({ name: "zola-app", version: "1.0.0" })
-    const transport = new StdioClientTransport({ command: mcpCmd, args, env })
-    await client.connect(transport)
-    close = () => transport.close()
   }
 
   // If client failed (shouldn't happen), return empty tools
@@ -347,18 +332,7 @@ async function buildMcpToolsFromConfigs(configs: MCPServerConfig[]): Promise<Mcp
         const client = new Client({ name: "zola-app", version: "1.0.0" })
         let close: (() => void) | undefined
 
-        if (config.transportType === "stdio" && config.command) {
-          const { StdioClientTransport } = await import(
-            "@modelcontextprotocol/sdk/client/stdio.js"
-          ) as any
-          const transport = new StdioClientTransport({
-            command: config.command,
-            args: config.args || [],
-            env: config.env || {},
-          })
-          await client.connect(transport)
-          close = () => transport.close()
-        } else if (config.transportType === "http" && config.url) {
+        if (config.transportType === "http" && config.url) {
           const { StreamableHTTPClientTransport } = await import(
             "@modelcontextprotocol/sdk/client/streamableHttp.js"
           ) as any

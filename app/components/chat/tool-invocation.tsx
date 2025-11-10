@@ -183,13 +183,16 @@ function SingleToolView({
   return (
     <div className={className}>
       <div className="space-y-4">
-        {toolsToDisplay.map((tool) => (
-          <SingleToolCard
-            key={(tool.toolCallId || tool.type) as string}
-            toolData={tool}
-            defaultOpen={defaultOpen}
-          />
-        ))}
+        {toolsToDisplay.map((tool, index) => {
+          const stableKey = tool.toolCallId || `${tool.type}-${index}`
+          return (
+            <SingleToolCard
+              key={stableKey}
+              toolData={tool}
+              defaultOpen={defaultOpen}
+            />
+          )
+        })}
       </div>
     </div>
   )
