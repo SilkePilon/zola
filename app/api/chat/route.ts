@@ -4,6 +4,7 @@ import type { ProviderWithoutOllama } from "@/lib/user-keys"
 import { getUserKey } from "@/lib/user-keys"
 import { streamText, ToolSet, stepCountIs, convertToModelMessages, type UIMessage } from "ai";
 import { buildMcpTools, type MCPServerConfig } from "@/lib/mcp/tools"
+import type { Message } from "@/app/types/api.types"
 import {
   incrementMessageCount,
   logUserMessage,
@@ -152,30 +153,33 @@ export async function POST(req: Request) {
       stopWhen: stepCountIs(10),
 
       onFinish: async ({ response, steps }) => {
-        if (supabase) {
-          const allMessages: import("@/app/types/api.types").Message[] = []
-          
-          if (steps?.length) {
-            for (const step of steps) {
-              if (step.response?.messages) {
-                allMessages.push(...(step.response.messages as any[]))
+        try {
+          if (supabase) {
+            const allMessages: Message[] = []
+            
+            if (steps?.length) {
+              for (const step of steps) {
+                if (step.response?.messages) {
+                  allMessages.push(...(step.response.messages as any[]))
+                }
               }
             }
+            
+            if (response.messages?.length) {
+              allMessages.push(...(response.messages as any[]))
+            }
+            
+            await storeAssistantMessage({
+              supabase,
+              chatId,
+              messages: allMessages,
+              message_group_id,
+              model,
+            })
           }
-          
-          if (response.messages?.length) {
-            allMessages.push(...(response.messages as any[]))
-          }
-          
-          await storeAssistantMessage({
-            supabase,
-            chatId,
-            messages: allMessages,
-            message_group_id,
-            model,
-          })
+        } finally {
+          await safeCloseMcp()
         }
-        await safeCloseMcp()
       },
 
       onError: async (error: unknown) => {
