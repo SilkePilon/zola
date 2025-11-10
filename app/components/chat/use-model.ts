@@ -2,7 +2,7 @@ import { toast } from "@/components/ui/toast"
 import { Chats } from "@/lib/chat-store/types"
 import { MODEL_DEFAULT } from "@/lib/config"
 import type { UserProfile } from "@/lib/user/types"
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 interface UseModelProps {
   currentChat: Chats | null
@@ -40,6 +40,13 @@ export function useModel({
   // The actual selected model: local override or computed effective model
   const selectedModel = localSelectedModel || getEffectiveModel()
 
+  // Clear local override when chat model has been updated to match
+  useEffect(() => {
+    if (localSelectedModel && currentChat?.model === localSelectedModel) {
+      setLocalSelectedModel(null)
+    }
+  }, [localSelectedModel, currentChat?.model])
+
   // Function to handle model changes with proper validation and error handling
   const handleModelChange = useCallback(
     async (newModel: string) => {
@@ -58,8 +65,8 @@ export function useModel({
 
         try {
           await updateChatModel(chatId, newModel)
-          // Clear local override since it's now persisted in the chat
-          setLocalSelectedModel(null)
+          // Don't clear local override - keep it until chat model actually updates
+          // This prevents flickering back to the old model
         } catch (err) {
           // Revert on error
           setLocalSelectedModel(null)

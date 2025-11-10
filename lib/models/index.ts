@@ -19,6 +19,7 @@ export async function getAllModels(): Promise<ModelConfig[]> {
   try {
     // API-only: load from models.dev and use as the single source of truth
     const remote = await fetchModelsDevModels()
+    
     // Prefer direct providers over aggregators when duplicates exist
     const providerPriority: Record<string, number> = {
       openai: 100,

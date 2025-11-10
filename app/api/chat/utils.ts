@@ -1,4 +1,4 @@
-import { Message as MessageAISDK } from "ai"
+// Utility helpers for API chat handling
 
 /**
  * Clean messages when switching between agents with different tool capabilities.
@@ -6,16 +6,16 @@ import { Message as MessageAISDK } from "ai"
  * to prevent OpenAI API errors.
  */
 export function cleanMessagesForTools(
-  messages: MessageAISDK[],
+  messages: any[],
   hasTools: boolean
-): MessageAISDK[] {
+): any[] {
   if (hasTools) {
     return messages
   }
 
   // If no tools available, clean all tool-related content
   const cleanedMessages = messages
-    .map((message) => {
+    .map((message: any) => {
       // Skip tool messages entirely when no tools are available
       // Note: Using type assertion since AI SDK types might not include 'tool' role
       if ((message as { role: string }).role === "tool") {
@@ -23,7 +23,7 @@ export function cleanMessagesForTools(
       }
 
       if (message.role === "assistant") {
-        const cleanedMessage: MessageAISDK = { ...message }
+        const cleanedMessage: any = { ...message }
 
         if (message.toolInvocations && message.toolInvocations.length > 0) {
           delete cleanedMessage.toolInvocations
@@ -106,7 +106,7 @@ export function cleanMessagesForTools(
 
       return message
     })
-    .filter((message): message is MessageAISDK => message !== null)
+    .filter((message): message is any => message !== null)
 
   return cleanedMessages
 }
@@ -114,7 +114,7 @@ export function cleanMessagesForTools(
 /**
  * Check if a message contains tool-related content
  */
-export function messageHasToolContent(message: MessageAISDK): boolean {
+export function messageHasToolContent(message: any): boolean {
   return !!(
     message.toolInvocations?.length ||
     (message as { role: string }).role === "tool" ||

@@ -20,6 +20,11 @@ export function SearchImages({ results }: { results: ImageResult[] }) {
   return (
     <div className="my-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
       {results.map((img, i) => {
+        // Guard against empty or invalid image URLs to avoid Next/Image
+        // complaining about empty src values
+        if (!img?.imageUrl || img.imageUrl.trim() === "") {
+          return null
+        }
         const favicon = getFavicon(img.sourceUrl)
         return hiddenIndexes.has(i) ? null : (
           <a
@@ -35,6 +40,8 @@ export function SearchImages({ results }: { results: ImageResult[] }) {
               onError={() => handleError(i)}
               onLoad={(e) => e.currentTarget.classList.remove("opacity-0")}
               className="h-full max-h-48 min-h-40 w-full object-cover opacity-0 transition-opacity duration-150 ease-out"
+              width={600}
+              height={400}
             />
             <div className="bg-primary absolute right-0 bottom-0 left-0 flex flex-col gap-0.5 px-2.5 py-1.5 opacity-0 transition-opacity duration-100 ease-out group-hover/image:opacity-100">
               <div className="flex items-center gap-1">

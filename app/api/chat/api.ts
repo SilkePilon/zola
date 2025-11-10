@@ -8,6 +8,7 @@ import type {
 import { FREE_MODELS_IDS, NON_AUTH_ALLOWED_MODELS } from "@/lib/config"
 import { getAllModels } from "@/lib/models"
 import { sanitizeUserInput } from "@/lib/sanitize"
+import type { Json } from "@/app/types/database.types"
 import { validateUserIdentity } from "@/lib/server/api"
 import { checkUsageByModel, incrementUsage } from "@/lib/usage"
 import { getUserKey, type ProviderWithoutOllama } from "@/lib/user-keys"
@@ -81,22 +82,28 @@ export async function logUserMessage({
   supabase,
   userId,
   chatId,
-  content,
-  attachments,
+  parts,
   model,
   isAuthenticated,
   message_group_id,
 }: LogUserMessageParams): Promise<void> {
   if (!supabase) return
 
+  // Derive legacy content for fallback display by concatenating text parts
+  const text = Array.isArray(parts)
+    ? parts
+        .filter((p: any) => p?.type === "text" && typeof (p as any).text === "string")
+        .map((p: any) => (p as any).text as string)
+        .join("\n\n")
+    : ""
   const { error } = await supabase.from("messages").insert({
     chat_id: chatId,
     role: "user",
-    content: sanitizeUserInput(content),
-    experimental_attachments: attachments,
+    content: sanitizeUserInput(text),
+    parts: parts as unknown as Json,
     user_id: userId,
     message_group_id,
-  })
+  });
 
   if (error) {
     console.error("Error saving user message:", error)

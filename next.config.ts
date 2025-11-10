@@ -1,10 +1,7 @@
 import type { NextConfig } from "next"
+import type { Configuration } from "webpack"
 
-const withBundleAnalyzer = require("@next/bundle-analyzer")({
-  enabled: process.env.ANALYZE === "true",
-})
-
-const nextConfig: NextConfig = withBundleAnalyzer({
+const nextConfig: NextConfig = {
   output: "standalone",
   experimental: {
     optimizePackageImports: ["@phosphor-icons/react"],
@@ -25,6 +22,25 @@ const nextConfig: NextConfig = withBundleAnalyzer({
     // @todo: remove before going live
     ignoreDuringBuilds: true,
   },
-})
+  // Bundle analyzer for Webpack (only used in production builds)
+  ...(process.env.ANALYZE === "true" &&
+  process.env.NODE_ENV !== "development"
+    ? {
+        webpack: (config: Configuration) => {
+          const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer")
+          if (!config.plugins) {
+            config.plugins = []
+          }
+          config.plugins.push(
+            new BundleAnalyzerPlugin({
+              analyzerMode: "static",
+              openAnalyzer: false,
+            })
+          )
+          return config
+        },
+      }
+    : {}),
+}
 
 export default nextConfig

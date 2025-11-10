@@ -7,6 +7,7 @@ export type UserPreferences = {
   showConversationPreviews: boolean
   multiModelEnabled: boolean
   hiddenModels: string[]
+  storageBucket: string
 }
 
 export const defaultPreferences: UserPreferences = {
@@ -16,22 +17,38 @@ export const defaultPreferences: UserPreferences = {
   showConversationPreviews: true,
   multiModelEnabled: false,
   hiddenModels: [],
+  storageBucket: "",
+}
+
+type ApiUserPreferences = {
+  layout?: string | null
+  prompt_suggestions?: boolean | null
+  show_tool_invocations?: boolean | null
+  show_conversation_previews?: boolean | null
+  multi_model_enabled?: boolean | null
+  hidden_models?: string[] | null
+  storage_bucket?: string | null
 }
 
 // Helper functions to convert between API format (snake_case) and frontend format (camelCase)
-export function convertFromApiFormat(apiData: any): UserPreferences {
+export function convertFromApiFormat(apiData: ApiUserPreferences): UserPreferences {
+  const layout = apiData.layout === "sidebar" || apiData.layout === "fullscreen" 
+    ? apiData.layout 
+    : "fullscreen"
+  
   return {
-    layout: apiData.layout || "fullscreen",
+    layout,
     promptSuggestions: apiData.prompt_suggestions ?? true,
     showToolInvocations: apiData.show_tool_invocations ?? true,
     showConversationPreviews: apiData.show_conversation_previews ?? true,
     multiModelEnabled: apiData.multi_model_enabled ?? false,
     hiddenModels: apiData.hidden_models || [],
+    storageBucket: apiData.storage_bucket || "",
   }
 }
 
-export function convertToApiFormat(preferences: Partial<UserPreferences>) {
-  const apiData: any = {}
+export function convertToApiFormat(preferences: Partial<UserPreferences>): ApiUserPreferences {
+  const apiData: ApiUserPreferences = {}
   if (preferences.layout !== undefined) apiData.layout = preferences.layout
   if (preferences.promptSuggestions !== undefined)
     apiData.prompt_suggestions = preferences.promptSuggestions
@@ -43,5 +60,7 @@ export function convertToApiFormat(preferences: Partial<UserPreferences>) {
     apiData.multi_model_enabled = preferences.multiModelEnabled
   if (preferences.hiddenModels !== undefined)
     apiData.hidden_models = preferences.hiddenModels
+  if (preferences.storageBucket !== undefined)
+    apiData.storage_bucket = preferences.storageBucket
   return apiData
 }

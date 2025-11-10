@@ -4,10 +4,12 @@ import {
   checkFileUploadLimit,
   processFiles,
 } from "@/lib/file-handling"
+import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { useCallback, useState } from "react"
 
 export const useFileUpload = () => {
   const [files, setFiles] = useState<File[]>([])
+  const { preferences } = useUserPreferences()
 
   const handleFileUploads = async (
     uid: string,
@@ -26,11 +28,12 @@ export const useFileUpload = () => {
     }
 
     try {
-      const processed = await processFiles(files, chatId, uid)
+      const processed = await processFiles(files, chatId, uid, preferences.storageBucket)
       setFiles([])
       return processed
-    } catch {
-      toast({ title: "Failed to process files", status: "error" })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to process files"
+      toast({ title: errorMessage, status: "error" })
       return null
     }
   }

@@ -1,11 +1,18 @@
 import { createClient } from "@/lib/supabase/client"
 import { isSupabaseEnabled } from "@/lib/supabase/config"
-import type { Message as MessageAISDK } from "ai"
+import type { UIMessage as MessageAISDK } from "ai"
 import { readFromIndexedDB, writeToIndexedDB } from "../persist"
+
+type ChatMessage = MessageAISDK & {
+  content?: string
+  createdAt?: Date
+  message_group_id?: string | null
+  model?: string | null
+}
 
 export async function getMessagesFromDb(
   chatId: string
-): Promise<MessageAISDK[]> {
+): Promise<ChatMessage[]> {
   // fallback to local cache only
   if (!isSupabaseEnabled) {
     const cached = await getCachedMessages(chatId)
@@ -18,7 +25,7 @@ export async function getMessagesFromDb(
   const { data, error } = await supabase
     .from("messages")
     .select(
-      "id, content, role, experimental_attachments, created_at, parts, message_group_id, model"
+      "id, content, role, created_at, parts, message_group_id, model"
     )
     .eq("chat_id", chatId)
     .order("created_at", { ascending: true })
@@ -28,41 +35,58 @@ export async function getMessagesFromDb(
     return []
   }
 
-  return data.map((message) => ({
-    ...message,
-    id: String(message.id),
-    content: message.content ?? "",
-    createdAt: new Date(message.created_at || ""),
-    parts: (message?.parts as MessageAISDK["parts"]) || undefined,
-    message_group_id: message.message_group_id,
-    model: message.model,
-  }))
+  return data.map((message) => {
+    // Ensure parts is properly parsed if it comes as a JSON string
+    let parsedParts = (message as any)?.parts
+    if (typeof parsedParts === 'string') {
+      try {
+        parsedParts = JSON.parse(parsedParts)
+      } catch (e) {
+        console.error('Failed to parse parts:', e)
+        parsedParts = undefined
+      }
+    }
+    
+    return {
+      id: String(message.id),
+      role: message.role as ChatMessage["role"],
+      // Keep legacy content for fallbacks in UI during migration
+      content: (message as any).content ?? "",
+      // Prefer parts (v5); ensure correct typing
+      parts: parsedParts as ChatMessage["parts"],
+      // Extra fields we persist alongside
+      createdAt: new Date(message.created_at || ""),
+      message_group_id: (message as any).message_group_id ?? null,
+      model: (message as any).model ?? null,
+    }
+  })
 }
 
-async function insertMessageToDb(chatId: string, message: MessageAISDK) {
+async function insertMessageToDb(chatId: string, message: ChatMessage) {
   const supabase = createClient()
   if (!supabase) return
 
   await supabase.from("messages").insert({
     chat_id: chatId,
     role: message.role,
-    content: message.content,
-    experimental_attachments: message.experimental_attachments,
+    // Store both legacy content and new parts during transition
+    content: (message as any).content,
+    parts: message.parts as any,
     created_at: message.createdAt?.toISOString() || new Date().toISOString(),
     message_group_id: (message as any).message_group_id || null,
     model: (message as any).model || null,
   })
 }
 
-async function insertMessagesToDb(chatId: string, messages: MessageAISDK[]) {
+async function insertMessagesToDb(chatId: string, messages: ChatMessage[]) {
   const supabase = createClient()
   if (!supabase) return
 
   const payload = messages.map((message) => ({
     chat_id: chatId,
     role: message.role,
-    content: message.content,
-    experimental_attachments: message.experimental_attachments,
+    content: (message as any).content,
+    parts: message.parts as any,
     created_at: message.createdAt?.toISOString() || new Date().toISOString(),
     message_group_id: (message as any).message_group_id || null,
     model: (message as any).model || null,
@@ -85,14 +109,46 @@ async function deleteMessagesFromDb(chatId: string) {
   }
 }
 
+async function deleteMessagesFromId(chatId: string, messageId: string) {
+  const supabase = createClient()
+  if (!supabase) return
+
+  // Get all messages for this chat
+  const { data: allMessages, error: fetchError } = await supabase
+    .from("messages")
+    .select("id, created_at")
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: true })
+
+  if (fetchError || !allMessages) {
+    console.error("Failed to fetch messages:", fetchError)
+    return
+  }
+
+  // Find the target message and get its timestamp
+  const targetMessage = allMessages.find((m) => String(m.id) === messageId)
+  if (!targetMessage) return
+
+  // Delete all messages with created_at >= target message's created_at
+  const { error: deleteError } = await supabase
+    .from("messages")
+    .delete()
+    .eq("chat_id", chatId)
+    .gte("created_at", targetMessage.created_at)
+
+  if (deleteError) {
+    console.error("Failed to delete messages:", deleteError)
+  }
+}
+
 type ChatMessageEntry = {
   id: string
-  messages: MessageAISDK[]
+  messages: ChatMessage[]
 }
 
 export async function getCachedMessages(
   chatId: string
-): Promise<MessageAISDK[]> {
+): Promise<ChatMessage[]> {
   const entry = await readFromIndexedDB<ChatMessageEntry>("messages", chatId)
 
   if (!entry || Array.isArray(entry)) return []
@@ -104,14 +160,14 @@ export async function getCachedMessages(
 
 export async function cacheMessages(
   chatId: string,
-  messages: MessageAISDK[]
+  messages: ChatMessage[]
 ): Promise<void> {
   await writeToIndexedDB("messages", { id: chatId, messages })
 }
 
 export async function addMessage(
   chatId: string,
-  message: MessageAISDK
+  message: ChatMessage
 ): Promise<void> {
   await insertMessageToDb(chatId, message)
   const current = await getCachedMessages(chatId)
@@ -122,7 +178,7 @@ export async function addMessage(
 
 export async function setMessages(
   chatId: string,
-  messages: MessageAISDK[]
+  messages: ChatMessage[]
 ): Promise<void> {
   await insertMessagesToDb(chatId, messages)
   await writeToIndexedDB("messages", { id: chatId, messages })
@@ -135,4 +191,13 @@ export async function clearMessagesCache(chatId: string): Promise<void> {
 export async function clearMessagesForChat(chatId: string): Promise<void> {
   await deleteMessagesFromDb(chatId)
   await clearMessagesCache(chatId)
+}
+
+export async function deleteMessagesFromIdForChat(
+  chatId: string,
+  messageId: string,
+  remainingMessages: ChatMessage[]
+): Promise<void> {
+  await deleteMessagesFromId(chatId, messageId)
+  await writeToIndexedDB("messages", { id: chatId, messages: remainingMessages })
 }

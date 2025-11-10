@@ -53,23 +53,42 @@ export async function validateFile(
 
 export async function uploadFile(
   supabase: SupabaseClient,
-  file: File
+  file: File,
+  bucketName: string = "chat-attachments"
 ): Promise<string> {
+  if (!bucketName) {
+    throw new Error("Storage bucket not configured. Please configure it in Settings > Storage.")
+  }
+
   const fileExt = file.name.split(".").pop()
   const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`
   const filePath = `uploads/${fileName}`
 
   const { error } = await supabase.storage
-    .from("chat-attachments")
+    .from(bucketName)
     .upload(filePath, file)
 
   if (error) {
+    // Check for RLS policy violations
+    if (error.message.includes("row-level security") || error.message.includes("policy")) {
+      throw new Error(
+        "Storage bucket security policies not configured. Please run the storage setup migration or configure RLS policies in your Supabase project."
+      )
+    }
+    
+    // Check if bucket doesn't exist
+    if (error.message.includes("not found") || error.message.includes("does not exist")) {
+      throw new Error(
+        `Storage bucket "${bucketName}" not found. Please create it in your Supabase project dashboard under Storage.`
+      )
+    }
+    
     throw new Error(`Error uploading file: ${error.message}`)
   }
 
   const {
     data: { publicUrl },
-  } = supabase.storage.from("chat-attachments").getPublicUrl(filePath)
+  } = supabase.storage.from(bucketName).getPublicUrl(filePath)
 
   return publicUrl
 }
@@ -85,7 +104,8 @@ export function createAttachment(file: File, url: string): Attachment {
 export async function processFiles(
   files: File[],
   chatId: string,
-  userId: string
+  userId: string,
+  bucketName?: string
 ): Promise<Attachment[]> {
   const supabase = isSupabaseEnabled ? createClient() : null
   const attachments: Attachment[] = []
@@ -103,8 +123,8 @@ export async function processFiles(
     }
 
     try {
-      const url = supabase
-        ? await uploadFile(supabase, file)
+      const url = supabase && bucketName
+        ? await uploadFile(supabase, file, bucketName)
         : URL.createObjectURL(file)
 
       if (supabase) {

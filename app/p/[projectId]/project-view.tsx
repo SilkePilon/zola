@@ -14,7 +14,8 @@ import { Attachment } from "@/lib/file-handling"
 import { API_ROUTE_CHAT } from "@/lib/routes"
 import { useUser } from "@/lib/user-store/provider"
 import { cn } from "@/lib/utils"
-import { useChat } from "@ai-sdk/react"
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai"
 import { ChatCircleIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { AnimatePresence, motion } from "motion/react"
@@ -36,9 +37,14 @@ export function ProjectView({ projectId }: ProjectViewProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [enableSearch, setEnableSearch] = useState(false)
   const [currentChatId, setCurrentChatId] = useState<string | null>(null)
+  const [usageData, setUsageData] = useState<{ inputTokens: number; outputTokens: number; totalTokens: number }>({
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+  })
   const { user } = useUser()
   const { createNewChat, bumpChat } = useChats()
-  const { cacheAndAddMessage } = useMessages()
+  const { cacheAndAddMessage} = useMessages()
   const pathname = usePathname()
   const {
     files,
@@ -85,21 +91,33 @@ export function ProjectView({ projectId }: ProjectViewProps) {
     })
   }, [])
 
+  const [input, setInput] = useState('')
+
   const {
     messages,
-    input,
-    handleSubmit,
     status,
-    reload,
+    regenerate,
     stop,
     setMessages,
-    setInput,
+    sendMessage,
   } = useChat({
     id: `project-${projectId}-${currentChatId}`,
-    api: API_ROUTE_CHAT,
-    initialMessages: [],
-    onFinish: cacheAndAddMessage,
+    messages: [],
+    onFinish: ({ message }) => {
+      cacheAndAddMessage(message as any)
+      // Extract usage data from message metadata
+      const metadata = (message as any).metadata
+      if (metadata?.totalUsage) {
+        setUsageData({
+          inputTokens: metadata.totalUsage.inputTokens || 0,
+          outputTokens: metadata.totalUsage.outputTokens || 0,
+          totalTokens: metadata.totalUsage.totalTokens || 0,
+        })
+      }
+    },
     onError: handleError,
+
+    transport: new DefaultChatTransport({ api: API_ROUTE_CHAT })
   })
 
   const { selectedModel, handleModelChange } = useModel({
@@ -199,13 +217,11 @@ export function ProjectView({ projectId }: ProjectViewProps) {
     const optimisticAttachments =
       files.length > 0 ? createOptimisticAttachments(files) : []
 
-    const optimisticMessage = {
+    const optimisticMessage: any = {
       id: optimisticId,
-      content: input,
       role: "user" as const,
       createdAt: new Date(),
-      experimental_attachments:
-        optimisticAttachments.length > 0 ? optimisticAttachments : undefined,
+      parts: [{ type: "text", text: input }],
     }
 
     setMessages((prev) => [...prev, optimisticMessage])
@@ -237,10 +253,34 @@ export function ProjectView({ projectId }: ProjectViewProps) {
         attachments = await handleFileUploads(user.id, currentChatId)
         if (attachments === null) {
           setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
-          cleanupOptimisticAttachments(
-            optimisticMessage.experimental_attachments
-          )
+          cleanupOptimisticAttachments(optimisticAttachments)
           return
+        }
+      }
+
+      // Build v5 parts: text + inline file parts (base64)
+      const parts: any[] = [{ type: "text", text: input }]
+      if (attachments && attachments.length > 0) {
+        const toBase64 = async (url: string) => {
+          const res = await fetch(url)
+          const blob = await res.blob()
+          const arrayBuffer = await blob.arrayBuffer()
+          let binary = ''
+          const bytes = new Uint8Array(arrayBuffer)
+          const chunkSize = 0x8000
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            const chunk = bytes.subarray(i, i + chunkSize)
+            binary += String.fromCharCode.apply(null, Array.from(chunk) as any)
+          }
+          return btoa(binary)
+        }
+        for (const att of attachments) {
+          try {
+            const data = await toBase64(att.url)
+            parts.push({ type: "file", data, mimeType: att.contentType })
+          } catch (e) {
+            console.warn("Failed to inline attachment, skipping:", att.url, e)
+          }
         }
       }
 
@@ -253,12 +293,10 @@ export function ProjectView({ projectId }: ProjectViewProps) {
           systemPrompt: SYSTEM_PROMPT_DEFAULT,
           enableSearch,
         },
-        experimental_attachments: attachments || undefined,
       }
-
-      handleSubmit(undefined, options)
+      await sendMessage({ role: "user", parts } as any, options as any)
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-      cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+      cleanupOptimisticAttachments(optimisticAttachments)
       cacheAndAddMessage(optimisticMessage)
 
       // Bump existing chats to top (non-blocking, after submit)
@@ -284,7 +322,7 @@ export function ProjectView({ projectId }: ProjectViewProps) {
     ensureChatExists,
     handleFileUploads,
     selectedModel,
-    handleSubmit,
+    
     cacheAndAddMessage,
     messages.length,
     bumpChat,
@@ -306,8 +344,8 @@ export function ProjectView({ projectId }: ProjectViewProps) {
       },
     }
 
-    reload(options)
-  }, [user, selectedModel, reload])
+    regenerate(options as any)
+  }, [user, selectedModel, regenerate])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -348,6 +386,7 @@ export function ProjectView({ projectId }: ProjectViewProps) {
       status,
       setEnableSearch,
       enableSearch,
+      usageData: messages.length > 0 ? usageData : undefined,
     }),
     [
       input,
@@ -364,6 +403,8 @@ export function ProjectView({ projectId }: ProjectViewProps) {
       status,
       setEnableSearch,
       enableSearch,
+      usageData,
+      messages.length,
     ]
   )
 

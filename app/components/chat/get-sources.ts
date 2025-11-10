@@ -1,29 +1,29 @@
-import type { Message as MessageAISDK } from "@ai-sdk/react"
+import type { UIMessage } from "ai"
 
-export function getSources(parts: MessageAISDK["parts"]) {
+export function getSources(parts?: UIMessage["parts"]) {
   const sources = parts
-    ?.filter(
-      (part) => part.type === "source" || part.type === "tool-invocation"
-    )
+    ?.filter((part) => {
+      if (
+        part.type === "source-url" ||
+        part.type === "source-document"
+      )
+        return true
+      return typeof part.type === "string" && part.type.startsWith("tool-")
+    })
     .map((part) => {
-      if (part.type === "source") {
-        return part.source
+      if (part.type === "source-url" || part.type === "source-document") {
+        return (part as any).source
       }
 
-      if (
-        part.type === "tool-invocation" &&
-        part.toolInvocation.state === "result"
-      ) {
-        const result = part.toolInvocation.result
-
-        if (
-          part.toolInvocation.toolName === "summarizeSources" &&
-          result?.result?.[0]?.citations
-        ) {
-          return result.result.flatMap((item: { citations?: unknown[] }) => item.citations || [])
+      // v5 tool parts: type is `tool-<name>` and results live in `output`
+      if (typeof part.type === "string" && part.type.startsWith("tool-")) {
+        const toolName = part.type.slice(5)
+        const output: any = (part as any).output
+        if (toolName === "summarizeSources" && Array.isArray(output?.result)) {
+          return output.result.flatMap((item: { citations?: unknown[] }) => item.citations || [])
         }
-
-        return Array.isArray(result) ? result.flat() : result
+        if (Array.isArray(output)) return output.flat()
+        return output
       }
 
       return null

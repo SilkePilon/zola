@@ -12,8 +12,10 @@ import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { User } from "@phosphor-icons/react"
 import type React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { SettingsContent } from "./settings-content"
+
+type TabType = "general" | "appearance" | "prompts" | "models" | "connections" | "mcp" | "storage"
 
 type SettingsTriggerProps = {
   onOpenChange: (open: boolean) => void
@@ -21,12 +23,28 @@ type SettingsTriggerProps = {
 
 export function SettingsTrigger({ onOpenChange }: SettingsTriggerProps) {
   const [open, setOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabType>("general")
   const isMobile = useBreakpoint(768)
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
     onOpenChange(isOpen)
   }
+
+  useEffect(() => {
+    const handleOpenSettings = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tab?: TabType }>
+      if (customEvent.detail?.tab) {
+        setActiveTab(customEvent.detail.tab)
+      }
+      setOpen(true)
+    }
+
+    window.addEventListener('openSettings', handleOpenSettings)
+    return () => {
+      window.removeEventListener('openSettings', handleOpenSettings)
+    }
+  }, [])
 
   const trigger = (
     <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
@@ -40,7 +58,7 @@ export function SettingsTrigger({ onOpenChange }: SettingsTriggerProps) {
       <Drawer open={open} onOpenChange={handleOpenChange}>
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent>
-          <SettingsContent isDrawer />
+          <SettingsContent isDrawer activeTab={activeTab} />
         </DrawerContent>
       </Drawer>
     )
@@ -53,7 +71,7 @@ export function SettingsTrigger({ onOpenChange }: SettingsTriggerProps) {
         <DialogHeader className="border-border border-b px-6 py-5">
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
-        <SettingsContent />
+        <SettingsContent activeTab={activeTab} />
       </DialogContent>
     </Dialog>
   )

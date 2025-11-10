@@ -1,19 +1,18 @@
-import { Message as MessageType } from "@ai-sdk/react"
+import type { UIMessage } from "ai"
 import React, { useState } from "react"
 import { MessageAssistant } from "./message-assistant"
 import { MessageUser } from "./message-user"
 
 type MessageProps = {
-  variant: MessageType["role"]
+  variant: UIMessage["role"]
   children: string
   id: string
-  attachments?: MessageType["experimental_attachments"]
   isLast?: boolean
   onDelete: (id: string) => void
   onEdit: (id: string, newText: string) => void
   onReload: () => void
   hasScrollAnchor?: boolean
-  parts?: MessageType["parts"]
+  parts?: UIMessage["parts"]
   status?: "streaming" | "ready" | "submitted" | "error"
   className?: string
   onQuote?: (text: string, messageId: string) => void
@@ -23,7 +22,6 @@ export function Message({
   variant,
   children,
   id,
-  attachments,
   isLast,
   onDelete,
   onEdit,
@@ -52,7 +50,7 @@ export function Message({
         onDelete={onDelete}
         id={id}
         hasScrollAnchor={hasScrollAnchor}
-        attachments={attachments}
+        parts={parts}
         className={className}
       >
         {children}

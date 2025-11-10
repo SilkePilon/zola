@@ -118,11 +118,34 @@ create table if not exists public.user_preferences (
   prompt_suggestions boolean,
   show_tool_invocations boolean,
   show_conversation_previews boolean,
+  storage_bucket TEXT,
   multi_model_enabled boolean,
   hidden_models text[],
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+-- MCP (Model Context Protocol) servers configuration
+create table if not exists public.mcp_servers (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  name text not null,
+  description text,
+  enabled boolean default true,
+  transport_type text not null check (transport_type in ('http', 'sse')),
+  
+  -- HTTP/SSE specific fields
+  url text,
+  headers jsonb,
+  
+  -- UI
+  icon text,
+  
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create index if not exists idx_mcp_servers_user_id on public.mcp_servers(user_id);
+create index if not exists idx_mcp_servers_enabled on public.mcp_servers(enabled) where enabled = true;
 
 -- Optional: updated_at trigger for tables that track updates
 do $$ begin
@@ -159,6 +182,87 @@ do $$ begin
   end if;
 end $$;
 
+do $$ begin
+  if not exists (
+    select 1 from pg_trigger where tgname = 'trg_mcp_servers_updated_at'
+  ) then
+    create trigger trg_mcp_servers_updated_at
+    before update on public.mcp_servers
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
+-- Storage bucket setup for file uploads
+-- Create storage bucket if it doesn't exist
+insert into storage.buckets (id, name, public)
+values ('chat-attachments', 'chat-attachments', true)
+on conflict (id) do nothing;
+
+-- Enable RLS on storage.objects
+alter table storage.objects enable row level security;
+
+-- Storage bucket policies
+do $$ begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Allow authenticated users to upload files'
+  ) then
+    create policy "Allow authenticated users to upload files"
+    on storage.objects
+    for insert
+    to authenticated
+    with check (
+      bucket_id = 'chat-attachments' and
+      (storage.foldername(name))[1] = 'uploads'
+    );
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Allow public access to view files'
+  ) then
+    create policy "Allow public access to view files"
+    on storage.objects
+    for select
+    to public
+    using (bucket_id = 'chat-attachments');
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Allow users to delete own files'
+  ) then
+    create policy "Allow users to delete own files"
+    on storage.objects
+    for delete
+    to authenticated
+    using (
+      bucket_id = 'chat-attachments' and
+      auth.uid()::text = (storage.foldername(name))[1]
+    );
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Allow users to update own files'
+  ) then
+    create policy "Allow users to update own files"
+    on storage.objects
+    for update
+    to authenticated
+    using (
+      bucket_id = 'chat-attachments' and
+      auth.uid()::text = (storage.foldername(name))[1]
+    )
+    with check (
+      bucket_id = 'chat-attachments' and
+      auth.uid()::text = (storage.foldername(name))[1]
+    );
+  end if;
+end $$;
+
 -- Recommended RLS (enable and basic owner policies). Uncomment to enable.
 -- alter table public.users enable row level security;
 -- alter table public.projects enable row level security;
@@ -168,6 +272,7 @@ end $$;
 -- alter table public.feedback enable row level security;
 -- alter table public.user_keys enable row level security;
 -- alter table public.user_preferences enable row level security;
+-- alter table public.mcp_servers enable row level security;
 
 -- Example simple policies (adjust to your needs):
 -- create policy "Users can view own rows" on public.users for select using (auth.uid() = id);
@@ -189,3 +294,4 @@ end $$;
 -- create policy "Feedback owner access" on public.feedback for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 -- create policy "User keys owner access" on public.user_keys for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 -- create policy "User preferences owner access" on public.user_preferences for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+-- create policy "MCP servers owner access" on public.mcp_servers for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

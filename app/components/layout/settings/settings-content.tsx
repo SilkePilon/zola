@@ -7,6 +7,7 @@ import { isSupabaseEnabled } from "@/lib/supabase/config"
 import { cn, isDev } from "@/lib/utils"
 import {
   CubeIcon,
+  Database,
   GearSixIcon,
   KeyIcon,
   PaintBrushIcon,
@@ -14,7 +15,8 @@ import {
   NotePencilIcon,
   XIcon,
 } from "@phosphor-icons/react"
-import { useState } from "react"
+import { Server } from "lucide-react"
+import { useEffect, useState } from "react"
 import { ByokSection } from "./apikeys/byok-section"
 import { InteractionPreferences } from "./appearance/interaction-preferences"
 import { LayoutSettings } from "./appearance/layout-settings"
@@ -27,17 +29,25 @@ import { HistoryManagement } from "./general/history-management"
 import { SystemPromptSection } from "./general/system-prompt"
 import { UserProfile } from "./general/user-profile"
 import { ModelsSettings } from "./models/models-settings"
+import { MCPSettings } from "./mcp/mcp-settings"
+import { StorageSettings } from "./storage/storage-settings"
 
 type SettingsContentProps = {
   isDrawer?: boolean
+  activeTab?: TabType
 }
 
-type TabType = "general" | "appearance" | "prompts" | "models" | "connections"
+type TabType = "general" | "appearance" | "prompts" | "models" | "connections" | "mcp" | "storage"
 
 export function SettingsContent({
   isDrawer = false,
+  activeTab: initialActiveTab = "general",
 }: SettingsContentProps) {
-  const [activeTab, setActiveTab] = useState<TabType>("general")
+  const [activeTab, setActiveTab] = useState<TabType>(initialActiveTab)
+
+  useEffect(() => {
+    setActiveTab(initialActiveTab)
+  }, [initialActiveTab])
 
   return (
     <div
@@ -112,6 +122,20 @@ export function SettingsContent({
                   <PlugsConnectedIcon className="size-4" />
                   <span>Connections</span>
                 </TabsTrigger>
+                <TabsTrigger
+                  value="mcp"
+                  className="flex shrink-0 items-center gap-2"
+                >
+                  <Server className="size-4" />
+                  <span>MCP Servers</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="storage"
+                  className="flex shrink-0 items-center gap-2"
+                >
+                  <Database className="size-4" />
+                  <span>Storage</span>
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -149,6 +173,14 @@ export function SettingsContent({
               {!isDev && <ConnectionsPlaceholder />}
               {isDev && <OllamaSection />}
               {isDev && <DeveloperTools />}
+            </TabsContent>
+
+            <TabsContent value="mcp" className="space-y-6 px-6">
+              <MCPSettings />
+            </TabsContent>
+
+            <TabsContent value="storage" className="space-y-6 px-6">
+              <StorageSettings />
             </TabsContent>
           </div>
         ) : (
@@ -213,6 +245,26 @@ export function SettingsContent({
                     <span>Connections</span>
                   </div>
                 </TabsTrigger>
+
+                <TabsTrigger
+                  value="mcp"
+                  className="w-full justify-start rounded-md px-3 py-2 text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <Server className="size-4" />
+                    <span>MCP Servers</span>
+                  </div>
+                </TabsTrigger>
+
+                <TabsTrigger
+                  value="storage"
+                  className="w-full justify-start rounded-md px-3 py-2 text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <Database className="size-4" />
+                    <span>Storage</span>
+                  </div>
+                </TabsTrigger>
               </div>
             </TabsList>
 
@@ -251,6 +303,14 @@ export function SettingsContent({
                 {!isDev && <ConnectionsPlaceholder />}
                 {isDev && <OllamaSection />}
                 {isDev && <DeveloperTools />}
+              </TabsContent>
+
+              <TabsContent value="mcp" className="mt-0 space-y-6">
+                <MCPSettings />
+              </TabsContent>
+
+              <TabsContent value="storage" className="mt-0 space-y-6">
+                <StorageSettings />
               </TabsContent>
             </div>
           </>

@@ -1,8 +1,10 @@
 import { SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { getAllModels } from "@/lib/models"
 import type { ProviderWithoutOllama } from "@/lib/user-keys"
-import { Attachment } from "@ai-sdk/ui-utils"
-import { Message as MessageAISDK, streamText, ToolSet } from "ai"
+import { getUserKey } from "@/lib/user-keys"
+import { streamText, ToolSet, stepCountIs, convertToModelMessages, type UIMessage } from "ai";
+import { buildMcpTools, type MCPServerConfig } from "@/lib/mcp/tools"
+import type { Message } from "@/app/types/api.types"
 import {
   incrementMessageCount,
   logUserMessage,
@@ -14,7 +16,7 @@ import { createErrorResponse, extractErrorMessage } from "./utils"
 export const maxDuration = 60
 
 type ChatRequest = {
-  messages: MessageAISDK[]
+  messages: UIMessage[]
   chatId: string
   userId: string
   model: string
@@ -22,10 +24,12 @@ type ChatRequest = {
   systemPrompt: string
   enableSearch: boolean
   message_group_id?: string
+  mcpServers?: MCPServerConfig[]
 }
 
 export async function POST(req: Request) {
   try {
+    const body = await req.json()
     const {
       messages,
       chatId,
@@ -35,7 +39,8 @@ export async function POST(req: Request) {
       systemPrompt,
       enableSearch,
       message_group_id,
-    } = (await req.json()) as ChatRequest
+      mcpServers,
+    } = body as ChatRequest
 
     if (!messages || !chatId || !userId) {
       return new Response(
@@ -50,7 +55,6 @@ export async function POST(req: Request) {
       isAuthenticated,
     })
 
-    // Increment message count for successful validation
     if (supabase) {
       await incrementMessageCount({ supabase, userId })
     }
@@ -62,8 +66,7 @@ export async function POST(req: Request) {
         supabase,
         userId,
         chatId,
-        content: userMessage.content,
-        attachments: userMessage.experimental_attachments as Attachment[],
+        parts: userMessage.parts || [],
         model,
         isAuthenticated,
         message_group_id,
@@ -91,7 +94,13 @@ export async function POST(req: Request) {
           apiKey = undefined
           break
         }
-        const key = await getEffectiveApiKey(userId, c.providerId as ProviderWithoutOllama)
+        let key = await getEffectiveApiKey(userId, c.providerId as ProviderWithoutOllama)
+        // Fallback to user-specific key lookup for unknown providers (e.g., deepseek, deepinfra)
+        if (!key) {
+          try {
+            key = await getUserKey(userId, c.providerId as any)
+          } catch {}
+        }
         if (key) {
           selected = c
           apiKey = key || undefined
@@ -110,39 +119,97 @@ export async function POST(req: Request) {
       throw new Error(`Selected model ${model} is not invokable`)
     }
 
-    const result = streamText({
+    if (!Array.isArray(messages)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid messages format" }),
+        { status: 400 }
+      )
+    }
+
+    const modelMessages = convertToModelMessages(messages)
+
+    // Load MCP tools from user's configured servers (or env vars as fallback)
+    // Validate mcpServers is an array before filtering
+    const enabledMcpServers = Array.isArray(mcpServers) 
+      ? mcpServers.filter(s => s && typeof s === 'object' && s.enabled === true)
+      : []
+    const { tools: mcpTools, close: closeMcp } = await buildMcpTools(enabledMcpServers)
+
+    // Ensure closeMcp is invoked exactly once
+    let mcpClosed = false
+    const safeCloseMcp = async () => {
+      if (mcpClosed || !closeMcp) return
+      mcpClosed = true
+      try {
+        await closeMcp()
+      } catch (closeError) {
+        console.error("Error closing MCP transports:", closeError)
+      }
+    }
+
+    try {
+      const result = streamText({
       model: makeModel(apiKey, { enableSearch }),
       system: effectiveSystemPrompt,
-      messages: messages,
-      tools: {} as ToolSet,
-      maxSteps: 10,
-      onError: (err: unknown) => {
-        console.error("Streaming error occurred:", err)
-        // Don't set streamError anymore - let the AI SDK handle it through the stream
-      },
+      messages: modelMessages,
+      tools: mcpTools as ToolSet,
+      stopWhen: stepCountIs(10),
 
-      onFinish: async ({ response }) => {
-        if (supabase) {
-          await storeAssistantMessage({
-            supabase,
-            chatId,
-            messages:
-              response.messages as unknown as import("@/app/types/api.types").Message[],
-            message_group_id,
-            model,
-          })
+      onFinish: async ({ response, steps }) => {
+        try {
+          if (supabase) {
+            const allMessages: Message[] = []
+            
+            if (steps?.length) {
+              for (const step of steps) {
+                if (step.response?.messages) {
+                  allMessages.push(...(step.response.messages as any[]))
+                }
+              }
+            }
+            
+            if (response.messages?.length) {
+              allMessages.push(...(response.messages as any[]))
+            }
+            
+            await storeAssistantMessage({
+              supabase,
+              chatId,
+              messages: allMessages,
+              message_group_id,
+              model,
+            })
+          }
+        } finally {
+          await safeCloseMcp()
         }
       },
+
+      onError: async (error: unknown) => {
+        await safeCloseMcp()
+        throw error
+      }
     })
 
-    return result.toDataStreamResponse({
+    return result.toUIMessageStreamResponse({
       sendReasoning: true,
       sendSources: true,
-      getErrorMessage: (error: unknown) => {
-        console.error("Error forwarded to client:", error)
+      messageMetadata: ({ part }) => {
+        if (part.type === "finish") {
+          return { totalUsage: part.totalUsage }
+        }
+      },
+      onError: (error: unknown) => {
+        // Close MCP without blocking (fire and forget)
+        safeCloseMcp().catch(e => console.error("Error closing MCP in onError:", e))
         return extractErrorMessage(error)
       },
-    })
+    });
+    } catch (streamError) {
+      // Ensure MCP is closed on early failure (e.g., during streamText setup)
+      await safeCloseMcp()
+      throw streamError
+    }
   } catch (err: unknown) {
     console.error("Error in /api/chat:", err)
     const error = err as {

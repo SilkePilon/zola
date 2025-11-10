@@ -21,12 +21,37 @@ export async function saveFinalAssistantMessage(
         if (part.type === "text") {
           textParts.push(part.text || "")
           parts.push(part)
+        } else if (part.type === "tool-call") {
+          // AI SDK v5 format: tool-call message with input (args)
+          const toolCallId = (part as any).toolCallId || ""
+          if (!toolCallId) continue
+          
+          toolMap.set(toolCallId, {
+            type: "tool-invocation",
+            toolInvocation: {
+              state: "call",
+              step: DEFAULT_STEP,
+              toolCallId,
+              toolName: (part as any).toolName || "",
+              args: (part as any).input || (part as any).args || {},
+            },
+          })
         } else if (part.type === "tool-invocation" && part.toolInvocation) {
           const { toolCallId, state } = part.toolInvocation
           if (!toolCallId) continue
 
           const existing = toolMap.get(toolCallId)
           if (state === "result" || !existing) {
+            toolMap.set(toolCallId, {
+              ...part,
+              toolInvocation: {
+                ...part.toolInvocation,
+                args: part.toolInvocation?.args || existing?.toolInvocation?.args || {},
+                result: part.toolInvocation?.result || existing?.toolInvocation?.result,
+              },
+            })
+          } else if (state === "call") {
+            // Preserve args from tool-call for later merging with result
             toolMap.set(toolCallId, {
               ...part,
               toolInvocation: {
@@ -38,7 +63,7 @@ export async function saveFinalAssistantMessage(
         } else if (part.type === "reasoning") {
           parts.push({
             type: "reasoning",
-            reasoning: part.text || "",
+            reasoningText: part.text || "",
             details: [
               {
                 type: "text",
@@ -53,15 +78,19 @@ export async function saveFinalAssistantMessage(
     } else if (msg.role === "tool" && Array.isArray(msg.content)) {
       for (const part of msg.content) {
         if (part.type === "tool-result") {
-          const toolCallId = part.toolCallId || ""
+          const toolCallId = (part as any).toolCallId || ""
+          const existing = toolMap.get(toolCallId)
+          
+          // Merge with existing tool-call to preserve args and toolName
           toolMap.set(toolCallId, {
             type: "tool-invocation",
             toolInvocation: {
               state: "result",
               step: DEFAULT_STEP,
               toolCallId,
-              toolName: part.toolName || "",
-              result: part.result,
+              toolName: existing?.toolInvocation?.toolName || (part as any).toolName || "unknown",
+              args: existing?.toolInvocation?.args || (part as any).input || (part as any).args || {},
+              result: (part as any).result || (part as any).output,
             },
           })
         }

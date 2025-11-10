@@ -29,6 +29,7 @@ interface UserPreferencesContextType {
   setMultiModelEnabled: (enabled: boolean) => void
   toggleModelVisibility: (modelId: string) => void
   isModelHidden: (modelId: string) => boolean
+  updatePreference: <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => void
   isLoading: boolean
 }
 
@@ -224,6 +225,13 @@ export function UserPreferencesProvider({
     return (preferences.hiddenModels || []).includes(modelId)
   }
 
+  const updatePreference = <K extends keyof UserPreferences>(
+    key: K,
+    value: UserPreferences[K]
+  ) => {
+    updatePreferences({ [key]: value } as Partial<UserPreferences>)
+  }
+
   return (
     <UserPreferencesContext.Provider
       value={{
@@ -235,6 +243,7 @@ export function UserPreferencesProvider({
         setMultiModelEnabled,
         toggleModelVisibility,
         isModelHidden,
+        updatePreference,
         isLoading,
       }}
     >

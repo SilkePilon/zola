@@ -1,7 +1,6 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { ToolInvocationUIPart } from "@ai-sdk/ui-utils"
 import {
   CaretDown,
   CheckCircle,
@@ -14,8 +13,16 @@ import {
 import { AnimatePresence, motion, type Transition as FMTransition } from "framer-motion"
 import { useMemo, useState } from "react"
 
+type ToolPartV5 = {
+  type: string
+  state?: string
+  input?: any
+  output?: any
+  toolCallId?: string
+}
+
 interface ToolInvocationProps {
-  toolInvocations: ToolInvocationUIPart[]
+  toolInvocations: ToolPartV5[]
   className?: string
   defaultOpen?: boolean
 }
@@ -31,21 +38,21 @@ export function ToolInvocation({
 }: ToolInvocationProps) {
   const [isExpanded, setIsExpanded] = useState(defaultOpen)
 
-  const toolInvocationsData = Array.isArray(toolInvocations)
+  const toolInvocationsData: ToolPartV5[] = Array.isArray(toolInvocations)
     ? toolInvocations
     : [toolInvocations]
 
   // Group tool invocations by toolCallId
   const groupedTools = toolInvocationsData.reduce(
-    (acc, item) => {
-      const { toolCallId } = item.toolInvocation
+    (acc, item, idx) => {
+      const toolCallId = item.toolCallId || `${item.type}-${idx}`
       if (!acc[toolCallId]) {
-        acc[toolCallId] = []
+        acc[toolCallId] = [] as ToolPartV5[]
       }
       acc[toolCallId].push(item)
       return acc
     },
-    {} as Record<string, ToolInvocationUIPart[]>
+    {} as Record<string, ToolPartV5[]>
   )
 
   const uniqueToolIds = Object.keys(groupedTools)
@@ -125,7 +132,7 @@ export function ToolInvocation({
 }
 
 type SingleToolViewProps = {
-  toolInvocations: ToolInvocationUIPart[]
+  toolInvocations: ToolPartV5[]
   defaultOpen?: boolean
   className?: string
 }
@@ -137,34 +144,27 @@ function SingleToolView({
 }: SingleToolViewProps) {
   // Group by toolCallId and pick the most informative state
   const groupedTools = toolInvocations.reduce(
-    (acc, item) => {
-      const { toolCallId } = item.toolInvocation
+    (acc, item, idx) => {
+      const toolCallId = item.toolCallId || `${item.type}-${idx}`
       if (!acc[toolCallId]) {
-        acc[toolCallId] = []
+        acc[toolCallId] = [] as ToolPartV5[]
       }
       acc[toolCallId].push(item)
       return acc
     },
-    {} as Record<string, ToolInvocationUIPart[]>
+    {} as Record<string, ToolPartV5[]>
   )
 
   // For each toolCallId, get the most informative state (result > call > requested)
   const toolsToDisplay = Object.values(groupedTools)
     .map((group) => {
-      const resultTool = group.find(
-        (item) => item.toolInvocation.state === "result"
-      )
-      const callTool = group.find(
-        (item) => item.toolInvocation.state === "call"
-      )
-      const partialCallTool = group.find(
-        (item) => item.toolInvocation.state === "partial-call"
-      )
-
-      // Return the most informative one
-      return resultTool || callTool || partialCallTool
+      const outputAvailable = group.find((item) => item.state === "output-available")
+      const outputError = group.find((item) => item.state === "output-error")
+      const inputAvailable = group.find((item) => item.state === "input-available")
+      const inputStreaming = group.find((item) => item.state === "input-streaming")
+      return outputAvailable || outputError || inputAvailable || inputStreaming
     })
-    .filter(Boolean) as ToolInvocationUIPart[]
+    .filter(Boolean) as ToolPartV5[]
 
   if (toolsToDisplay.length === 0) return null
 
@@ -183,13 +183,16 @@ function SingleToolView({
   return (
     <div className={className}>
       <div className="space-y-4">
-        {toolsToDisplay.map((tool) => (
-          <SingleToolCard
-            key={tool.toolInvocation.toolCallId}
-            toolData={tool}
-            defaultOpen={defaultOpen}
-          />
-        ))}
+        {toolsToDisplay.map((tool, index) => {
+          const stableKey = tool.toolCallId || `${tool.type}-${index}`
+          return (
+            <SingleToolCard
+              key={stableKey}
+              toolData={tool}
+              defaultOpen={defaultOpen}
+            />
+          )
+        })}
       </div>
     </div>
   )
@@ -201,16 +204,17 @@ function SingleToolCard({
   defaultOpen = false,
   className,
 }: {
-  toolData: ToolInvocationUIPart
+  toolData: ToolPartV5
   defaultOpen?: boolean
   className?: string
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultOpen)
-  const { toolInvocation } = toolData
-  const { state, toolName, toolCallId, args } = toolInvocation
-  const isLoading = state === "call"
-  const isCompleted = state === "result"
-  const result = isCompleted ? toolInvocation.result : undefined
+  const { state, toolCallId, input, output, type } = toolData
+  const toolName = typeof type === 'string' && type.startsWith('tool-') ? type.slice(5) : type
+  const isLoading = state === "input-streaming" || state === "input-available"
+  const isCompleted = state === "output-available"
+  const isError = state === "output-error"
+  const result = isCompleted ? output : undefined
 
   // Parse the result JSON if available
   const { parsedResult, parseError } = useMemo(() => {
@@ -220,21 +224,12 @@ function SingleToolCard({
       if (Array.isArray(result))
         return { parsedResult: result, parseError: null }
 
-      if (
-        typeof result === "object" &&
-        result !== null &&
-        "content" in result
-      ) {
-        const textContent = result.content?.find(
-          (item: { type: string }) => item.type === "text"
-        )
+      // If tool returned a v4-style content payload
+      if (typeof result === "object" && result !== null && 'content' in (result as any)) {
+        const textContent = (result as any).content?.find((item: { type: string }) => item.type === 'text')
         if (!textContent?.text) return { parsedResult: null, parseError: null }
-
         try {
-          return {
-            parsedResult: JSON.parse(textContent.text),
-            parseError: null,
-          }
+          return { parsedResult: JSON.parse(textContent.text), parseError: null }
         } catch {
           return { parsedResult: textContent.text, parseError: null }
         }
@@ -247,8 +242,8 @@ function SingleToolCard({
   }, [isCompleted, result])
 
   // Format the arguments for display
-  const formattedArgs = args
-    ? Object.entries(args).map(([key, value]) => (
+  const formattedArgs = input
+    ? Object.entries(input).map(([key, value]) => (
         <div key={key} className="mb-1">
           <span className="text-muted-foreground font-medium">{key}:</span>{" "}
           <span className="font-mono">
@@ -432,7 +427,7 @@ function SingleToolCard({
           >
             <div className="space-y-3 px-3 pt-3 pb-3">
               {/* Arguments section */}
-              {args && Object.keys(args).length > 0 && (
+              {input && Object.keys(input).length > 0 && (
                 <div>
                   <div className="text-muted-foreground mb-1 text-xs font-medium">
                     Arguments

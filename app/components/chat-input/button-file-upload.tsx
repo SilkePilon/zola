@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils"
 import { FileArrowUp, Paperclip } from "@phosphor-icons/react"
 import React from "react"
 import { PopoverContentAuth } from "./popover-content-auth"
+import { PopoverContentStorage } from "./popover-content-storage"
+import { useUserPreferences } from "@/lib/user-preference-store/provider"
 
 type ButtonFileUploadProps = {
   onFileUpload: (files: File[]) => void
@@ -36,6 +38,9 @@ export function ButtonFileUpload({
   disabled = false,
 }: ButtonFileUploadProps) {
   const { models } = useModel()
+  const { preferences } = useUserPreferences()
+  const hasStorageBucket = Boolean(preferences.storageBucket)
+  
   if (disabled) {
     return (
       <Tooltip>
@@ -160,6 +165,31 @@ export function ButtonFileUpload({
           <TooltipContent>Add files</TooltipContent>
         </Tooltip>
         <PopoverContentAuth />
+      </Popover>
+    )
+  }
+
+  // Show storage configuration prompt if bucket is not configured
+  if (!hasStorageBucket) {
+    return (
+      <Popover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="border-border dark:bg-secondary size-9 rounded-[8px] border bg-transparent"
+                type="button"
+                aria-label="Add files"
+              >
+                <Paperclip className="size-4" />
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Add files</TooltipContent>
+        </Tooltip>
+        <PopoverContentStorage />
       </Popover>
     )
   }

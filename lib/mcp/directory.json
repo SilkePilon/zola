@@ -1,0 +1,27 @@
+[
+  {
+    "name": "GitHub",
+    "description": "Access GitHub repositories, issues, and pull requests",
+    "transportType": "http",
+    "url": "https://api.githubcopilot.com/mcp/",
+    "requiresAuth": true,
+    "authPlaceholder": "GitHub Personal Access Token",
+    "authHeader": "Authorization"
+  },
+  {
+    "name": "Context7",
+    "description": "Up-to-date Docs for LLMs and AI code editors",
+    "transportType": "http",
+    "url": "https://mcp.context7.com/mcp/",
+    "requiresAuth": true,
+    "authPlaceholder": "Context7 API Key",
+    "authHeader": "Authorization"
+  },
+  {
+    "name": "Exa",
+    "description": "One API to connect your products to powerful web search",
+    "transportType": "http",
+    "url": "https://mcp.exa.ai/mcp/",
+    "requiresAuth": false
+  }
+]

@@ -16,19 +16,18 @@ import {
 } from "@/components/prompt-kit/message"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Message as MessageType } from "@ai-sdk/react"
-import { Check, Copy, Trash } from "@phosphor-icons/react"
+import { Check, Copy, Trash, X } from "@phosphor-icons/react"
 import Image from "next/image"
 import { useRef, useState } from "react"
 
 const getTextFromDataUrl = (dataUrl: string) => {
   const base64 = dataUrl.split(",")[1]
-  return base64
+  return base64 || ""
 }
 
 export type MessageUserProps = {
   hasScrollAnchor?: boolean
-  attachments?: MessageType["experimental_attachments"]
+  parts?: any[]
   children: string
   copied: boolean
   copyToClipboard: () => void
@@ -41,7 +40,7 @@ export type MessageUserProps = {
 
 export function MessageUser({
   hasScrollAnchor,
-  attachments,
+  parts,
   children,
   copied,
   copyToClipboard,
@@ -53,6 +52,7 @@ export function MessageUser({
 }: MessageUserProps) {
   const [editInput, setEditInput] = useState(children)
   const [isEditing, setIsEditing] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
 
   const handleEditCancel = () => {
@@ -69,7 +69,16 @@ export function MessageUser({
   }
 
   const handleDelete = () => {
+    setShowDeleteConfirm(true)
+  }
+
+  const handleConfirmDelete = () => {
     onDelete(id)
+    setShowDeleteConfirm(false)
+  }
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false)
   }
 
   return (
@@ -80,12 +89,20 @@ export function MessageUser({
         className
       )}
     >
-      {attachments?.map((attachment, index) => (
-        <div
-          className="flex flex-row gap-2"
-          key={`${attachment.name}-${index}`}
-        >
-          {attachment.contentType?.startsWith("image") ? (
+      {(parts || [])
+        .filter((p: any) => p?.type === "file")
+        .map((attachment: any, index: number) => {
+          const mediaType = attachment.mediaType || attachment.mimeType
+          const imageUrl = attachment.url || 
+            (attachment.data && attachment.mimeType 
+              ? `data:${attachment.mimeType};base64,${attachment.data}`
+              : null)
+          
+          if (!imageUrl) return null
+          
+          return (
+            <div className="flex flex-row gap-2" key={`${mediaType}-${index}`}>
+              {mediaType?.startsWith("image") ? (
             <MorphingDialog
               transition={{
                 type: "spring",
@@ -97,9 +114,8 @@ export function MessageUser({
               <MorphingDialogTrigger className="z-10">
                 <Image
                   className="mb-1 w-40 rounded-md"
-                  key={attachment.name}
-                  src={attachment.url}
-                  alt={attachment.name || "Attachment"}
+                  src={imageUrl}
+                  alt={attachment.filename || "Attachment"}
                   width={160}
                   height={120}
                 />
@@ -107,24 +123,25 @@ export function MessageUser({
               <MorphingDialogContainer>
                 <MorphingDialogContent className="relative rounded-lg">
                   <MorphingDialogImage
-                    src={attachment.url}
-                    alt={attachment.name || ""}
+                    src={imageUrl}
+                    alt={attachment.filename || ""}
                     className="max-h-[90vh] max-w-[90vw] object-contain"
                   />
                 </MorphingDialogContent>
                 <MorphingDialogClose className="text-primary" />
               </MorphingDialogContainer>
             </MorphingDialog>
-          ) : attachment.contentType?.startsWith("text") ? (
+          ) : mediaType?.startsWith("text") && attachment.data ? (
             <div className="text-primary mb-3 h-24 w-40 overflow-hidden rounded-md border p-2 text-xs">
-              {getTextFromDataUrl(attachment.url)}
+              {getTextFromDataUrl(`data:${mediaType};base64,${attachment.data}`)}
             </div>
           ) : null}
-        </div>
-      ))}
+            </div>
+          )
+        })}
       {isEditing ? (
         <div
-          className="bg-accent relative flex min-w-[180px] flex-col gap-2 rounded-3xl px-5 py-2.5"
+          className="bg-accent relative flex min-w-[180px] flex-col gap-2 rounded-[8px] px-5 py-2.5"
           style={{
             width: contentRef.current?.offsetWidth,
           }}
@@ -155,7 +172,7 @@ export function MessageUser({
         </div>
       ) : (
         <MessageContent
-          className="bg-accent prose dark:prose-invert relative max-w-[70%] rounded-3xl px-5 py-2.5"
+          className="bg-accent prose dark:prose-invert relative max-w-[70%] rounded-[8px] px-5 py-2.5"
           markdown={true}
           ref={contentRef}
           components={{
@@ -206,16 +223,41 @@ export function MessageUser({
             <PencilSimple className="size-4" />
           </button>
         </MessageAction> */}
-        <MessageAction tooltip="Delete" side="bottom">
-          <button
-            className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
-            aria-label="Delete"
-            onClick={handleDelete}
-            type="button"
-          >
-            <Trash className="size-4" />
-          </button>
-        </MessageAction>
+        {showDeleteConfirm ? (
+          <>
+            <MessageAction tooltip="Confirm delete" side="bottom">
+              <button
+                className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
+                aria-label="Confirm delete"
+                onClick={handleConfirmDelete}
+                type="button"
+              >
+                <Check className="size-4" weight="bold" />
+              </button>
+            </MessageAction>
+            <MessageAction tooltip="Cancel" side="bottom">
+              <button
+                className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
+                aria-label="Cancel delete"
+                onClick={handleCancelDelete}
+                type="button"
+              >
+                <X className="size-4" weight="bold" />
+              </button>
+            </MessageAction>
+          </>
+        ) : (
+          <MessageAction tooltip="Delete" side="bottom">
+            <button
+              className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
+              aria-label="Delete"
+              onClick={handleDelete}
+              type="button"
+            >
+              <Trash className="size-4" />
+            </button>
+          </MessageAction>
+        )}
       </MessageActions>
     </MessageContainer>
   )
