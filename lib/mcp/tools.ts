@@ -1,5 +1,6 @@
 import { z, type ZodTypeAny } from "zod"
 import type { ToolSet } from "ai"
+import { createBuiltinMCPTools, getManagedServers } from "./builtin-server"
 
 export type MCPServerConfig = {
   id: string
@@ -23,17 +24,35 @@ export type McpToolsResult = {
  *                     If not provided, falls back to env vars (MCP_URL, MCP_LOCAL_CMD).
  */
 export async function buildMcpTools(mcpServers?: MCPServerConfig[]): Promise<McpToolsResult> {
+  // Always include built-in MCP management tools
+  const builtinTools = createBuiltinMCPTools()
+  
+  // Add servers managed by the built-in tools to the list
+  const managedServers = getManagedServers()
+  const allServers = [
+    ...(mcpServers || []),
+    ...managedServers,
+  ]
+  
   // If server configs provided, use them instead of env vars
-  if (mcpServers && mcpServers.length > 0) {
-    return buildMcpToolsFromConfigs(mcpServers)
+  if (allServers.length > 0) {
+    const result = await buildMcpToolsFromConfigs(allServers)
+    // Merge built-in tools with MCP tools from servers
+    return {
+      tools: {
+        ...builtinTools,
+        ...result.tools,
+      },
+      close: result.close,
+    }
   }
   
   // Fallback to env-based configuration for backward compatibility
   const mcpUrl = process.env.MCP_URL
 
-  // No MCP configured
+  // No MCP configured - return just built-in tools
   if (!mcpUrl) {
-    return { tools: {} }
+    return { tools: builtinTools }
   }
 
   // Lazy import to keep cold starts smaller when unused
@@ -71,8 +90,8 @@ export async function buildMcpTools(mcpServers?: MCPServerConfig[]): Promise<Mcp
     }
   }
 
-  // If client failed (shouldn't happen), return empty tools
-  if (!client) return { tools: {} }
+  // If client failed (shouldn't happen), return just built-in tools
+  if (!client) return { tools: builtinTools }
 
   // List tools from MCP, map to AI SDK tools
   let listed: Array<{ name: string; description?: string; inputSchema?: unknown }> = []
@@ -86,7 +105,7 @@ export async function buildMcpTools(mcpServers?: MCPServerConfig[]): Promise<Mcp
     }
   } catch (err) {
     console.error("MCP listTools failed:", err)
-    return { tools: {}, close }
+    return { tools: builtinTools, close }
   }
 
   const tools: ToolSet = {}
@@ -120,7 +139,14 @@ export async function buildMcpTools(mcpServers?: MCPServerConfig[]): Promise<Mcp
     }
   }
 
-  return { tools, close }
+  // Merge built-in tools with MCP tools
+  return { 
+    tools: {
+      ...builtinTools,
+      ...tools,
+    }, 
+    close 
+  }
 }
 
 function safeParseJson<T = unknown>(input: string | undefined, fallback: T): T | undefined {
