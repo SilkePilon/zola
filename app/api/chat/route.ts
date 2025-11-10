@@ -4,6 +4,7 @@ import type { ProviderWithoutOllama } from "@/lib/user-keys"
 import { getUserKey } from "@/lib/user-keys"
 import { streamText, ToolSet, stepCountIs, convertToModelMessages, type UIMessage } from "ai";
 import { buildMcpTools, type MCPServerConfig } from "@/lib/mcp/tools"
+import { setBuiltinMCPUserId } from "@/lib/mcp/builtin-server"
 import type { Message } from "@/app/types/api.types"
 import {
   incrementMessageCount,
@@ -127,6 +128,9 @@ export async function POST(req: Request) {
     }
 
     const modelMessages = convertToModelMessages(messages)
+
+    // Set userId for builtin MCP tools so they can access the user's servers
+    setBuiltinMCPUserId(isAuthenticated ? userId : null)
 
     // Load MCP tools from user's configured servers (or env vars as fallback)
     // Validate mcpServers is an array before filtering

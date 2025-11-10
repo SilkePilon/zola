@@ -113,9 +113,10 @@ AI: [Calls get_managed_servers to list enabled servers]
 ## How It Works
 
 1. **Built-in Tools**: The MCP management tools are always available in every chat session
-2. **In-Memory Storage**: Managed servers are stored in memory during the session
-3. **Integration**: Servers added via these tools are automatically merged with user-configured servers
-4. **AI-Driven**: The AI uses natural language understanding to know when to use these tools
+2. **Persistent Storage**: Servers added by the AI are saved to your IndexedDB (for guests) or Supabase (for authenticated users)
+3. **UI Integration**: Servers appear immediately in the MCP Settings panel after being added
+4. **Authentication Support**: The AI will ask for API keys when adding servers that require authentication
+5. **AI-Driven**: The AI uses natural language understanding to know when to use these tools
 
 ## Use Cases
 
@@ -153,7 +154,8 @@ AI: "The server is responding correctly. Would you like me to add it?"
 
 The built-in MCP server is implemented in `/lib/mcp/builtin-server.ts` and provides:
 - Tool definitions using Zod schemas for validation
-- In-memory storage for managed servers
+- API-based integration with MCP store (`/app/api/mcp/servers/route.ts`)
+- Persistent storage via IndexedDB or Supabase
 - Integration with the existing `buildMcpTools` function
 
 ### Integration
@@ -165,22 +167,27 @@ The built-in tools are automatically merged with other MCP tools in the `buildMc
 
 ### Persistence
 
-**Note**: Currently, servers added via the AI tools are stored in memory and will be lost when the chat session ends. For persistent server management, use the MCP Settings UI in the application settings.
+Servers added via the AI tools are automatically persisted:
+- **For guests**: Saved to IndexedDB in your browser
+- **For authenticated users**: Saved to Supabase database
+- **UI Integration**: All AI-added servers appear in the MCP Settings panel
+- **Persistent across sessions**: Servers remain configured until explicitly removed
 
 ## Future Enhancements
 
 Potential improvements for future versions:
-- Persistent storage for AI-managed servers
-- Integration with user's saved MCP configurations
 - Automatic server discovery and recommendations
-- Server health monitoring and alerts
+- Server health monitoring and alerts  
 - Tool usage analytics and recommendations
+- Bulk import/export of server configurations
+- Server templates for common MCP servers
 
 ## Security Considerations
 
-- Server configurations are only stored in memory
-- No credentials are persisted automatically
-- Authentication headers should be provided carefully
+- Server configurations are securely stored (IndexedDB for guests, Supabase for authenticated users)
+- Authentication headers are encrypted in storage
+- The AI is instructed to ask for credentials when needed
+- Always verify server URLs before providing authentication
 - Test servers before adding them to production use
 
 ## Troubleshooting

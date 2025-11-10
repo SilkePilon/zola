@@ -1,6 +1,6 @@
 import { z, type ZodTypeAny } from "zod"
 import type { ToolSet } from "ai"
-import { createBuiltinMCPTools, getManagedServers } from "./builtin-server"
+import { createBuiltinMCPTools } from "./builtin-server"
 
 export type MCPServerConfig = {
   id: string
@@ -27,16 +27,9 @@ export async function buildMcpTools(mcpServers?: MCPServerConfig[]): Promise<Mcp
   // Always include built-in MCP management tools
   const builtinTools = createBuiltinMCPTools()
   
-  // Add servers managed by the built-in tools to the list
-  const managedServers = getManagedServers()
-  const allServers = [
-    ...(mcpServers || []),
-    ...managedServers,
-  ]
-  
   // If server configs provided, use them instead of env vars
-  if (allServers.length > 0) {
-    const result = await buildMcpToolsFromConfigs(allServers)
+  if (mcpServers && mcpServers.length > 0) {
+    const result = await buildMcpToolsFromConfigs(mcpServers)
     // Merge built-in tools with MCP tools from servers
     return {
       tools: {

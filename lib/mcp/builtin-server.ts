@@ -5,15 +5,41 @@ import type { MCPServerConfig } from "@/lib/mcp-store/types"
 /**
  * Built-in MCP server that provides tools for managing MCP servers.
  * This allows the AI to add, list, update, and delete MCP servers dynamically.
+ * 
+ * These tools integrate with the MCP API to persist servers and show them in the UI.
  */
 
-// In-memory storage for MCP servers managed by the AI
-// In a production environment, this would be persisted to a database
-let managedServers: MCPServerConfig[] = []
+// userId to use for API calls - injected from the chat context
+let currentUserId: string | null = null
 
-// Helper to generate unique IDs
-function generateId(): string {
-  return `builtin-mcp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+/**
+ * Set the user ID for API calls
+ */
+export function setBuiltinMCPUserId(userId: string | null) {
+  currentUserId = userId
+}
+
+/**
+ * Helper to make API calls
+ */
+async function apiCall(endpoint: string, options: RequestInit = {}) {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+  const url = `${baseUrl}/api/mcp/servers${endpoint}`
+  
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  })
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(error.error || `API call failed: ${response.statusText}`)
+  }
+  
+  return response.json()
 }
 
 /**
@@ -22,13 +48,13 @@ function generateId(): string {
 export function createBuiltinMCPTools(): ToolSet {
   return {
     add_mcp_server: {
-      description: "Add a new MCP server configuration. This allows the AI to dynamically add new MCP servers that can be used in subsequent interactions.",
+      description: "Add a new MCP server configuration. IMPORTANT: Before adding a server, check if it requires authentication. If the server needs an API key or token, you MUST ask the user for it first. Common servers that require auth: GitHub (needs GitHub token), Context7 (needs API key). Use the 'headers' parameter to include authentication, e.g., headers: { 'Authorization': 'Bearer YOUR_TOKEN' } or { 'X-API-Key': 'YOUR_KEY' }.",
       inputSchema: z.object({
         name: z.string().min(1).describe("Name of the MCP server"),
         description: z.string().optional().describe("Description of what this MCP server provides"),
         transportType: z.enum(["http", "sse"]).describe("Transport type: 'http' for HTTP or 'sse' for Server-Sent Events"),
         url: z.string().url().describe("URL of the MCP server endpoint"),
-        headers: z.record(z.string(), z.string()).optional().describe("Optional HTTP headers to include in requests (e.g., authorization)"),
+        headers: z.record(z.string(), z.string()).optional().describe("HTTP headers for authentication. IMPORTANT: If the server requires authentication, you must ask the user for their API key/token first and include it here. Examples: { 'Authorization': 'Bearer token' }, { 'X-API-Key': 'key' }"),
         enabled: z.boolean().default(true).describe("Whether the server should be enabled immediately"),
       }),
       execute: async (args: unknown) => {
@@ -44,33 +70,42 @@ export function createBuiltinMCPTools(): ToolSet {
           const { name, description, transportType, url, headers, enabled } = typedArgs
 
           // Check if server with same name already exists
-          const existing = managedServers.find(s => s.name === name)
+          const listResult = await apiCall(
+            currentUserId ? `?userId=${currentUserId}` : '',
+            { method: 'GET' }
+          )
+          
+          const existingServers = listResult.servers || []
+          const existing = existingServers.find((s: MCPServerConfig) => s.name === name)
           if (existing) {
             return {
               success: false,
               error: `MCP server with name "${name}" already exists`,
+              suggestion: "Try updating the existing server instead, or use a different name.",
             }
           }
 
-          const now = new Date().toISOString()
-          const newServer: MCPServerConfig = {
-            id: generateId(),
-            name,
-            description,
-            transportType,
-            url,
-            headers: headers || {},
-            enabled: enabled ?? true,
-            createdAt: now,
-            updatedAt: now,
-          }
-
-          managedServers.push(newServer)
+          // Add server using the API
+          const result = await apiCall('', {
+            method: 'POST',
+            body: JSON.stringify({
+              userId: currentUserId,
+              server: {
+                name,
+                description,
+                transportType,
+                url,
+                headers: headers || {},
+                enabled: enabled ?? true,
+              },
+            }),
+          })
 
           return {
             success: true,
-            server: newServer,
-            message: `Successfully added MCP server "${name}". It will be available for use in subsequent interactions.`,
+            message: `Successfully added MCP server "${name}". The server is now available in your MCP Settings and will be used in subsequent interactions.`,
+            note: "The server has been saved and will appear in the MCP Servers settings panel.",
+            server: result.server,
           }
         } catch (error) {
           return {
@@ -82,7 +117,7 @@ export function createBuiltinMCPTools(): ToolSet {
     },
 
     list_mcp_servers: {
-      description: "List all configured MCP servers, including their status and configuration.",
+      description: "List all configured MCP servers, including their status and configuration. This shows both user-configured and AI-added servers.",
       inputSchema: z.object({
         includeDisabled: z.boolean().default(true).describe("Whether to include disabled servers in the list"),
       }),
@@ -91,24 +126,33 @@ export function createBuiltinMCPTools(): ToolSet {
           const typedArgs = args as { includeDisabled?: boolean }
           const { includeDisabled } = typedArgs
           
-          let servers = managedServers
+          const result = await apiCall(
+            currentUserId ? `?userId=${currentUserId}` : '',
+            { method: 'GET' }
+          )
+          
+          let servers = result.servers || []
           if (!includeDisabled) {
-            servers = servers.filter(s => s.enabled)
+            servers = servers.filter((s: MCPServerConfig) => s.enabled)
           }
 
           return {
             success: true,
-            servers: servers.map(s => ({
+            servers: servers.map((s: MCPServerConfig) => ({
               id: s.id,
               name: s.name,
               description: s.description,
               enabled: s.enabled,
               transportType: s.transportType,
               url: s.url,
+              hasAuth: s.headers && Object.keys(s.headers).length > 0,
               createdAt: s.createdAt,
               updatedAt: s.updatedAt,
             })),
             count: servers.length,
+            message: servers.length === 0 
+              ? "No MCP servers configured yet." 
+              : `Found ${servers.length} MCP server(s).`,
           }
         } catch (error) {
           return {
@@ -120,13 +164,13 @@ export function createBuiltinMCPTools(): ToolSet {
     },
 
     update_mcp_server: {
-      description: "Update an existing MCP server configuration. You can update the name, description, URL, headers, or enable/disable status.",
+      description: "Update an existing MCP server configuration. You can update the name, description, URL, headers (including adding authentication), or enable/disable status.",
       inputSchema: z.object({
         serverId: z.string().describe("ID of the server to update (use list_mcp_servers to get IDs)"),
         name: z.string().optional().describe("New name for the server"),
         description: z.string().optional().describe("New description"),
         url: z.string().url().optional().describe("New URL"),
-        headers: z.record(z.string(), z.string()).optional().describe("New headers (replaces existing)"),
+        headers: z.record(z.string(), z.string()).optional().describe("New headers (replaces existing). If adding authentication, ask user for their API key first."),
         enabled: z.boolean().optional().describe("Enable or disable the server"),
       }),
       execute: async (args: unknown) => {
@@ -141,19 +185,26 @@ export function createBuiltinMCPTools(): ToolSet {
           }
           const { serverId, name, description, url, headers, enabled } = typedArgs
 
-          const serverIndex = managedServers.findIndex(s => s.id === serverId)
-          if (serverIndex === -1) {
+          // Get existing servers
+          const listResult = await apiCall(
+            currentUserId ? `?userId=${currentUserId}` : '',
+            { method: 'GET' }
+          )
+          
+          const existingServers = listResult.servers || []
+          const server = existingServers.find((s: MCPServerConfig) => s.id === serverId)
+          
+          if (!server) {
             return {
               success: false,
               error: `MCP server with ID "${serverId}" not found`,
+              suggestion: "Use list_mcp_servers to see available servers and their IDs.",
             }
           }
 
-          const server = managedServers[serverIndex]!
-
           // Check if new name conflicts with another server
           if (name && name !== server.name) {
-            const nameConflict = managedServers.find(s => s.name === name && s.id !== serverId)
+            const nameConflict = existingServers.find((s: MCPServerConfig) => s.name === name && s.id !== serverId)
             if (nameConflict) {
               return {
                 success: false,
@@ -162,23 +213,26 @@ export function createBuiltinMCPTools(): ToolSet {
             }
           }
 
-          // Update server
-          const updatedServer: MCPServerConfig = {
-            ...server,
-            ...(name !== undefined && { name }),
-            ...(description !== undefined && { description }),
-            ...(url !== undefined && { url }),
-            ...(headers !== undefined && { headers }),
-            ...(enabled !== undefined && { enabled }),
-            updatedAt: new Date().toISOString(),
-          }
+          // Prepare updates
+          const updates: Partial<MCPServerConfig> = {}
+          if (name !== undefined) updates.name = name
+          if (description !== undefined) updates.description = description
+          if (url !== undefined) updates.url = url
+          if (headers !== undefined) updates.headers = headers
+          if (enabled !== undefined) updates.enabled = enabled
 
-          managedServers[serverIndex] = updatedServer
+          await apiCall('', {
+            method: 'PATCH',
+            body: JSON.stringify({
+              userId: currentUserId,
+              serverId,
+              updates,
+            }),
+          })
 
           return {
             success: true,
-            server: updatedServer,
-            message: `Successfully updated MCP server "${updatedServer.name}"`,
+            message: `Successfully updated MCP server "${name || server.name}". Changes are now visible in MCP Settings.`,
           }
         } catch (error) {
           return {
@@ -190,7 +244,7 @@ export function createBuiltinMCPTools(): ToolSet {
     },
 
     delete_mcp_server: {
-      description: "Delete an MCP server configuration. This will remove the server from the list and it will no longer be available.",
+      description: "Delete an MCP server configuration. This will remove the server from the list and it will no longer be available in the UI or for use.",
       inputSchema: z.object({
         serverId: z.string().describe("ID of the server to delete (use list_mcp_servers to get IDs)"),
       }),
@@ -199,20 +253,31 @@ export function createBuiltinMCPTools(): ToolSet {
           const typedArgs = args as { serverId: string }
           const { serverId } = typedArgs
 
-          const serverIndex = managedServers.findIndex(s => s.id === serverId)
-          if (serverIndex === -1) {
+          // Get existing servers to find the server name
+          const listResult = await apiCall(
+            currentUserId ? `?userId=${currentUserId}` : '',
+            { method: 'GET' }
+          )
+          
+          const existingServers = listResult.servers || []
+          const server = existingServers.find((s: MCPServerConfig) => s.id === serverId)
+          
+          if (!server) {
             return {
               success: false,
               error: `MCP server with ID "${serverId}" not found`,
+              suggestion: "Use list_mcp_servers to see available servers and their IDs.",
             }
           }
 
-          const deletedServer = managedServers[serverIndex]!
-          managedServers.splice(serverIndex, 1)
+          await apiCall(
+            `?serverId=${serverId}${currentUserId ? `&userId=${currentUserId}` : ''}`,
+            { method: 'DELETE' }
+          )
 
           return {
             success: true,
-            message: `Successfully deleted MCP server "${deletedServer.name}"`,
+            message: `Successfully deleted MCP server "${server.name}". It has been removed from MCP Settings.`,
           }
         } catch (error) {
           return {
@@ -256,14 +321,28 @@ export function createBuiltinMCPTools(): ToolSet {
     },
 
     get_managed_servers: {
-      description: "Get the current list of MCP servers that can be used. This returns the servers that have been added via the built-in management tools.",
+      description: "Get the current list of enabled MCP servers. This returns all active servers that are available for use.",
       inputSchema: z.object({}),
       execute: async () => {
         try {
+          const result = await apiCall(
+            currentUserId ? `?userId=${currentUserId}` : '',
+            { method: 'GET' }
+          )
+          
+          const servers = (result.servers || []).filter((s: MCPServerConfig) => s.enabled)
+          
           return {
             success: true,
-            servers: managedServers.filter(s => s.enabled),
-            message: `Found ${managedServers.filter(s => s.enabled).length} enabled MCP server(s)`,
+            servers: servers.map((s: MCPServerConfig) => ({
+              id: s.id,
+              name: s.name,
+              description: s.description,
+              url: s.url,
+              transportType: s.transportType,
+              hasAuth: s.headers && Object.keys(s.headers).length > 0,
+            })),
+            message: `Found ${servers.length} enabled MCP server(s)`,
           }
         } catch (error) {
           return {
@@ -276,16 +355,4 @@ export function createBuiltinMCPTools(): ToolSet {
   }
 }
 
-/**
- * Get the list of managed servers (for integration with buildMcpTools)
- */
-export function getManagedServers(): MCPServerConfig[] {
-  return managedServers.filter(s => s.enabled)
-}
 
-/**
- * Clear all managed servers (useful for testing)
- */
-export function clearManagedServers(): void {
-  managedServers = []
-}
