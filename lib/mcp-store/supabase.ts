@@ -59,9 +59,6 @@ export async function addMCPServerToSupabase(
         description: server.description || null,
         enabled: server.enabled,
         transport_type: server.transportType,
-        command: server.command || null,
-        args: server.args || null,
-        env: server.env || null,
         url: server.url || null,
         headers: server.headers || null,
         icon: server.icon || null,
@@ -81,9 +78,6 @@ export async function addMCPServerToSupabase(
       description: row.description || undefined,
       enabled: row.enabled,
       transportType: row.transport_type,
-      command: row.command || undefined,
-      args: row.args || undefined,
-      env: row.env || undefined,
       url: row.url || undefined,
       headers: row.headers || undefined,
       icon: row.icon || undefined,
@@ -109,9 +103,6 @@ export async function updateMCPServerInSupabase(
     if (updates.description !== undefined) updateData.description = updates.description || null
     if (updates.enabled !== undefined) updateData.enabled = updates.enabled
     if (updates.transportType !== undefined) updateData.transport_type = updates.transportType
-    if (updates.command !== undefined) updateData.command = updates.command || null
-    if (updates.args !== undefined) updateData.args = updates.args || null
-    if (updates.env !== undefined) updateData.env = updates.env || null
     if (updates.url !== undefined) updateData.url = updates.url || null
     if (updates.headers !== undefined) updateData.headers = updates.headers || null
     if (updates.icon !== undefined) updateData.icon = updates.icon || null
