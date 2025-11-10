@@ -28,6 +28,9 @@ const nextConfig: NextConfig = {
     ? {
         webpack: (config: Configuration) => {
           const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer")
+          if (!config.plugins) {
+            config.plugins = []
+          }
           config.plugins.push(
             new BundleAnalyzerPlugin({
               analyzerMode: "static",
