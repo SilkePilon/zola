@@ -81,14 +81,14 @@ export async function saveFinalAssistantMessage(
           const toolCallId = (part as any).toolCallId || ""
           const existing = toolMap.get(toolCallId)
           
-          // Merge with existing tool-call to preserve args
+          // Merge with existing tool-call to preserve args and toolName
           toolMap.set(toolCallId, {
             type: "tool-invocation",
             toolInvocation: {
               state: "result",
               step: DEFAULT_STEP,
               toolCallId,
-              toolName: (part as any).toolName || "",
+              toolName: existing?.toolInvocation?.toolName || (part as any).toolName || "unknown",
               args: existing?.toolInvocation?.args || (part as any).input || (part as any).args || {},
               result: (part as any).result || (part as any).output,
             },

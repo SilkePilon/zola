@@ -44,7 +44,7 @@ export function HistoryTrigger({
       await clearMessagesForChat(id)
       
       // Delete the chat with redirect if it's the current chat
-      await deleteChat(id, chatId, isCurrentChat ? () => router.push("/") : undefined)
+      await deleteChat(id, chatId ?? undefined, isCurrentChat ? () => router.push("/") : undefined)
     } catch (error) {
       console.error("Error deleting chat:", error)
       const { toast } = await import("@/components/ui/toast")

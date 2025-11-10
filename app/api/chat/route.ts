@@ -3,7 +3,7 @@ import { getAllModels } from "@/lib/models"
 import type { ProviderWithoutOllama } from "@/lib/user-keys"
 import { getUserKey } from "@/lib/user-keys"
 import { streamText, ToolSet, stepCountIs, convertToModelMessages, type UIMessage } from "ai";
-import { buildMcpTools } from "@/lib/mcp/tools"
+import { buildMcpTools, type MCPServerConfig } from "@/lib/mcp/tools"
 import {
   incrementMessageCount,
   logUserMessage,
@@ -13,16 +13,6 @@ import {
 import { createErrorResponse, extractErrorMessage } from "./utils"
 
 export const maxDuration = 60
-
-type MCPServerConfig = {
-  id: string
-  name: string
-  description?: string
-  enabled: boolean
-  transportType: "http" | "sse"
-  url?: string
-  headers?: Record<string, string>
-}
 
 type ChatRequest = {
   messages: UIMessage[]
