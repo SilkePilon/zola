@@ -131,7 +131,23 @@ export async function POST(req: Request) {
       throw new Error(`Selected model ${model} is not invokable`)
     }
 
-    const modelMessages = convertToModelMessages(messages as any)
+    // Clean messages before converting - remove tool-invocation parts that are display-only
+    const cleanedMessages = messages.map((msg) => {
+      if (!msg.parts || !Array.isArray(msg.parts)) return msg
+      
+      const cleanParts = msg.parts.filter((part: any) => {
+        // Remove tool-invocation parts (display-only)
+        if (part.type === 'tool-invocation') return false
+        return true
+      })
+      
+      return {
+        ...msg,
+        parts: cleanParts.length > 0 ? cleanParts : msg.parts,
+      }
+    })
+
+    const modelMessages = convertToModelMessages(cleanedMessages as any)
 
     // Load MCP tools from user's configured servers (or env vars as fallback)
     const enabledMcpServers = mcpServers?.filter(s => s.enabled) || []
@@ -149,13 +165,33 @@ export async function POST(req: Request) {
         // Don't set streamError anymore - let the AI SDK handle it through the stream
       },
 
-      onFinish: async ({ response, usage }) => {
+      onFinish: async ({ response, usage, steps }) => {
         if (supabase) {
+          // In AI SDK v5 with tools, we need to collect all messages including:
+          // 1. Intermediate tool-call messages (from steps)
+          // 2. Tool result messages (from steps)
+          // 3. Final assistant message with text (from response.messages)
+          const allMessages: import("@/app/types/api.types").Message[] = []
+          
+          if (steps && steps.length > 0) {
+            // Collect messages from all steps (tool calls and intermediate responses)
+            for (const step of steps) {
+              if (step.messages) {
+                allMessages.push(...(step.messages as any[]))
+              }
+            }
+          }
+          
+          // Always include response.messages to ensure we get the final assistant message
+          // This contains the complete final response with text content
+          if (response.messages && response.messages.length > 0) {
+            allMessages.push(...(response.messages as any[]))
+          }
+          
           await storeAssistantMessage({
             supabase,
             chatId,
-            messages:
-              response.messages as unknown as import("@/app/types/api.types").Message[],
+            messages: allMessages,
             message_group_id,
             model,
           })

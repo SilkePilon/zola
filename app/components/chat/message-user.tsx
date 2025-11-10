@@ -16,7 +16,7 @@ import {
 } from "@/components/prompt-kit/message"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Check, Copy, Trash } from "@phosphor-icons/react"
+import { Check, Copy, Trash, X } from "@phosphor-icons/react"
 import Image from "next/image"
 import { useRef, useState } from "react"
 
@@ -52,6 +52,7 @@ export function MessageUser({
 }: MessageUserProps) {
   const [editInput, setEditInput] = useState(children)
   const [isEditing, setIsEditing] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
 
   const handleEditCancel = () => {
@@ -68,7 +69,16 @@ export function MessageUser({
   }
 
   const handleDelete = () => {
+    setShowDeleteConfirm(true)
+  }
+
+  const handleConfirmDelete = () => {
     onDelete(id)
+    setShowDeleteConfirm(false)
+  }
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false)
   }
 
   return (
@@ -205,16 +215,41 @@ export function MessageUser({
             <PencilSimple className="size-4" />
           </button>
         </MessageAction> */}
-        <MessageAction tooltip="Delete" side="bottom">
-          <button
-            className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
-            aria-label="Delete"
-            onClick={handleDelete}
-            type="button"
-          >
-            <Trash className="size-4" />
-          </button>
-        </MessageAction>
+        {showDeleteConfirm ? (
+          <>
+            <MessageAction tooltip="Confirm delete" side="bottom">
+              <button
+                className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
+                aria-label="Confirm delete"
+                onClick={handleConfirmDelete}
+                type="button"
+              >
+                <Check className="size-4" weight="bold" />
+              </button>
+            </MessageAction>
+            <MessageAction tooltip="Cancel" side="bottom">
+              <button
+                className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
+                aria-label="Cancel delete"
+                onClick={handleCancelDelete}
+                type="button"
+              >
+                <X className="size-4" weight="bold" />
+              </button>
+            </MessageAction>
+          </>
+        ) : (
+          <MessageAction tooltip="Delete" side="bottom">
+            <button
+              className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
+              aria-label="Delete"
+              onClick={handleDelete}
+              type="button"
+            >
+              <Trash className="size-4" />
+            </button>
+          </MessageAction>
+        )}
       </MessageActions>
     </MessageContainer>
   )

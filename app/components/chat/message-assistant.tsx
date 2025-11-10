@@ -8,7 +8,7 @@ import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { cn } from "@/lib/utils"
 import type { UIMessage } from "ai"
 import { ArrowClockwise, Check, Copy } from "@phosphor-icons/react"
-import { useCallback, useRef } from "react"
+import { useCallback, useMemo, useRef } from "react"
 import { getSources } from "./get-sources"
 import { QuoteButton } from "./quote-button"
 import { Reasoning } from "./reasoning"
@@ -55,9 +55,48 @@ export function MessageAssistant({
 }: MessageAssistantProps) {
   const { preferences } = useUserPreferences()
   const sources = getSources(parts)
-  const toolInvocationParts = parts?.filter(
-    (part) => typeof part.type === "string" && part.type.startsWith("tool-")
-  ) as any[] | undefined
+  
+  // Handle both AI SDK v5 formats: "tool-call"/"tool-result" and nested "tool-invocation"
+  // Create a display-only copy to avoid mutating original message data
+  const toolInvocationParts = useMemo(() => {
+    if (!parts) return undefined
+    
+    const filtered = parts.filter((part) => {
+      if (typeof part.type !== "string") return false
+      // Direct AI SDK v5 format
+      if (part.type.startsWith("tool-")) return true
+      // Nested format from older messages
+      if (part.type === "tool-invocation" && (part as any).toolInvocation) return true
+      return false
+    })
+    
+    return filtered.map((part) => {
+      // Normalize nested format to flat format for display only
+      if (part.type === "tool-invocation" && (part as any).toolInvocation) {
+        const inv = (part as any).toolInvocation
+        // Map old state values to AI SDK v5 state values
+        let state = inv.state
+        if (state === "result") {
+          state = "output-available"
+        } else if (state === "partial-call" || state === "call") {
+          state = "input-available"
+        }
+        
+        return {
+          type: `tool-${inv.toolName}`,
+          toolCallId: inv.toolCallId,
+          toolName: inv.toolName,
+          args: inv.args,
+          result: inv.result,
+          state: state,
+          input: inv.args,
+          output: inv.result,
+        }
+      }
+      // Return a copy of the part to avoid mutation
+      return { ...part }
+    }) as any[]
+  }, [parts])
   // Collect reasoning parts (support multiple chunks)
   const reasoningParts = (parts?.filter((part) => part.type === "reasoning") || []) as any[]
   const reasoningText: string | undefined = (() => {

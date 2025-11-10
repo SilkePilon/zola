@@ -15,18 +15,46 @@ export async function saveFinalAssistantMessage(
   const toolMap = new Map<string, ContentPart>()
   const textParts: string[] = []
 
+  // Debug: Log messages to understand structure
+  console.log('saveFinalAssistantMessage - messages:', JSON.stringify(messages, null, 2))
+
   for (const msg of messages) {
     if (msg.role === "assistant" && Array.isArray(msg.content)) {
       for (const part of msg.content) {
         if (part.type === "text") {
           textParts.push(part.text || "")
           parts.push(part)
+        } else if (part.type === "tool-call") {
+          // AI SDK v5 format: tool-call message with input (args)
+          const toolCallId = part.toolCallId || ""
+          if (!toolCallId) continue
+          
+          toolMap.set(toolCallId, {
+            type: "tool-invocation",
+            toolInvocation: {
+              state: "call",
+              step: DEFAULT_STEP,
+              toolCallId,
+              toolName: part.toolName || "",
+              args: part.input || part.args || {},
+            },
+          })
         } else if (part.type === "tool-invocation" && part.toolInvocation) {
           const { toolCallId, state } = part.toolInvocation
           if (!toolCallId) continue
 
           const existing = toolMap.get(toolCallId)
           if (state === "result" || !existing) {
+            toolMap.set(toolCallId, {
+              ...part,
+              toolInvocation: {
+                ...part.toolInvocation,
+                args: part.toolInvocation?.args || existing?.toolInvocation?.args || {},
+                result: part.toolInvocation?.result || existing?.toolInvocation?.result,
+              },
+            })
+          } else if (state === "call") {
+            // Preserve args from tool-call for later merging with result
             toolMap.set(toolCallId, {
               ...part,
               toolInvocation: {
@@ -54,6 +82,9 @@ export async function saveFinalAssistantMessage(
       for (const part of msg.content) {
         if (part.type === "tool-result") {
           const toolCallId = part.toolCallId || ""
+          const existing = toolMap.get(toolCallId)
+          
+          // Merge with existing tool-call to preserve args
           toolMap.set(toolCallId, {
             type: "tool-invocation",
             toolInvocation: {
@@ -61,7 +92,8 @@ export async function saveFinalAssistantMessage(
               step: DEFAULT_STEP,
               toolCallId,
               toolName: part.toolName || "",
-              result: part.result,
+              args: existing?.toolInvocation?.args || part.input || part.args || {},
+              result: part.result || part.output,
             },
           })
         }

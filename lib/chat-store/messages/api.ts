@@ -35,18 +35,31 @@ export async function getMessagesFromDb(
     return []
   }
 
-  return data.map((message) => ({
-    id: String(message.id),
-    role: message.role as ChatMessage["role"],
-    // Keep legacy content for fallbacks in UI during migration
-    content: (message as any).content ?? "",
-    // Prefer parts (v5); ensure correct typing
-    parts: (message as any)?.parts as ChatMessage["parts"],
-    // Extra fields we persist alongside
-    createdAt: new Date(message.created_at || ""),
-    message_group_id: (message as any).message_group_id ?? null,
-    model: (message as any).model ?? null,
-  }))
+  return data.map((message) => {
+    // Ensure parts is properly parsed if it comes as a JSON string
+    let parsedParts = (message as any)?.parts
+    if (typeof parsedParts === 'string') {
+      try {
+        parsedParts = JSON.parse(parsedParts)
+      } catch (e) {
+        console.error('Failed to parse parts:', e)
+        parsedParts = undefined
+      }
+    }
+    
+    return {
+      id: String(message.id),
+      role: message.role as ChatMessage["role"],
+      // Keep legacy content for fallbacks in UI during migration
+      content: (message as any).content ?? "",
+      // Prefer parts (v5); ensure correct typing
+      parts: parsedParts as ChatMessage["parts"],
+      // Extra fields we persist alongside
+      createdAt: new Date(message.created_at || ""),
+      message_group_id: (message as any).message_group_id ?? null,
+      model: (message as any).model ?? null,
+    }
+  })
 }
 
 async function insertMessageToDb(chatId: string, message: ChatMessage) {
@@ -93,6 +106,38 @@ async function deleteMessagesFromDb(chatId: string) {
 
   if (error) {
     console.error("Failed to clear messages from database:", error)
+  }
+}
+
+async function deleteMessagesFromId(chatId: string, messageId: string) {
+  const supabase = createClient()
+  if (!supabase) return
+
+  // Get all messages for this chat
+  const { data: allMessages, error: fetchError } = await supabase
+    .from("messages")
+    .select("id, created_at")
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: true })
+
+  if (fetchError || !allMessages) {
+    console.error("Failed to fetch messages:", fetchError)
+    return
+  }
+
+  // Find the target message and get its timestamp
+  const targetMessage = allMessages.find((m) => String(m.id) === messageId)
+  if (!targetMessage) return
+
+  // Delete all messages with created_at >= target message's created_at
+  const { error: deleteError } = await supabase
+    .from("messages")
+    .delete()
+    .eq("chat_id", chatId)
+    .gte("created_at", targetMessage.created_at)
+
+  if (deleteError) {
+    console.error("Failed to delete messages:", deleteError)
   }
 }
 
@@ -146,4 +191,13 @@ export async function clearMessagesCache(chatId: string): Promise<void> {
 export async function clearMessagesForChat(chatId: string): Promise<void> {
   await deleteMessagesFromDb(chatId)
   await clearMessagesCache(chatId)
+}
+
+export async function deleteMessagesFromIdForChat(
+  chatId: string,
+  messageId: string,
+  remainingMessages: ChatMessage[]
+): Promise<void> {
+  await deleteMessagesFromId(chatId, messageId)
+  await writeToIndexedDB("messages", { id: chatId, messages: remainingMessages })
 }

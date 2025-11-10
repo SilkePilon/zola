@@ -95,7 +95,7 @@ export function useChatCore({
 
   const [input, setInput] = useState('')
 
-  // Initialize useChat
+  // Initialize useChat without initial messages (we'll set them in useEffect)
   const {
     messages,
     status,
@@ -105,7 +105,6 @@ export function useChatCore({
     setMessages,
     sendMessage,
   } = useChat({
-    messages: initialMessages as any[],
     onFinish: ({ message }) => {
       cacheAndAddMessage(message as any)
       // Extract usage data from message metadata
@@ -132,7 +131,14 @@ export function useChatCore({
   // Sync messages from initialMessages when they're loaded (e.g., after page reload)
   useEffect(() => {
     if (initialMessages.length > 0 && messages.length === 0) {
-      setMessages(initialMessages as any[])
+      // Keep messages as-is for display - just remove extra DB fields
+      const cleanMessages = initialMessages.map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        parts: msg.parts,
+      }))
+      setMessages(cleanMessages as any[])
     }
   }, [initialMessages, messages.length, setMessages])
 

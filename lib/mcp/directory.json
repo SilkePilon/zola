@@ -18,5 +18,13 @@
     "requiresAuth": true,
     "authPlaceholder": "Context7 API Key",
     "authHeader": "Authorization"
+  },
+  {
+    "name": "Exa",
+    "description": "One API to connect your products to powerful web search",
+    "icon": "https://registry.npmmirror.com/@lobehub/icons-static-svg/latest/files/icons/exa-color.svg",
+    "transportType": "http",
+    "url": "https://mcp.exa.ai/mcp/",
+    "requiresAuth": false
   }
 ]

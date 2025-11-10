@@ -88,19 +88,93 @@ export function Chat() {
     []
   )
 
-  // Chat operations (utils + handlers) - created first
-  const { checkLimitsAndNotify, ensureChatExists, handleDelete, handleEdit } =
-    useChatOperations({
-      isAuthenticated,
-      chatId,
-      messages: initialMessages,
-      selectedModel,
-      systemPrompt,
-      createNewChat,
-      setHasDialogAuth,
-      setMessages: () => {},
-      setInput: () => {},
-    })
+  // Create helper functions first (needed by useChatCore)
+  const checkLimitsAndNotify = useCallback(async (uid: string): Promise<boolean> => {
+    try {
+      const { checkRateLimits } = await import("@/lib/api")
+      const { REMAINING_QUERY_ALERT_THRESHOLD } = await import("@/lib/config")
+      
+      const rateData = await checkRateLimits(uid, isAuthenticated)
+
+      if (rateData.remaining === 0 && !isAuthenticated) {
+        setHasDialogAuth(true)
+        return false
+      }
+
+      if (rateData.remaining === REMAINING_QUERY_ALERT_THRESHOLD) {
+        const { toast } = await import("@/components/ui/toast")
+        toast({
+          title: `Only ${rateData.remaining} quer${
+            rateData.remaining === 1 ? "y" : "ies"
+          } remaining today.`,
+          status: "info",
+        })
+      }
+
+      if (rateData.remainingPro === REMAINING_QUERY_ALERT_THRESHOLD) {
+        const { toast } = await import("@/components/ui/toast")
+        toast({
+          title: `Only ${rateData.remainingPro} pro quer${
+            rateData.remainingPro === 1 ? "y" : "ies"
+          } remaining today.`,
+          status: "info",
+        })
+      }
+
+      return true
+    } catch (err) {
+      console.error("Rate limit check failed:", err)
+      return false
+    }
+  }, [isAuthenticated, setHasDialogAuth])
+
+  const ensureChatExists = useCallback(async (userId: string, input: string) => {
+    if (!isAuthenticated) {
+      const storedGuestChatId = localStorage.getItem("guestChatId")
+      if (storedGuestChatId) return storedGuestChatId
+    }
+
+    if (initialMessages.length === 0) {
+      try {
+        const newChat = await createNewChat(
+          userId,
+          input,
+          selectedModel,
+          isAuthenticated,
+          systemPrompt
+        )
+
+        if (!newChat) return null
+        if (isAuthenticated) {
+          window.history.pushState(null, "", `/c/${newChat.id}`)
+        } else {
+          localStorage.setItem("guestChatId", newChat.id)
+        }
+
+        return newChat.id
+      } catch (err: unknown) {
+        const { toast } = await import("@/components/ui/toast")
+        let errorMessage = "Something went wrong."
+        try {
+          const errorObj = err as { message?: string }
+          if (errorObj.message) {
+            const parsed = JSON.parse(errorObj.message)
+            errorMessage = parsed.error || errorMessage
+          }
+        } catch {
+          const errorObj = err as { message?: string }
+          errorMessage = errorObj.message || errorMessage
+        }
+        toast({
+          title: errorMessage,
+          status: "error",
+        })
+        return null
+      }
+    }
+
+    return chatId
+  }, [isAuthenticated, initialMessages.length, chatId, createNewChat, selectedModel, systemPrompt])
 
   // Core chat functionality (initialization + state + actions)
   const {
@@ -117,6 +191,8 @@ export function Chat() {
     handleSuggestion,
     handleReload,
     handleInputChange,
+    setMessages: setChatMessages,
+    setInput: setChatInput,
   } = useChatCore({
     initialMessages,
     draftValue,
@@ -134,6 +210,20 @@ export function Chat() {
     clearDraft,
     bumpChat,
   })
+
+  // Chat operations (message handlers) - created after useChatCore
+  const { handleDelete, handleEdit } =
+    useChatOperations({
+      isAuthenticated,
+      chatId,
+      messages,
+      selectedModel,
+      systemPrompt,
+      createNewChat,
+      setHasDialogAuth,
+      setMessages: setChatMessages,
+      setInput: setChatInput,
+    })
 
   // Memoize the conversation props to prevent unnecessary rerenders
   const conversationProps = useMemo(
