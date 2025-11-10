@@ -22,12 +22,12 @@ import { useRef, useState } from "react"
 
 const getTextFromDataUrl = (dataUrl: string) => {
   const base64 = dataUrl.split(",")[1]
-  return base64
+  return base64 || ""
 }
 
 export type MessageUserProps = {
   hasScrollAnchor?: boolean
-  parts?: any
+  parts?: any[]
   children: string
   copied: boolean
   copyToClipboard: () => void
@@ -89,12 +89,20 @@ export function MessageUser({
         className
       )}
     >
-      {(parts || []).filter((p: any) => p?.type === "file").map((attachment: any, index: number) => (
-        <div
-          className="flex flex-row gap-2"
-          key={`${attachment.mimeType}-${index}`}
-        >
-          {attachment.mimeType?.startsWith("image") ? (
+      {(parts || [])
+        .filter((p: any) => p?.type === "file")
+        .map((attachment: any, index: number) => {
+          const mediaType = attachment.mediaType || attachment.mimeType
+          const imageUrl = attachment.url || 
+            (attachment.data && attachment.mimeType 
+              ? `data:${attachment.mimeType};base64,${attachment.data}`
+              : null)
+          
+          if (!imageUrl) return null
+          
+          return (
+            <div className="flex flex-row gap-2" key={`${mediaType}-${index}`}>
+              {mediaType?.startsWith("image") ? (
             <MorphingDialog
               transition={{
                 type: "spring",
@@ -106,9 +114,8 @@ export function MessageUser({
               <MorphingDialogTrigger className="z-10">
                 <Image
                   className="mb-1 w-40 rounded-md"
-                  key={`${attachment.mimeType}-${index}`}
-                  src={`data:${attachment.mimeType};base64,${attachment.data}`}
-                  alt={"Attachment"}
+                  src={imageUrl}
+                  alt={attachment.filename || "Attachment"}
                   width={160}
                   height={120}
                 />
@@ -116,21 +123,22 @@ export function MessageUser({
               <MorphingDialogContainer>
                 <MorphingDialogContent className="relative rounded-lg">
                   <MorphingDialogImage
-                    src={`data:${attachment.mimeType};base64,${attachment.data}`}
-                    alt={""}
+                    src={imageUrl}
+                    alt={attachment.filename || ""}
                     className="max-h-[90vh] max-w-[90vw] object-contain"
                   />
                 </MorphingDialogContent>
                 <MorphingDialogClose className="text-primary" />
               </MorphingDialogContainer>
             </MorphingDialog>
-          ) : attachment.mimeType?.startsWith("text") ? (
+          ) : mediaType?.startsWith("text") && attachment.data ? (
             <div className="text-primary mb-3 h-24 w-40 overflow-hidden rounded-md border p-2 text-xs">
-              {getTextFromDataUrl(`data:${attachment.mimeType};base64,${attachment.data}`)}
+              {getTextFromDataUrl(`data:${mediaType};base64,${attachment.data}`)}
             </div>
           ) : null}
-        </div>
-      ))}
+            </div>
+          )
+        })}
       {isEditing ? (
         <div
           className="bg-accent relative flex min-w-[180px] flex-col gap-2 rounded-[8px] px-5 py-2.5"

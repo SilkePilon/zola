@@ -183,44 +183,15 @@ export function useChatCore({
         return
       }
 
-      let attachments: Attachment[] | null = []
+      // Convert File[] to FileList if we have files
+      let fileList: FileList | undefined = undefined
       if (submittedFiles.length > 0) {
-        attachments = await handleFileUploads(uid, currentChatId)
-        if (attachments === null) {
-          return
-        }
+        const dataTransfer = new DataTransfer()
+        submittedFiles.forEach(file => dataTransfer.items.add(file))
+        fileList = dataTransfer.files
       }
 
-      // Build v5 parts: text + inline file parts (base64)
-      const parts: any[] = [{ type: "text", text: input }]
-      if (attachments && attachments.length > 0) {
-        // fetch each attachment URL and convert to base64 inline data
-        const toBase64 = async (url: string) => {
-          const res = await fetch(url)
-          const blob = await res.blob()
-          const arrayBuffer = await blob.arrayBuffer()
-          // Convert to base64
-          let binary = ''
-          const bytes = new Uint8Array(arrayBuffer)
-          const chunkSize = 0x8000
-          for (let i = 0; i < bytes.length; i += chunkSize) {
-            const chunk = bytes.subarray(i, i + chunkSize)
-            binary += String.fromCharCode.apply(null, Array.from(chunk) as any)
-          }
-          return btoa(binary)
-        }
-
-        for (const att of attachments) {
-          try {
-            const data = await toBase64(att.url)
-            parts.push({ type: "file", data, mimeType: att.contentType })
-          } catch (e) {
-            console.warn("Failed to inline attachment, skipping:", att.url, e)
-          }
-        }
-      }
-
-      const options = {
+      const options: any = {
         body: {
           chatId: currentChatId,
           userId: uid,
@@ -231,10 +202,16 @@ export function useChatCore({
           mcpServers,
         },
       }
-      // Clear input immediately so it doesn't linger during streaming
+      
+      // Clear input immediately
       setInput("")
       clearDraft()
-      await sendMessage({ role: "user", parts } as any, options as any)
+      
+      // Send message with files
+      await sendMessage({ 
+        text: input,
+        files: fileList
+      } as any, options)
 
       if (messages.length > 0) {
         bumpChat(currentChatId)

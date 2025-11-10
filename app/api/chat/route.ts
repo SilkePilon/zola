@@ -41,6 +41,7 @@ type ChatRequest = {
 
 export async function POST(req: Request) {
   try {
+    const body = await req.json()
     const {
       messages,
       chatId,
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
       enableSearch,
       message_group_id,
       mcpServers,
-    } = (await req.json()) as ChatRequest
+    } = body as ChatRequest
 
     if (!messages || !chatId || !userId) {
       return new Response(
@@ -66,23 +67,22 @@ export async function POST(req: Request) {
       isAuthenticated,
     })
 
-    // Increment message count for successful validation
     if (supabase) {
       await incrementMessageCount({ supabase, userId })
     }
 
-    const userMessage = messages[messages.length - 1] as any
+    const userMessage = messages[messages.length - 1]
 
     if (supabase && userMessage?.role === "user") {
       await logUserMessage({
         supabase,
         userId,
         chatId,
-        parts: (userMessage.parts || []) as any,
+        parts: userMessage.parts || [],
         model,
         isAuthenticated,
         message_group_id,
-      });
+      })
     }
 
     const allModels = await getAllModels()
@@ -131,23 +131,14 @@ export async function POST(req: Request) {
       throw new Error(`Selected model ${model} is not invokable`)
     }
 
-    // Clean messages before converting - remove tool-invocation parts that are display-only
-    const cleanedMessages = messages.map((msg) => {
-      if (!msg.parts || !Array.isArray(msg.parts)) return msg
-      
-      const cleanParts = msg.parts.filter((part: any) => {
-        // Remove tool-invocation parts (display-only)
-        if (part.type === 'tool-invocation') return false
-        return true
-      })
-      
-      return {
-        ...msg,
-        parts: cleanParts.length > 0 ? cleanParts : msg.parts,
-      }
-    })
+    if (!Array.isArray(messages)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid messages format" }),
+        { status: 400 }
+      )
+    }
 
-    const modelMessages = convertToModelMessages(cleanedMessages as any)
+    const modelMessages = convertToModelMessages(messages)
 
     // Load MCP tools from user's configured servers (or env vars as fallback)
     const enabledMcpServers = mcpServers?.filter(s => s.enabled) || []
@@ -160,31 +151,19 @@ export async function POST(req: Request) {
       tools: mcpTools as ToolSet,
       stopWhen: stepCountIs(10),
 
-      onError: (err: unknown) => {
-        console.error("Streaming error occurred:", err)
-        // Don't set streamError anymore - let the AI SDK handle it through the stream
-      },
-
-      onFinish: async ({ response, usage, steps }) => {
+      onFinish: async ({ response, steps }) => {
         if (supabase) {
-          // In AI SDK v5 with tools, we need to collect all messages including:
-          // 1. Intermediate tool-call messages (from steps)
-          // 2. Tool result messages (from steps)
-          // 3. Final assistant message with text (from response.messages)
           const allMessages: import("@/app/types/api.types").Message[] = []
           
-          if (steps && steps.length > 0) {
-            // Collect messages from all steps (tool calls and intermediate responses)
+          if (steps?.length) {
             for (const step of steps) {
-              if (step.messages) {
-                allMessages.push(...(step.messages as any[]))
+              if (step.response?.messages) {
+                allMessages.push(...(step.response.messages as any[]))
               }
             }
           }
           
-          // Always include response.messages to ensure we get the final assistant message
-          // This contains the complete final response with text content
-          if (response.messages && response.messages.length > 0) {
+          if (response.messages?.length) {
             allMessages.push(...(response.messages as any[]))
           }
           
@@ -196,14 +175,6 @@ export async function POST(req: Request) {
             model,
           })
         }
-        // Log usage for debugging (v5 uses different property names)
-        if (usage) {
-          console.log("Token usage:", {
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-            totalTokens: usage.totalTokens,
-          })
-        }
         try { closeMcp?.() } catch {}
       }
     })
@@ -212,15 +183,11 @@ export async function POST(req: Request) {
       sendReasoning: true,
       sendSources: true,
       messageMetadata: ({ part }) => {
-        // Send total usage when generation is finished
         if (part.type === "finish") {
           return { totalUsage: part.totalUsage }
         }
       },
-      onError: (error: unknown) => {
-        console.error("Error forwarded to client:", error)
-        return extractErrorMessage(error)
-      },
+      onError: (error: unknown) => extractErrorMessage(error),
     });
   } catch (err: unknown) {
     console.error("Error in /api/chat:", err)
