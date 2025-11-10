@@ -607,14 +607,14 @@ function ServerCard({
   const [isLoadingTools, setIsLoadingTools] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  // Load tools when server is enabled
+  // Load tools when server is enabled or configuration changes
   useEffect(() => {
-    if (server.enabled) {
+    if (server.enabled && server.updatedAt) {
       loadTools()
     } else {
       setTools([])
     }
-  }, [server.enabled, server.id])
+  }, [server.enabled, server.id, server.updatedAt])
 
   const loadTools = async () => {
     setIsLoadingTools(true)

@@ -1,5 +1,10 @@
 import { createClient } from "@/lib/supabase/client"
+import type { Database } from "@/app/types/database.types"
 import type { MCPServerConfig } from "./types"
+
+type MCPServerRow = Database["public"]["Tables"]["mcp_servers"]["Row"]
+type MCPServerInsert = Database["public"]["Tables"]["mcp_servers"]["Insert"]
+type MCPServerUpdate = Database["public"]["Tables"]["mcp_servers"]["Update"]
 
 /**
  * Supabase-based persistence for MCP servers.
@@ -12,7 +17,7 @@ export async function readMCPServersFromSupabase(userId: string): Promise<MCPSer
     if (!supabase) return []
     
     const { data, error } = await supabase
-      .from("mcp_servers" as any)
+      .from("mcp_servers")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
@@ -22,20 +27,17 @@ export async function readMCPServersFromSupabase(userId: string): Promise<MCPSer
       return []
     }
 
-    return (data || []).map((row: any) => ({
+    return (data || []).map((row) => ({
       id: row.id,
       name: row.name,
       description: row.description || undefined,
-      enabled: row.enabled,
-      transportType: row.transport_type,
-      command: row.command || undefined,
-      args: row.args || undefined,
-      env: row.env || undefined,
+      enabled: row.enabled ?? false,
+      transportType: row.transport_type as "http" | "sse",
       url: row.url || undefined,
-      headers: row.headers || undefined,
+      headers: row.headers as Record<string, string> | undefined,
       icon: row.icon || undefined,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
+      createdAt: row.created_at || new Date().toISOString(),
+      updatedAt: row.updated_at || new Date().toISOString(),
     }))
   } catch (error) {
     console.error("Error reading MCP servers:", error)
@@ -51,18 +53,20 @@ export async function addMCPServerToSupabase(
     const supabase = createClient()
     if (!supabase) return null
     
+    const insertData: MCPServerInsert = {
+      user_id: userId,
+      name: server.name,
+      description: server.description || null,
+      enabled: server.enabled,
+      transport_type: server.transportType,
+      url: server.url || null,
+      headers: (server.headers as any) || null,
+      icon: server.icon || null,
+    }
+    
     const { data, error } = await supabase
-      .from("mcp_servers" as any)
-      .insert({
-        user_id: userId,
-        name: server.name,
-        description: server.description || null,
-        enabled: server.enabled,
-        transport_type: server.transportType,
-        url: server.url || null,
-        headers: server.headers || null,
-        icon: server.icon || null,
-      })
+      .from("mcp_servers")
+      .insert(insertData)
       .select()
       .single()
 
@@ -71,18 +75,17 @@ export async function addMCPServerToSupabase(
       return null
     }
 
-    const row = data as any
     return {
-      id: row.id,
-      name: row.name,
-      description: row.description || undefined,
-      enabled: row.enabled,
-      transportType: row.transport_type,
-      url: row.url || undefined,
-      headers: row.headers || undefined,
-      icon: row.icon || undefined,
-      createdAt: row.created_at || new Date().toISOString(),
-      updatedAt: row.updated_at || new Date().toISOString(),
+      id: data.id,
+      name: data.name,
+      description: data.description || undefined,
+      enabled: data.enabled ?? false,
+      transportType: data.transport_type as "http" | "sse",
+      url: data.url || undefined,
+      headers: data.headers as Record<string, string> | undefined,
+      icon: data.icon || undefined,
+      createdAt: data.created_at || new Date().toISOString(),
+      updatedAt: data.updated_at || new Date().toISOString(),
     }
   } catch (error) {
     console.error("Error adding MCP server:", error)
@@ -98,17 +101,17 @@ export async function updateMCPServerInSupabase(
     const supabase = createClient()
     if (!supabase) return false
     
-    const updateData: any = {}
+    const updateData: MCPServerUpdate = {}
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.description !== undefined) updateData.description = updates.description || null
     if (updates.enabled !== undefined) updateData.enabled = updates.enabled
     if (updates.transportType !== undefined) updateData.transport_type = updates.transportType
     if (updates.url !== undefined) updateData.url = updates.url || null
-    if (updates.headers !== undefined) updateData.headers = updates.headers || null
+    if (updates.headers !== undefined) updateData.headers = (updates.headers as any) || null
     if (updates.icon !== undefined) updateData.icon = updates.icon || null
 
     const { error } = await supabase
-      .from("mcp_servers" as any)
+      .from("mcp_servers")
       .update(updateData)
       .eq("id", id)
 
@@ -130,7 +133,7 @@ export async function deleteMCPServerFromSupabase(id: string): Promise<boolean> 
     if (!supabase) return false
     
     const { error } = await supabase
-      .from("mcp_servers" as any)
+      .from("mcp_servers")
       .delete()
       .eq("id", id)
 
@@ -152,7 +155,7 @@ export async function clearAllMCPServersInSupabase(userId: string): Promise<bool
     if (!supabase) return false
     
     const { error } = await supabase
-      .from("mcp_servers" as any)
+      .from("mcp_servers")
       .delete()
       .eq("user_id", userId)
 

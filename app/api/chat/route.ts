@@ -129,7 +129,10 @@ export async function POST(req: Request) {
     const modelMessages = convertToModelMessages(messages)
 
     // Load MCP tools from user's configured servers (or env vars as fallback)
-    const enabledMcpServers = mcpServers?.filter(s => s.enabled) || []
+    // Validate mcpServers is an array before filtering
+    const enabledMcpServers = Array.isArray(mcpServers) 
+      ? mcpServers.filter(s => s && typeof s === 'object' && s.enabled === true)
+      : []
     const { tools: mcpTools, close: closeMcp } = await buildMcpTools(enabledMcpServers)
 
     // Ensure closeMcp is invoked exactly once
