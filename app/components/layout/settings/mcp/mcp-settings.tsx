@@ -58,7 +58,6 @@ const defaultFormData: ServerFormData = {
   transportType: "http",
   url: "",
   headers: {},
-  icon: undefined,
 }
 
 type MCPDirectoryEntry = {
@@ -256,7 +255,6 @@ export function MCPSettings() {
       transportType: server.transportType,
       url: server.url,
       headers: server.headers,
-      icon: server.icon,
     })
     setIsEditDialogOpen(true)
   }
@@ -288,7 +286,6 @@ export function MCPSettings() {
         headers: selectedPreset.authHeader && authValue
           ? { [selectedPreset.authHeader]: authValue }
           : undefined,
-        icon: selectedPreset.icon,
       }
 
       // Test connection
