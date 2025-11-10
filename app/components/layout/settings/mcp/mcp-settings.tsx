@@ -364,20 +364,19 @@ export function MCPSettings() {
 
           {!selectedPreset ? (
             <div className="space-y-4">
-              <div className="grid gap-3">
+              <div className="grid gap-2">
                 {mcpPresets.map((preset) => (
                   <button
                     key={preset.name}
                     onClick={() => handlePresetSelect(preset)}
-                    className="flex items-start gap-4 rounded-lg border border-border bg-transparent p-4 text-left transition-colors hover:bg-accent/50"
+                    className="flex items-start gap-3 rounded-lg border border-border bg-transparent p-3 text-left transition-colors hover:bg-accent/50"
                   >
-                    <img src={preset.icon} alt={preset.name} className="size-10 object-contain" />
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-medium">{preset.name}</h4>
-                      <p className="text-sm text-muted-foreground mt-1">
+                      <h4 className="font-medium text-sm">{preset.name}</h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         {preset.description}
                       </p>
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-1.5 mt-1.5">
                         <Badge variant="secondary" className="text-xs">
                           {preset.transportType.toUpperCase()}
                         </Badge>
@@ -388,7 +387,7 @@ export function MCPSettings() {
                         )}
                       </div>
                     </div>
-                    <ChevronDown className="size-5 rotate-[-90deg] text-muted-foreground" />
+                    <ChevronDown className="size-4 rotate-[-90deg] text-muted-foreground shrink-0" />
                   </button>
                 ))}
               </div>
@@ -409,11 +408,10 @@ export function MCPSettings() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-start gap-4 rounded-lg border border-border bg-accent/20 p-4">
-                <img src={selectedPreset.icon} alt={selectedPreset.name} className="size-10 object-contain" />
+              <div className="flex items-start gap-3 rounded-lg border border-border bg-accent/20 p-3">
                 <div className="flex-1">
-                  <h4 className="font-medium">{selectedPreset.name}</h4>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <h4 className="font-medium text-sm">{selectedPreset.name}</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {selectedPreset.description}
                   </p>
                 </div>
@@ -655,99 +653,84 @@ function ServerCard({
   }
 
   return (
-    <div className="border-border group rounded-lg border bg-transparent p-4 transition-colors hover:bg-accent/5">
+    <div className="border-border group rounded-lg border bg-transparent p-3 transition-colors hover:bg-accent/5">
 
-      <div className="flex items-start justify-between gap-4">
-        {/* Server Icon and Info */}
-        <div className="flex flex-1 items-start gap-3">
-          {server.icon ? (
-            <img 
-              src={server.icon} 
-              alt={server.name} 
-              className="size-10 shrink-0 object-contain rounded-lg"
-            />
-          ) : (
-            <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg">
-              <Server className="size-5" />
+      <div className="flex items-start justify-between gap-3">
+        {/* Server Info */}
+        <div className="flex flex-1 flex-col min-w-0">
+          <div className="flex items-center gap-2">
+            <h4 className="truncate font-medium text-sm">{server.name}</h4>
+            <Badge variant="secondary" className="shrink-0 text-xs">
+              {server.transportType.toUpperCase()}
+            </Badge>
+            {status && (
+              <Tooltip>
+                <TooltipTrigger>
+                  {status.connected ? (
+                    <CheckCircle2 className="size-4 shrink-0 text-green-500" />
+                  ) : status.error ? (
+                    <XCircle className="size-4 shrink-0 text-red-500" />
+                  ) : null}
+                </TooltipTrigger>
+                <TooltipContent>
+                  {status.connected 
+                    ? `Connected • ${status.toolsCount || 0} tools`
+                    : status.error || "Not connected"}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+
+          {server.description && (
+            <p className="text-muted-foreground mt-1 text-xs">
+              {server.description}
+            </p>
+          )}
+
+          {(server.transportType === "http" || server.transportType === "sse") && server.url && (
+            <div className="flex items-center gap-1 text-muted-foreground mt-1.5 text-xs">
+              <ExternalLink className="size-3" />
+              <span className="truncate">{server.url}</span>
             </div>
           )}
 
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h4 className="truncate font-medium">{server.name}</h4>
-              <Badge variant="secondary" className="shrink-0">
-                {server.transportType.toUpperCase()}
-              </Badge>
-              {status && (
-                <Tooltip>
-                  <TooltipTrigger>
-                    {status.connected ? (
-                      <CheckCircle2 className="size-4 shrink-0 text-green-500" />
-                    ) : status.error ? (
-                      <XCircle className="size-4 shrink-0 text-red-500" />
-                    ) : null}
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {status.connected 
-                      ? `Connected • ${status.toolsCount || 0} tools`
-                      : status.error || "Not connected"}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-
-            {server.description && (
-              <p className="text-muted-foreground mt-1 text-sm">
-                {server.description}
-              </p>
-            )}
-
-            <div className="text-muted-foreground mt-2 space-y-1 text-xs">
-              {(server.transportType === "http" || server.transportType === "sse") && server.url && (
-                <div className="flex items-center gap-1">
-                  <ExternalLink className="size-3" />
-                  <span className="truncate">{server.url}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Tools Display */}
-            {server.enabled && tools.length > 0 && (
-              <div className="mt-3">
-                <button
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="flex w-full items-center gap-2 text-left text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <Wrench className="size-3" />
-                  <span>Available Tools ({tools.length})</span>
-                  {isExpanded ? (
-                    <ChevronUp className="size-3 ml-auto" />
-                  ) : (
-                    <ChevronDown className="size-3 ml-auto" />
-                  )}
-                </button>
-                <AnimatePresence initial={false}>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                      className="overflow-hidden"
-                    >
-                      <div className="mt-2 space-y-1">
-                        {tools.map((tool, index) => (
-                          <motion.div
-                            key={tool}
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ 
-                              duration: 0.2, 
-                              delay: index * 0.03,
-                              ease: [0.4, 0, 0.2, 1]
-                            }}
-                            className="bg-accent/50 hover:bg-accent text-foreground rounded-md px-3 py-2 text-xs font-mono transition-colors border border-border/50"
-                          >
+          {/* Tools Display */}
+          {server.enabled && tools.length > 0 && (
+            <div className="mt-2">
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="flex w-full items-center gap-1.5 text-left text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Wrench className="size-3" />
+                <span>Available Tools ({tools.length})</span>
+                {isExpanded ? (
+                  <ChevronUp className="size-3 ml-auto" />
+                ) : (
+                  <ChevronDown className="size-3 ml-auto" />
+                )}
+              </button>
+              <AnimatePresence initial={false}>
+                {isExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-1.5 space-y-1">
+                      {tools.map((tool, index) => (
+                        <motion.div
+                          key={tool}
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ 
+                            duration: 0.2, 
+                            delay: index * 0.03,
+                            ease: [0.4, 0, 0.2, 1]
+                          }}
+                          className="bg-accent/50 hover:bg-accent text-foreground rounded-md px-2.5 py-1.5 text-xs font-mono transition-colors border border-border/50"
+                        >
                             {tool}
                           </motion.div>
                         ))}
@@ -758,20 +741,19 @@ function ServerCard({
               </div>
             )}
 
-            {server.enabled && isLoadingTools && (
-              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="size-3 animate-spin" />
-                <span>Loading tools...</span>
-              </div>
-            )}
+          {server.enabled && isLoadingTools && (
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" />
+              <span>Loading tools...</span>
+            </div>
+          )}
 
-            {server.enabled && loadError && !isLoadingTools && tools.length === 0 && (
-              <div className="mt-3 flex items-center gap-2 text-xs text-red-600 dark:text-red-400">
-                <XCircle className="size-3" />
-                <span>{loadError}</span>
-              </div>
-            )}
-          </div>
+          {server.enabled && loadError && !isLoadingTools && tools.length === 0 && (
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
+              <XCircle className="size-3" />
+              <span>{loadError}</span>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -780,12 +762,7 @@ function ServerCard({
             <TooltipTrigger asChild>
               <button
                 onClick={() => onToggle(server.id)}
-                className={cn(
-                  "rounded-md border p-1.5 transition-colors",
-                  server.enabled
-                    ? "border-green-200 text-green-600 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950/20"
-                    : "border-border text-muted-foreground hover:bg-accent"
-                )}
+                className="text-muted-foreground hover:text-foreground border-border rounded-md border p-1.5 transition-colors hover:bg-accent"
               >
                 {server.enabled ? (
                   <Power className="size-4" />
@@ -815,7 +792,7 @@ function ServerCard({
             <TooltipTrigger asChild>
               <button
                 onClick={() => onDelete(server.id, server.name)}
-                className="text-muted-foreground hover:text-destructive border-border rounded-md border p-1.5 transition-colors hover:bg-destructive/10"
+                className="text-muted-foreground hover:text-foreground border-border rounded-md border p-1.5 transition-colors hover:bg-accent"
               >
                 <Trash2 className="size-4" />
               </button>
