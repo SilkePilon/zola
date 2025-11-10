@@ -16,7 +16,7 @@
 - Open-source and self-hostable
 - Customizable: user system prompt, multiple layout options
 - Local AI with Ollama: Run models locally with automatic model detection
-- Full MCP support (wip)
+- Full MCP support with built-in AI-managed server configuration
 
 ## Quick Start
 
@@ -57,6 +57,8 @@ docker-compose -f docker-compose.ollama.yml up
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/SilkePilon/zola)
 
 To unlock features like auth, file uploads, see [INSTALL.md](./INSTALL.md).
+
+For details on the built-in MCP server management feature, see [docs/builtin-mcp-server.md](./docs/builtin-mcp-server.md).
 
 ## Built with
 
