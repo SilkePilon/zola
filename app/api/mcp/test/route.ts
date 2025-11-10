@@ -15,10 +15,6 @@ async function createMCPClientFromConfig(
   }
 
   switch (config.transportType) {
-    case 'stdio': {
-      throw new Error('STDIO transports cannot be tested through this endpoint')
-    }
-
     case 'http': {
       if (!config.url) {
         throw new Error('HTTP transport requires a URL')
