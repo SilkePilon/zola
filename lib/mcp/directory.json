@@ -6,7 +6,8 @@
     "url": "https://api.githubcopilot.com/mcp/",
     "requiresAuth": true,
     "authPlaceholder": "GitHub Personal Access Token",
-    "authHeader": "Authorization"
+    "authHeader": "Authorization",
+    "authBearer": true
   },
   {
     "name": "Context7",
@@ -15,7 +16,8 @@
     "url": "https://mcp.context7.com/mcp/",
     "requiresAuth": true,
     "authPlaceholder": "Context7 API Key",
-    "authHeader": "Authorization"
+    "authHeader": "Authorization",
+    "authBearer": true
   },
   {
     "name": "Exa",
@@ -23,5 +25,15 @@
     "transportType": "http",
     "url": "https://mcp.exa.ai/mcp/",
     "requiresAuth": false
+  },
+  {
+    "name": "You.com",
+    "description": "The You.com MCP Server brings comprehensive web search capabilities",
+    "transportType": "http",
+    "url": "https://api.you.com/mcp/",
+    "requiresAuth": true,
+    "authPlaceholder": "You.com API Key",
+    "authHeader": "Authorization",
+    "authBearer": true
   }
 ]

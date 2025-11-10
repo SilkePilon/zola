@@ -20,6 +20,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { useMCP } from "@/lib/mcp-store/provider"
 import type { MCPServerConfig, MCPTransportType } from "@/lib/mcp-store/types"
@@ -58,6 +68,7 @@ const defaultFormData: ServerFormData = {
   transportType: "http",
   url: "",
   headers: {},
+  authBearer: false,
 }
 
 type MCPDirectoryEntry = {
@@ -70,6 +81,7 @@ type MCPDirectoryEntry = {
   authPlaceholder?: string
   authHeader?: string
   authEnvKey?: string
+  authBearer?: boolean
 }
 
 export function MCPSettings() {
@@ -84,6 +96,8 @@ export function MCPSettings() {
   const [selectedPreset, setSelectedPreset] = useState<MCPDirectoryEntry | null>(null)
   const [authValue, setAuthValue] = useState("")
   const [mcpPresets, setMcpPresets] = useState<MCPDirectoryEntry[]>(mcpDirectory as MCPDirectoryEntry[])
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [serverToDelete, setServerToDelete] = useState<{ id: string; name: string } | null>(null)
 
   const handleAdd = async () => {
     if (!formData.name.trim()) {
@@ -219,18 +233,27 @@ export function MCPSettings() {
     }
   }
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return
+  const handleDeleteClick = (id: string, name: string) => {
+    setServerToDelete({ id, name })
+    setDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!serverToDelete) return
 
     try {
-      await deleteServer(id)
+      await deleteServer(serverToDelete.id)
       toast({ title: "MCP server deleted successfully" })
+      setDeleteDialogOpen(false)
+      setServerToDelete(null)
     } catch (error) {
       toast({ 
         title: "Failed to delete server", 
         description: error instanceof Error ? error.message : "Unknown error",
         status: "error" 
       })
+      setDeleteDialogOpen(false)
+      setServerToDelete(null)
     }
   }
 
@@ -255,6 +278,7 @@ export function MCPSettings() {
       transportType: server.transportType,
       url: server.url,
       headers: server.headers,
+      authBearer: server.authBearer,
     })
     setIsEditDialogOpen(true)
   }
@@ -284,8 +308,9 @@ export function MCPSettings() {
         transportType: selectedPreset.transportType,
         url: selectedPreset.url,
         headers: selectedPreset.authHeader && authValue
-          ? { [selectedPreset.authHeader]: authValue }
+          ? { [selectedPreset.authHeader]: selectedPreset.authBearer ? `Bearer ${authValue}` : authValue }
           : undefined,
+        authBearer: selectedPreset.authBearer,
       }
 
       // Test connection
@@ -573,12 +598,30 @@ export function MCPSettings() {
                 status={statuses[server.id]}
                 onToggle={handleToggle}
                 onEdit={openEditDialog}
-                onDelete={handleDelete}
+                onDelete={handleDeleteClick}
               />
             ))}
           </AnimatePresence>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete MCP Server</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{serverToDelete?.name}"? This action cannot be undone and you will lose access to all tools provided by this server.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

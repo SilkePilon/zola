@@ -10,6 +10,7 @@ export type MCPServerConfig = {
   // HTTP/SSE specific
   url?: string
   headers?: Record<string, string>
+  authBearer?: boolean // Whether to prefix auth header value with "Bearer "
   
   // Metadata
   createdAt: string

@@ -10,6 +10,17 @@ type MCPClient = Awaited<ReturnType<typeof experimental_createMCPClient>>
 async function createMCPClientFromConfig(
   config: MCPServerConfig
 ): Promise<MCPClient> {
+  // Process headers: add Bearer prefix if authBearer is enabled
+  let headers = config.headers
+  if (config.authBearer && headers?.Authorization) {
+    headers = {
+      ...headers,
+      Authorization: headers.Authorization.startsWith('Bearer ')
+        ? headers.Authorization
+        : `Bearer ${headers.Authorization}`,
+    }
+  }
+
   switch (config.transportType) {
     case 'http': {
       if (!config.url) {
@@ -20,7 +31,7 @@ async function createMCPClientFromConfig(
         transport: {
           type: 'http',
           url: config.url,
-          headers: config.headers,
+          headers,
         },
       })
     }
@@ -34,7 +45,7 @@ async function createMCPClientFromConfig(
         transport: {
           type: 'sse',
           url: config.url,
-          headers: config.headers,
+          headers,
         },
       })
     }

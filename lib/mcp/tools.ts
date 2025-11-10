@@ -9,6 +9,7 @@ export type MCPServerConfig = {
   transportType: "http" | "sse"
   url?: string
   headers?: Record<string, string>
+  authBearer?: boolean // Whether to prefix auth header value with "Bearer "
 }
 
 export type McpToolsResult = {
@@ -336,11 +337,23 @@ async function buildMcpToolsFromConfigs(configs: MCPServerConfig[]): Promise<Mcp
           const { StreamableHTTPClientTransport } = await import(
             "@modelcontextprotocol/sdk/client/streamableHttp.js"
           ) as any
+          
+          // Process headers: add Bearer prefix if authBearer is enabled
+          let headers = config.headers || {}
+          if (config.authBearer && headers.Authorization) {
+            headers = {
+              ...headers,
+              Authorization: headers.Authorization.startsWith('Bearer ')
+                ? headers.Authorization
+                : `Bearer ${headers.Authorization}`,
+            }
+          }
+          
           const transport = new StreamableHTTPClientTransport(
             new URL(config.url),
             {
               requestInit: {
-                headers: config.headers || {}
+                headers
               }
             }
           )
@@ -350,11 +363,23 @@ async function buildMcpToolsFromConfigs(configs: MCPServerConfig[]): Promise<Mcp
           const { SSEClientTransport } = await import(
             "@modelcontextprotocol/sdk/client/sse.js"
           ) as any
+          
+          // Process headers: add Bearer prefix if authBearer is enabled
+          let headers = config.headers || {}
+          if (config.authBearer && headers.Authorization) {
+            headers = {
+              ...headers,
+              Authorization: headers.Authorization.startsWith('Bearer ')
+                ? headers.Authorization
+                : `Bearer ${headers.Authorization}`,
+            }
+          }
+          
           const transport = new SSEClientTransport(
             new URL(config.url),
             {
               requestInit: {
-                headers: config.headers || {}
+                headers
               }
             }
           )
