@@ -202,8 +202,9 @@ export async function POST(req: Request) {
           return { totalUsage: part.totalUsage }
         }
       },
-      onError: async (error: unknown) => {
-        await safeCloseMcp()
+      onError: (error: unknown) => {
+        // Close MCP without blocking (fire and forget)
+        safeCloseMcp().catch(e => console.error("Error closing MCP in onError:", e))
         return extractErrorMessage(error)
       },
     });
