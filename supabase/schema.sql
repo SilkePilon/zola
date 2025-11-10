@@ -132,12 +132,7 @@ create table if not exists public.mcp_servers (
   name text not null,
   description text,
   enabled boolean default true,
-  transport_type text not null check (transport_type in ('stdio', 'http', 'sse')),
-  
-  -- STDIO specific fields
-  command text,
-  args jsonb,
-  env jsonb,
+  transport_type text not null check (transport_type in ('http', 'sse')),
   
   -- HTTP/SSE specific fields
   url text,

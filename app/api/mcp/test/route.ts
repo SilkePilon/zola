@@ -62,13 +62,6 @@ export async function POST(req: Request) {
       )
     }
 
-    if (config.transportType === 'stdio') {
-      return NextResponse.json(
-        { success: false, error: 'STDIO transports cannot be tested through this endpoint' },
-        { status: 403 }
-      )
-    }
-
     if ((config.transportType === 'http' || config.transportType === 'sse') && !config.url) {
       return NextResponse.json(
         { success: false, error: 'URL is required for HTTP/SSE transport' },
