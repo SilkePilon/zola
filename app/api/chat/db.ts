@@ -26,7 +26,7 @@ export async function saveFinalAssistantMessage(
           parts.push(part)
         } else if (part.type === "tool-call") {
           // AI SDK v5 format: tool-call message with input (args)
-          const toolCallId = part.toolCallId || ""
+          const toolCallId = (part as any).toolCallId || ""
           if (!toolCallId) continue
           
           toolMap.set(toolCallId, {
@@ -35,8 +35,8 @@ export async function saveFinalAssistantMessage(
               state: "call",
               step: DEFAULT_STEP,
               toolCallId,
-              toolName: part.toolName || "",
-              args: part.input || part.args || {},
+              toolName: (part as any).toolName || "",
+              args: (part as any).input || (part as any).args || {},
             },
           })
         } else if (part.type === "tool-invocation" && part.toolInvocation) {
@@ -81,7 +81,7 @@ export async function saveFinalAssistantMessage(
     } else if (msg.role === "tool" && Array.isArray(msg.content)) {
       for (const part of msg.content) {
         if (part.type === "tool-result") {
-          const toolCallId = part.toolCallId || ""
+          const toolCallId = (part as any).toolCallId || ""
           const existing = toolMap.get(toolCallId)
           
           // Merge with existing tool-call to preserve args
@@ -91,9 +91,9 @@ export async function saveFinalAssistantMessage(
               state: "result",
               step: DEFAULT_STEP,
               toolCallId,
-              toolName: part.toolName || "",
-              args: existing?.toolInvocation?.args || part.input || part.args || {},
-              result: part.result || part.output,
+              toolName: (part as any).toolName || "",
+              args: existing?.toolInvocation?.args || (part as any).input || (part as any).args || {},
+              result: (part as any).result || (part as any).output,
             },
           })
         }
