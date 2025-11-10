@@ -14,6 +14,19 @@ import { createErrorResponse, extractErrorMessage } from "./utils"
 
 export const maxDuration = 60
 
+type MCPServerConfig = {
+  id: string
+  name: string
+  description?: string
+  enabled: boolean
+  transportType: "stdio" | "http" | "sse"
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  headers?: Record<string, string>
+}
+
 type ChatRequest = {
   messages: UIMessage[]
   chatId: string
@@ -23,6 +36,7 @@ type ChatRequest = {
   systemPrompt: string
   enableSearch: boolean
   message_group_id?: string
+  mcpServers?: MCPServerConfig[]
 }
 
 export async function POST(req: Request) {
@@ -36,6 +50,7 @@ export async function POST(req: Request) {
       systemPrompt,
       enableSearch,
       message_group_id,
+      mcpServers,
     } = (await req.json()) as ChatRequest
 
     if (!messages || !chatId || !userId) {
@@ -118,8 +133,9 @@ export async function POST(req: Request) {
 
     const modelMessages = convertToModelMessages(messages as any)
 
-    // Optionally load MCP tools based on env configuration
-    const { tools: mcpTools, close: closeMcp } = await buildMcpTools()
+    // Load MCP tools from user's configured servers (or env vars as fallback)
+    const enabledMcpServers = mcpServers?.filter(s => s.enabled) || []
+    const { tools: mcpTools, close: closeMcp } = await buildMcpTools(enabledMcpServers)
 
     const result = streamText({
       model: makeModel(apiKey, { enableSearch }),

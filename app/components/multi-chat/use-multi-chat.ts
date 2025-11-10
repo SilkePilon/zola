@@ -1,6 +1,7 @@
 // todo: fix this
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { toast } from "@/components/ui/toast"
+import { useMCP } from "@/lib/mcp-store"
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai"
 import { useMemo } from "react"

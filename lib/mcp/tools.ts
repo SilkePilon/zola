@@ -1,21 +1,37 @@
 import { z, type ZodTypeAny } from "zod"
 import type { ToolSet } from "ai"
 
+export type MCPServerConfig = {
+  id: string
+  name: string
+  description?: string
+  enabled: boolean
+  transportType: "stdio" | "http" | "sse"
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  headers?: Record<string, string>
+}
+
 export type McpToolsResult = {
   tools: ToolSet
   close?: () => void
 }
 
 /**
- * Build an AI SDK ToolSet from an MCP server (local via stdio or remote via HTTP/SSE).
- *
- * Env configuration:
- * - MCP_URL: URL to a remote MCP server (Streamable HTTP preferred; will fallback to SSE)
- * - MCP_LOCAL_CMD: Local command to spawn an MCP server via stdio (e.g. "node"), optional MCP_LOCAL_ARGS and MCP_LOCAL_ENV
- * - MCP_LOCAL_ARGS: JSON array of args, default ["server.js"]
- * - MCP_LOCAL_ENV: JSON object of env vars
+ * Build an AI SDK ToolSet from MCP servers.
+ * 
+ * @param mcpServers - Array of MCP server configurations from the user's settings.
+ *                     If not provided, falls back to env vars (MCP_URL, MCP_LOCAL_CMD).
  */
-export async function buildMcpTools(): Promise<McpToolsResult> {
+export async function buildMcpTools(mcpServers?: MCPServerConfig[]): Promise<McpToolsResult> {
+  // If server configs provided, use them instead of env vars
+  if (mcpServers && mcpServers.length > 0) {
+    return buildMcpToolsFromConfigs(mcpServers)
+  }
+  
+  // Fallback to env-based configuration for backward compatibility
   const mcpUrl = process.env.MCP_URL
   const mcpCmd = process.env.MCP_LOCAL_CMD
 
@@ -274,4 +290,187 @@ function applyNullableAndDefault<T extends ZodTypeAny>(base: T, schema: JsonSche
   // default
   if (schema.default !== undefined) out = out.default(schema.default)
   return out
+}
+
+/**
+ * Retry a connection with exponential backoff
+ */
+async function retryConnection<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 2,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: unknown
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+      
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt)
+        console.log(`Connection attempt ${attempt + 1} failed, retrying in ${delay}ms...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+  }
+  
+  throw lastError
+}
+
+/**
+ * Build MCP tools from multiple server configurations.
+ * Connects to all servers in parallel and merges their tools.
+ */
+async function buildMcpToolsFromConfigs(configs: MCPServerConfig[]): Promise<McpToolsResult> {
+  const {
+    Client,
+  } = await import("@modelcontextprotocol/sdk/client/index.js") as {
+    Client: new (config: { name: string; version: string }) => {
+      connect: (transport: unknown) => Promise<void>
+      listTools: () => Promise<unknown>
+      callTool: (args: { name: string; arguments: unknown }) => Promise<unknown>
+    }
+  }
+
+  const clients: Array<{
+    client: InstanceType<typeof Client>
+    close?: () => void
+    serverName: string
+  }> = []
+
+  // Connect to all servers in parallel with retry logic
+  const connectionResults = await Promise.allSettled(
+    configs.map(async (config) => {
+      return retryConnection(async () => {
+        const client = new Client({ name: "zola-app", version: "1.0.0" })
+        let close: (() => void) | undefined
+
+        if (config.transportType === "stdio" && config.command) {
+          const { StdioClientTransport } = await import(
+            "@modelcontextprotocol/sdk/client/stdio.js"
+          ) as any
+          const transport = new StdioClientTransport({
+            command: config.command,
+            args: config.args || [],
+            env: config.env || {},
+          })
+          await client.connect(transport)
+          close = () => transport.close()
+        } else if (config.transportType === "http" && config.url) {
+          const { StreamableHTTPClientTransport } = await import(
+            "@modelcontextprotocol/sdk/client/streamableHttp.js"
+          ) as any
+          const transport = new StreamableHTTPClientTransport(
+            new URL(config.url),
+            {
+              requestInit: {
+                headers: config.headers || {}
+              }
+            }
+          )
+          await client.connect(transport)
+          close = () => transport.close()
+        } else if (config.transportType === "sse" && config.url) {
+          const { SSEClientTransport } = await import(
+            "@modelcontextprotocol/sdk/client/sse.js"
+          ) as any
+          const transport = new SSEClientTransport(
+            new URL(config.url),
+            {
+              requestInit: {
+                headers: config.headers || {}
+              }
+            }
+          )
+          await client.connect(transport)
+          close = () => transport.close()
+        } else {
+          throw new Error(`Invalid config for server ${config.name}`)
+        }
+
+        return { client, close, serverName: config.name }
+      }, 2, 1000) // 2 retries with 1s base delay
+    })
+  )
+
+  // Collect successful connections
+  for (const result of connectionResults) {
+    if (result.status === "fulfilled") {
+      clients.push(result.value)
+    } else {
+      console.warn("Failed to connect to MCP server:", result.reason)
+    }
+  }
+
+  if (clients.length === 0) {
+    return { tools: {} }
+  }
+
+  // Gather tools from all connected servers
+  const allTools: ToolSet = {}
+  const closeFns: Array<() => void> = []
+
+  for (const { client, close, serverName } of clients) {
+    if (close) closeFns.push(close)
+
+    try {
+      let listed: Array<{ name: string; description?: string; inputSchema?: unknown }> = []
+      const result = await client.listTools()
+      
+      if (result && typeof result === 'object' && 'tools' in result && Array.isArray(result.tools)) {
+        listed = result.tools as Array<{ name: string; description?: string; inputSchema?: unknown }>
+      } else if (Array.isArray(result)) {
+        listed = result as Array<{ name: string; description?: string; inputSchema?: unknown }>
+      }
+
+      // Add tools with server name prefix to avoid collisions
+      for (const t of listed) {
+        const toolName = `${serverName}__${t.name}`
+        const description = t.description
+
+        let inputSchema: ZodTypeAny
+        try {
+          inputSchema = t.inputSchema ? jsonSchemaToZod(t.inputSchema) : z.any()
+        } catch (e) {
+          console.warn(`Failed to convert JSON Schema for tool ${toolName}; falling back to z.any()`, e)
+          inputSchema = z.any()
+        }
+
+        allTools[toolName] = {
+          description: `[${serverName}] ${description || ''}`,
+          inputSchema,
+          execute: async (args: unknown) => {
+            try {
+              // Retry tool calls with exponential backoff
+              const result = await retryConnection(
+                async () => await client.callTool({ name: t.name, arguments: args }),
+                2, // 2 retries
+                500 // 500ms base delay for tool calls
+              )
+              if (result && typeof result === 'object' && 'structuredContent' in result) {
+                return (result as { structuredContent: unknown }).structuredContent
+              }
+              return result
+            } catch (err) {
+              console.error(`Tool call failed for ${toolName}:`, err)
+              return { error: String((err as Error)?.message || err) }
+            }
+          },
+        }
+      }
+    } catch (err) {
+      console.error(`Failed to list tools from ${serverName}:`, err)
+    }
+  }
+
+  // Return unified close function
+  const closeAll = closeFns.length > 0 ? () => {
+    for (const fn of closeFns) {
+      try { fn() } catch (e) { console.warn("Error closing MCP connection:", e) }
+    }
+  } : undefined
+
+  return { tools: allTools, close: closeAll }
 }

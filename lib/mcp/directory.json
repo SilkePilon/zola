@@ -1,0 +1,22 @@
+[
+  {
+    "name": "GitHub",
+    "description": "Access GitHub repositories, issues, and pull requests",
+    "icon": "https://icons.getbootstrap.com/assets/icons/github.svg",
+    "transportType": "http",
+    "url": "https://api.githubcopilot.com/mcp/",
+    "requiresAuth": true,
+    "authPlaceholder": "GitHub Personal Access Token",
+    "authHeader": "Authorization"
+  },
+  {
+    "name": "Context7",
+    "description": "Up-to-date Docs for LLMs and AI code editors",
+    "icon": "https://context7.com/_next/static/media/context7vector.39c35f61.svg",
+    "transportType": "http",
+    "url": "https://mcp.context7.com/mcp/",
+    "requiresAuth": true,
+    "authPlaceholder": "Context7 API Key",
+    "authHeader": "Authorization"
+  }
+]

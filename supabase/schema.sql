@@ -124,6 +124,33 @@ create table if not exists public.user_preferences (
   updated_at timestamptz default now()
 );
 
+-- MCP (Model Context Protocol) servers configuration
+create table if not exists public.mcp_servers (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  name text not null,
+  description text,
+  enabled boolean default true,
+  transport_type text not null check (transport_type in ('stdio', 'http', 'sse')),
+  
+  -- STDIO specific fields
+  command text,
+  args jsonb,
+  env jsonb,
+  
+  -- HTTP/SSE specific fields
+  url text,
+  headers jsonb,
+  
+  -- UI
+  icon text,
+  
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create index if not exists idx_mcp_servers_user_id on public.mcp_servers(user_id);
+create index if not exists idx_mcp_servers_enabled on public.mcp_servers(enabled) where enabled = true;
+
 -- Optional: updated_at trigger for tables that track updates
 do $$ begin
   if not exists (select 1 from pg_proc where proname = 'set_updated_at') then
@@ -159,6 +186,16 @@ do $$ begin
   end if;
 end $$;
 
+do $$ begin
+  if not exists (
+    select 1 from pg_trigger where tgname = 'trg_mcp_servers_updated_at'
+  ) then
+    create trigger trg_mcp_servers_updated_at
+    before update on public.mcp_servers
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
 -- Recommended RLS (enable and basic owner policies). Uncomment to enable.
 -- alter table public.users enable row level security;
 -- alter table public.projects enable row level security;
@@ -168,6 +205,7 @@ end $$;
 -- alter table public.feedback enable row level security;
 -- alter table public.user_keys enable row level security;
 -- alter table public.user_preferences enable row level security;
+-- alter table public.mcp_servers enable row level security;
 
 -- Example simple policies (adjust to your needs):
 -- create policy "Users can view own rows" on public.users for select using (auth.uid() = id);
@@ -189,3 +227,4 @@ end $$;
 -- create policy "Feedback owner access" on public.feedback for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 -- create policy "User keys owner access" on public.user_keys for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 -- create policy "User preferences owner access" on public.user_preferences for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+-- create policy "MCP servers owner access" on public.mcp_servers for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

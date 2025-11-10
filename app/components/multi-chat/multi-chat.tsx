@@ -7,6 +7,7 @@ import { useChats } from "@/lib/chat-store/chats/provider"
 import { useMessages } from "@/lib/chat-store/messages/provider"
 import { useChatSession } from "@/lib/chat-store/session/provider"
 import { SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
+import { useMCP } from "@/lib/mcp-store"
 import { useModel } from "@/lib/model-store/provider"
 import { useUser } from "@/lib/user-store/provider"
 import { cn } from "@/lib/utils"
@@ -42,6 +43,7 @@ export function MultiChat() {
 
   const { user } = useUser()
   const { models } = useModel()
+  const { servers: mcpServers } = useMCP()
   const { chatId } = useChatSession()
   const { messages: persistedMessages, isLoading: messagesLoading } =
     useMessages()
@@ -301,6 +303,7 @@ export function MultiChat() {
               systemPrompt: systemPrompt,
               enableSearch: false,
               message_group_id,
+              mcpServers,
             },
           }
 

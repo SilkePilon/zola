@@ -5,6 +5,7 @@ import { MESSAGE_MAX_LENGTH, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { Attachment } from "@/lib/file-handling"
 import { API_ROUTE_CHAT } from "@/lib/routes"
 import type { UserProfile } from "@/lib/user/types"
+import { useMCP } from "@/lib/mcp-store"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { useSearchParams } from "next/navigation"
@@ -59,6 +60,9 @@ export function useChatCore({
     outputTokens: number
     totalTokens: number
   } | undefined>(undefined)
+
+  // MCP store
+  const { servers: mcpServers } = useMCP()
 
   // Refs and derived state
   const hasSentFirstMessageRef = useRef(false)
@@ -218,6 +222,7 @@ export function useChatCore({
           isAuthenticated,
           systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
           enableSearch,
+          mcpServers,
         },
       }
       // Clear input immediately so it doesn't linger during streaming
@@ -246,6 +251,7 @@ export function useChatCore({
     isAuthenticated,
     systemPrompt,
     enableSearch,
+    mcpServers,
     clearDraft,
     messages.length,
     bumpChat,
