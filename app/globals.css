@@ -166,3 +166,44 @@ code {
   fill: currentColor !important;
   stroke: currentColor !important;
 }
+
+/* Custom scrollbar styling for all scrollable elements */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.92 0.004 286.32) transparent;
+}
+
+.dark * {
+  scrollbar-color: oklch(100% 0 0 / 8%) transparent;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+  border-left: 1px solid transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: oklch(0.92 0.004 286.32);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+.dark *::-webkit-scrollbar-thumb {
+  background-color: oklch(100% 0 0 / 8%);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: oklch(0.705 0.015 286.067);
+}
+
+.dark *::-webkit-scrollbar-thumb:hover {
+  background-color: oklch(0.442 0.017 285.786);
+}
+

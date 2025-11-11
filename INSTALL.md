@@ -55,6 +55,7 @@ cp .env.example .env.local
 Edit `.env.local` with your credentials:
 
 #### Database (Required for full features)
+
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -62,6 +63,7 @@ SUPABASE_SERVICE_ROLE=your_supabase_service_role_key
 ```
 
 #### Security (Required)
+
 ```bash
 # Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 CSRF_SECRET=your_csrf_secret_key
@@ -71,7 +73,8 @@ ENCRYPTION_KEY=your_encryption_key  # Required for BYOK feature
 ```
 
 #### AI Provider API Keys (Optional - choose what you need)
-```bash
+
+````bash
 # OpenAI (GPT-4, GPT-3.5, etc.)
 OPENAI_API_KEY=sk-...
 
@@ -96,12 +99,13 @@ The `CSRF_SECRET` protects against Cross-Site Request Forgery attacks. Generate 
 **Node.js**
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
+````
 
 </td>
 <td width="33%">
 
 **OpenSSL**
+
 ```bash
 openssl rand -hex 32
 ```
@@ -112,22 +116,24 @@ openssl rand -hex 32
 The `ENCRYPTION_KEY` encrypts user API keys in the database (AES-256-GCM). This enables the Bring Your Own Key feature.
 
 Using Node.js:
+
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
 Using OpenSSL:
+
 ```bash
 openssl rand -base64 32
 ```
 
 Using Python:
+
 ```bash
 python -c "import base64, secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())"
 ```
 
-Add to `.env.local`:
----
+## Add to `.env.local`:
 
 ## Authentication Setup
 
@@ -158,6 +164,30 @@ Zola supports multiple authentication methods through Supabase.
 4. Paste your **Client ID** and **Client Secret**
 5. Click **Save**
 
+#### Step 3: Add Production Redirect URL
+
+For production deployments (e.g., Vercel), you need to add your production domain to the authorized redirect URLs:
+
+1. Go back to **Google Cloud Console** > **Credentials**
+2. Edit your OAuth 2.0 Client ID
+3. Add your production redirect URI:
+   ```
+   https://zola.silkepilon.dev/auth/callback
+   ```
+4. Click **Save**
+
+5. In **Supabase Dashboard** > **Authentication** > **URL Configuration**:
+
+   - Add `https://zola.silkepilon.dev` to **Redirect URLs**
+   - Set **Site URL** to `https://zola.silkepilon.dev`
+
+6. In your Vercel deployment, ensure environment variable is set:
+   ```
+   NEXT_PUBLIC_SITE_URL=https://zola.silkepilon.dev
+   ```
+
+This ensures that after authentication, users are redirected back to your production domain instead of localhost.
+
 ### Guest Mode Setup
 
 Enable anonymous sign-ins for users to try Zola without creating an account:
@@ -165,13 +195,14 @@ Enable anonymous sign-ins for users to try Zola without creating an account:
 1. Go to **Supabase Dashboard** > **Authentication** > **Providers**
 2. Scroll to **Anonymous sign-ins**
 3. Toggle **Enable anonymous sign-ins** to **ON**
+
 ---
 
 ## Database Configuration
 
 ### Quick Setup
 
-Zola includes a complete database schema in `supabase/schema.sql`. 
+Zola includes a complete database schema in `supabase/schema.sql`.
 
 #### Method 1: Use the Provided Schema (Recommended)
 
@@ -184,6 +215,7 @@ Zola includes a complete database schema in `supabase/schema.sql`.
 #### Method 2: Manual Setup
 
 If you prefer to create tables manually, here's the schema:
+
 ### Email Authentication (Optional)
 
 Supabase supports email/password authentication out of the box:
@@ -195,6 +227,7 @@ Supabase supports email/password authentication out of the box:
 ### Additional Providers
 
 Supabase supports many OAuth providers:
+
 - GitHub, GitLab, Bitbucket
 - Facebook, Twitter, Discord
 - Azure, Apple, LinkedIn
@@ -293,29 +326,30 @@ Here are the detailed steps to set up Google OAuth:
 1. Go to your Supabase project dashboard
 2. Navigate to Authentication > Providers
 3. Toggle on "Allow anonymous sign-ins"
--- Custom models table (for user-added models)
-CREATE TABLE custom_models (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  model_id TEXT NOT NULL,
-  provider_id TEXT NOT NULL,
-  base_url TEXT,
-  context_window INTEGER,
-  input_cost DECIMAL(10, 6),
-  output_cost DECIMAL(10, 6),
-  vision BOOLEAN DEFAULT false,
-  tools BOOLEAN DEFAULT false,
-  reasoning BOOLEAN DEFAULT false,
-  audio BOOLEAN DEFAULT false,
-  video BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+   -- Custom models table (for user-added models)
+   CREATE TABLE custom_models (
+   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   name TEXT NOT NULL,
+   model_id TEXT NOT NULL,
+   provider_id TEXT NOT NULL,
+   base_url TEXT,
+   context_window INTEGER,
+   input_cost DECIMAL(10, 6),
+   output_cost DECIMAL(10, 6),
+   vision BOOLEAN DEFAULT false,
+   tools BOOLEAN DEFAULT false,
+   reasoning BOOLEAN DEFAULT false,
+   audio BOOLEAN DEFAULT false,
+   video BOOLEAN DEFAULT false,
+   created_at TIMESTAMPTZ DEFAULT NOW(),
+   updated_at TIMESTAMPTZ DEFAULT NOW()
+   );
 
 CREATE INDEX idx_custom_models_user_id ON custom_models(user_id);
 CREATE UNIQUE INDEX idx_custom_models_user_model ON custom_models(user_id, provider_id, model_id);
-```
+
+````
 
 Tip: The complete, production-ready schema is in `supabase/schema.sql` with all triggers, indexes, and RLS policies.
 
@@ -332,7 +366,7 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 -- Example: Users can only access their own data
 CREATE POLICY "Users can view own data" ON users FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users can update own data" ON users FOR UPDATE USING (auth.uid() = id);
-```
+````
 
 Uncomment the RLS section in `supabase/schema.sql` for production deployments.
 
@@ -353,6 +387,7 @@ Zola uses Supabase Storage for file uploads (images, documents, PDFs).
 ### Step 2: Configure Bucket Policies
 
 The `supabase/schema.sql` file includes storage policies that:
+
 - Allow authenticated users to upload files
 - Allow public read access to files
 - Allow users to delete their own files
@@ -386,117 +421,121 @@ USING (bucket_id = 'chat-attachments' AND auth.uid()::text = (storage.foldername
 ### File Upload Limits
 
 Configure in `lib/config.ts`:
+
 ```typescript
 export const DAILY_FILE_UPLOAD_LIMIT = 5 // Uploads per day for non-premium users
 ```
-  message_count INTEGER,
-  premium BOOLEAN,
-  profile_image TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  last_active_at TIMESTAMPTZ DEFAULT NOW(),
-  daily_pro_message_count INTEGER,
-  daily_pro_reset TIMESTAMPTZ,
-  system_prompt TEXT,
-  CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE -- Explicit FK definition
+
+message_count INTEGER,
+premium BOOLEAN,
+profile_image TEXT,
+created_at TIMESTAMPTZ DEFAULT NOW(),
+last_active_at TIMESTAMPTZ DEFAULT NOW(),
+daily_pro_message_count INTEGER,
+daily_pro_reset TIMESTAMPTZ,
+system_prompt TEXT,
+CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE -- Explicit FK definition
 );
 
 -- Projects table
 CREATE TABLE projects (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  user_id UUID NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+name TEXT NOT NULL,
+user_id UUID NOT NULL,
+created_at TIMESTAMPTZ DEFAULT NOW(),
+CONSTRAINT projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Chats table
 CREATE TABLE chats (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL,
-  project_id UUID,
-  title TEXT,
-  model TEXT,
-  system_prompt TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  public BOOLEAN DEFAULT FALSE NOT NULL,
-  pinned BOOLEAN DEFAULT FALSE NOT NULL,
-  pinned_at TIMESTAMPTZ NULL,
-  CONSTRAINT chats_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+user_id UUID NOT NULL,
+project_id UUID,
+title TEXT,
+model TEXT,
+system_prompt TEXT,
+created_at TIMESTAMPTZ DEFAULT NOW(),
+updated_at TIMESTAMPTZ DEFAULT NOW(),
+public BOOLEAN DEFAULT FALSE NOT NULL,
+pinned BOOLEAN DEFAULT FALSE NOT NULL,
+pinned_at TIMESTAMPTZ NULL,
+CONSTRAINT chats_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
 -- Messages table
 CREATE TABLE messages (
-  id SERIAL PRIMARY KEY, -- Using SERIAL for auto-incrementing integer ID
-  chat_id UUID NOT NULL,
-  user_id UUID,
-  content TEXT,
-  role TEXT NOT NULL CHECK (role IN ('system', 'user', 'assistant', 'data')), -- Added CHECK constraint
-  experimental_attachments JSONB, -- Storing Attachment[] as JSONB
-  parts JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
-  CONSTRAINT messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  message_group_id TEXT,
-  model TEXT
+id SERIAL PRIMARY KEY, -- Using SERIAL for auto-incrementing integer ID
+chat_id UUID NOT NULL,
+user_id UUID,
+content TEXT,
+role TEXT NOT NULL CHECK (role IN ('system', 'user', 'assistant', 'data')), -- Added CHECK constraint
+experimental_attachments JSONB, -- Storing Attachment[] as JSONB
+parts JSONB,
+created_at TIMESTAMPTZ DEFAULT NOW(),
+CONSTRAINT messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+CONSTRAINT messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+message_group_id TEXT,
+model TEXT
 );
 
 -- Chat attachments table
 CREATE TABLE chat_attachments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  chat_id UUID NOT NULL,
-  user_id UUID NOT NULL,
-  file_url TEXT NOT NULL,
-  file_name TEXT,
-  file_type TEXT,
-  file_size INTEGER, -- Assuming INTEGER for file size
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT fk_chat FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
-  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+chat_id UUID NOT NULL,
+user_id UUID NOT NULL,
+file_url TEXT NOT NULL,
+file_name TEXT,
+file_type TEXT,
+file_size INTEGER, -- Assuming INTEGER for file size
+created_at TIMESTAMPTZ DEFAULT NOW(),
+CONSTRAINT fk_chat FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Feedback table
 CREATE TABLE feedback (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL,
-  message TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+user_id UUID NOT NULL,
+message TEXT NOT NULL,
+created_at TIMESTAMPTZ DEFAULT NOW(),
+CONSTRAINT feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- User keys table for BYOK (Bring Your Own Key) integration
 CREATE TABLE user_keys (
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  provider TEXT NOT NULL,
-  encrypted_key TEXT NOT NULL,
-  iv TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  PRIMARY KEY (user_id, provider)
+user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+provider TEXT NOT NULL,
+encrypted_key TEXT NOT NULL,
+iv TEXT NOT NULL,
+created_at TIMESTAMPTZ DEFAULT NOW(),
+updated_at TIMESTAMPTZ DEFAULT NOW(),
+PRIMARY KEY (user_id, provider)
 );
 
 -- User preferences table
 CREATE TABLE user_preferences (
-  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  layout TEXT DEFAULT 'fullscreen',
-  prompt_suggestions BOOLEAN DEFAULT true,
-  show_tool_invocations BOOLEAN DEFAULT true,
-  show_conversation_previews BOOLEAN DEFAULT true,
-  multi_model_enabled BOOLEAN DEFAULT false,
-  hidden_models TEXT[] DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+layout TEXT DEFAULT 'fullscreen',
+prompt_suggestions BOOLEAN DEFAULT true,
+show_tool_invocations BOOLEAN DEFAULT true,
+show_conversation_previews BOOLEAN DEFAULT true,
+multi_model_enabled BOOLEAN DEFAULT false,
+hidden_models TEXT[] DEFAULT '{}',
+created_at TIMESTAMPTZ DEFAULT NOW(),
+updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Optional: keep updated_at in sync for user_preferences
 CREATE OR REPLACE FUNCTION update_user_preferences_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
+NEW.updated_at = NOW();
+RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+
+$$
+LANGUAGE plpgsql;
 
 CREATE TRIGGER update_user_preferences_timestamp
 BEFORE UPDATE ON user_preferences
@@ -1133,3 +1172,4 @@ You can customize various aspects of Zola by modifying the configuration files:
 ## License
 
 Apache License 2.0
+$$

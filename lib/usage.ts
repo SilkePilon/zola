@@ -2,13 +2,9 @@ import { UsageLimitError } from "@/lib/api"
 import {
   AUTH_DAILY_MESSAGE_LIMIT,
   DAILY_LIMIT_PRO_MODELS,
-  FREE_MODELS_IDS,
   NON_AUTH_DAILY_MESSAGE_LIMIT,
 } from "@/lib/config"
 import { SupabaseClient } from "@supabase/supabase-js"
-
-const isFreeModel = (modelId: string) => FREE_MODELS_IDS.includes(modelId)
-const isProModel = (modelId: string) => !isFreeModel(modelId)
 
 /**
  * Checks the user's daily usage to see if they've reached their limit.
@@ -211,13 +207,6 @@ export async function checkUsageByModel(
   modelId: string,
   isAuthenticated: boolean
 ) {
-  if (isProModel(modelId)) {
-    if (!isAuthenticated) {
-      throw new UsageLimitError("You must log in to use this model.")
-    }
-    return await checkProUsage(supabase, userId)
-  }
-
   return await checkUsage(supabase, userId)
 }
 
@@ -227,10 +216,5 @@ export async function incrementUsageByModel(
   modelId: string,
   isAuthenticated: boolean
 ) {
-  if (isProModel(modelId)) {
-    if (!isAuthenticated) return
-    return await incrementProUsage(supabase, userId)
-  }
-
   return await incrementUsage(supabase, userId)
 }

@@ -37,8 +37,10 @@ import {
   StarIcon,
 } from "@phosphor-icons/react"
 import { useRef, useState } from "react"
-import { ProModelDialog } from "./pro-dialog"
+import { ApiKeyRequiredDialog } from "./api-key-required-dialog"
 import { SubMenu } from "./sub-menu"
+import { VirtualizedModelList } from "./virtualized-list"
+import { VirtualizedModelListMobile } from "./virtualized-list-mobile"
 
 type ModelSelectorProps = {
   selectedModelId: string
@@ -68,7 +70,10 @@ export function ModelSelector({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isProDialogOpen, setIsProDialogOpen] = useState(false)
-  const [selectedProModel, setSelectedProModel] = useState<string | null>(null)
+  const [selectedProModel, setSelectedProModel] = useState<{
+    name: string
+    provider: string
+  } | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
   // Ref for input to maintain focus
@@ -84,54 +89,6 @@ export function ModelSelector({
       }
     }
   )
-
-  const renderModelItem = (model: ModelConfig) => {
-    const isLocked = !model.accessible
-    const provider = PROVIDERS.find((provider) => provider.id === model.icon)
-
-    return (
-      <div
-        key={model.uniqueId}
-        className={cn(
-          "flex w-full items-center justify-between px-3 py-2",
-          selectedModelId === model.uniqueId && "bg-accent"
-        )}
-        onClick={() => {
-          if (isLocked) {
-            setSelectedProModel(model.uniqueId)
-            setIsProDialogOpen(true)
-            return
-          }
-
-          // Set model using uniqueId (providerId:modelId format)
-          setSelectedModelId(model.uniqueId)
-          if (isMobile) {
-            setIsDrawerOpen(false)
-          } else {
-            setIsDropdownOpen(false)
-          }
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <ProviderIcon
-            providerId={model.icon}
-            logoUrl={model.logoUrl}
-            className="size-5"
-            title={model.provider}
-          />
-          <div className="flex flex-col gap-0">
-            <span className="text-sm">{model.name}</span>
-          </div>
-        </div>
-        {isLocked && (
-          <div className="border-input bg-accent text-muted-foreground flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium">
-            <StarIcon className="size-2" />
-            <span>Locked</span>
-          </div>
-        )}
-      </div>
-    )
-  }
 
   // Get the hovered model data
   const hoveredModelData = models.find((model) => model.uniqueId === hoveredModel)
@@ -201,10 +158,11 @@ export function ModelSelector({
   if (isMobile) {
     return (
       <>
-        <ProModelDialog
+        <ApiKeyRequiredDialog
           isOpen={isProDialogOpen}
           setIsOpen={setIsProDialogOpen}
-          currentModel={selectedProModel || ""}
+          modelName={selectedProModel?.name || ""}
+          providerName={selectedProModel?.provider || ""}
         />
         <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
           <DrawerTrigger asChild>{trigger}</DrawerTrigger>
@@ -225,7 +183,7 @@ export function ModelSelector({
                 />
               </div>
             </div>
-            <div className="flex h-full flex-col space-y-0 overflow-y-auto px-4 pb-6">
+            <div className="flex h-full flex-col space-y-0 overflow-hidden pb-6">
               {isLoadingModels ? (
                 <div className="flex h-full flex-col items-center justify-center p-6 text-center">
                   <p className="text-muted-foreground mb-2 text-sm">
@@ -233,7 +191,19 @@ export function ModelSelector({
                   </p>
                 </div>
               ) : filteredModels.length > 0 ? (
-                filteredModels.map((model) => renderModelItem(model))
+                <VirtualizedModelListMobile
+                  models={filteredModels}
+                  selectedModelId={selectedModelId}
+                  onSelectModel={(modelId) => {
+                    setSelectedModelId(modelId)
+                    setIsDrawerOpen(false)
+                  }}
+                  onProModelClick={(modelInfo) => {
+                    setSelectedProModel(modelInfo)
+                    setIsProDialogOpen(true)
+                  }}
+                  height={400}
+                />
               ) : (
                 <div className="flex h-full flex-col items-center justify-center p-6 text-center">
                   <p className="text-muted-foreground mb-2 text-sm">
@@ -258,10 +228,11 @@ export function ModelSelector({
 
   return (
     <div>
-      <ProModelDialog
+      <ApiKeyRequiredDialog
         isOpen={isProDialogOpen}
         setIsOpen={setIsProDialogOpen}
-        currentModel={selectedProModel || ""}
+        modelName={selectedProModel?.name || ""}
+        providerName={selectedProModel?.provider || ""}
       />
       <Tooltip>
         <DropdownMenu
@@ -302,7 +273,7 @@ export function ModelSelector({
                 />
               </div>
             </div>
-            <div className="flex h-full flex-col space-y-0 overflow-y-auto px-1 pt-0 pb-0">
+            <div className="flex h-full flex-col space-y-0 overflow-hidden px-0 pt-0 pb-0">
               {isLoadingModels ? (
                 <div className="flex h-full flex-col items-center justify-center p-6 text-center">
                   <p className="text-muted-foreground mb-2 text-sm">
@@ -310,59 +281,25 @@ export function ModelSelector({
                   </p>
                 </div>
               ) : filteredModels.length > 0 ? (
-                filteredModels.map((model) => {
-                  const isLocked = !model.accessible
-                  const provider = PROVIDERS.find(
-                    (provider) => provider.id === model.icon
-                  )
-
-                  return (
-                    <DropdownMenuItem
-                      key={model.uniqueId}
-                      className={cn(
-                        "flex w-full items-center justify-between px-3 py-2",
-                        selectedModelId === model.uniqueId && "bg-accent"
-                      )}
-                      onSelect={() => {
-                        if (isLocked) {
-                          setSelectedProModel(model.uniqueId)
-                          setIsProDialogOpen(true)
-                          return
-                        }
-
-                        setSelectedModelId(model.uniqueId)
-                        setIsDropdownOpen(false)
-                      }}
-                      onFocus={() => {
-                        if (isDropdownOpen) {
-                          setHoveredModel(model.uniqueId)
-                        }
-                      }}
-                      onMouseEnter={() => {
-                        if (isDropdownOpen) {
-                          setHoveredModel(model.uniqueId)
-                        }
-                      }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <ProviderIcon
-                          providerId={model.icon}
-                          logoUrl={model.logoUrl}
-                          className="size-5"
-                          title={model.provider}
-                        />
-                        <div className="flex flex-col gap-0">
-                          <span className="text-sm">{model.name}</span>
-                        </div>
-                      </div>
-                      {isLocked && (
-                        <div className="border-input bg-accent text-muted-foreground flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium">
-                          <span>Locked</span>
-                        </div>
-                      )}
-                    </DropdownMenuItem>
-                  )
-                })
+                <VirtualizedModelList
+                  models={filteredModels}
+                  selectedModelId={selectedModelId}
+                  onSelectModel={(modelId) => {
+                    setSelectedModelId(modelId)
+                    setIsDropdownOpen(false)
+                  }}
+                  onHoverModel={(modelId) => {
+                    if (isDropdownOpen) {
+                      setHoveredModel(modelId)
+                    }
+                  }}
+                  onProModelClick={(modelInfo) => {
+                    setSelectedProModel(modelInfo)
+                    setIsProDialogOpen(true)
+                  }}
+                  height={270}
+                  isDropdownOpen={isDropdownOpen}
+                />
               ) : (
                 <div className="flex h-full flex-col items-center justify-center p-6 text-center">
                   <p className="text-muted-foreground mb-1 text-sm">

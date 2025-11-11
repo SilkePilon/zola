@@ -1,8 +1,6 @@
 "use client"
 
 import { useBreakpoint } from "@/app/hooks/use-breakpoint"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -16,41 +14,25 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { APP_NAME } from "@/lib/config"
-import { createClient } from "@/lib/supabase/client"
-import { useUser } from "@/lib/user-store/provider"
-import { useMutation } from "@tanstack/react-query"
 import Image from "next/image"
 
-type ProModelDialogProps = {
+type ApiKeyRequiredDialogProps = {
   isOpen: boolean
   setIsOpen: (isOpen: boolean) => void
-  currentModel: string
+  modelName: string
+  providerName: string
 }
 
-export function ProModelDialog({
+export function ApiKeyRequiredDialog({
   isOpen,
   setIsOpen,
-  currentModel,
-}: ProModelDialogProps) {
-  const { user } = useUser()
+  modelName,
+  providerName,
+}: ApiKeyRequiredDialogProps) {
   const isMobile = useBreakpoint(768)
-  const mutation = useMutation({
-    mutationFn: async () => {
-      if (!user?.id) throw new Error("Missing user")
-
-      const supabase = await createClient()
-      if (!supabase) throw new Error("Missing supabase")
-      const { error } = await supabase.from("feedback").insert({
-        message: `I want access to ${currentModel}`,
-        user_id: user.id,
-      })
-
-      if (error) throw new Error(error.message)
-    },
-  })
 
   const renderContent = () => (
-    <div className="flex max-h-[70vh] flex-col" key={currentModel}>
+    <div className="flex max-h-[70vh] flex-col" key={`${providerName}-${modelName}`}>
       <div className="relative">
         <Image
           src="/banner_ocean.jpg"
@@ -66,17 +48,33 @@ export function ProModelDialog({
       </div>
 
       <div className="flex-grow overflow-y-auto">
-        <div className="px-6 py-4">
+        <div className="px-6 py-4 space-y-3">
           <p className="text-muted-foreground">
-            This model requires an API key for its provider. You need to add your own API key to use this model.
+            The <span className="text-foreground font-medium">{modelName}</span> model requires an API key for{" "}
+            <span className="text-foreground font-medium">{providerName}</span>.
           </p>
-          <p className="text-muted-foreground mt-3">
-            Go to{" "}
-            <span className="text-primary inline-flex font-medium">
-              Settings → API Keys
-            </span>{" "}
-            to add your key securely.
+          <p className="text-muted-foreground">
+            To use this model:
           </p>
+          <ol className="text-muted-foreground list-decimal list-inside space-y-2 ml-2">
+            <li>
+              Go to{" "}
+              <span className="text-primary font-medium">
+                Settings → API Keys
+              </span>{" "}
+              and add your {providerName} API key
+            </li>
+            <li>
+              Navigate to the{" "}
+              <span className="text-primary font-medium">
+                Models
+              </span>{" "}
+              tab
+            </li>
+            <li>
+              Select <span className="text-foreground font-medium">{modelName}</span> to start chatting
+            </li>
+          </ol>
         </div>
       </div>
     </div>
@@ -87,7 +85,7 @@ export function ProModelDialog({
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
         <DrawerContent className="px-0">
           <DrawerHeader className="sr-only">
-            <DrawerTitle>Pro Model Access Required</DrawerTitle>
+            <DrawerTitle>API Key Required</DrawerTitle>
           </DrawerHeader>
           {renderContent()}
         </DrawerContent>
@@ -99,7 +97,7 @@ export function ProModelDialog({
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent className="[&>button:last-child]:bg-background gap-0 overflow-hidden rounded-3xl p-0 shadow-xs sm:max-w-md [&>button:last-child]:rounded-full [&>button:last-child]:p-1">
         <DialogHeader className="sr-only">
-          <DialogTitle>Pro Model Access Required</DialogTitle>
+          <DialogTitle>API Key Required</DialogTitle>
         </DialogHeader>
         {renderContent()}
       </DialogContent>

@@ -14,16 +14,10 @@ export const REMAINING_QUERY_ALERT_THRESHOLD = 2
 export const DAILY_FILE_UPLOAD_LIMIT = 5
 export const DAILY_LIMIT_PRO_MODELS = 500
 
-export const NON_AUTH_ALLOWED_MODELS = ["google:gemini-2.5-pro"]
-
-export const FREE_MODELS_IDS = [
-  "google:gemini-2.5-pro",
-]
-
 export const MODEL_DEFAULT = "google:gemini-2.5-pro"
 
 export const APP_NAME = "Zola"
-export const APP_DOMAIN = "https://zola.chat"
+export const APP_DOMAIN = "https://zola.silkepilo.dev"
 
 export const SUGGESTIONS = [
   {

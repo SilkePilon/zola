@@ -1,4 +1,3 @@
-import { FREE_MODELS_IDS } from "../config"
 import { ModelConfig } from "./types"
 import { fetchModelsDevModels } from "./remote"
 import { getProviderPriority } from "../providers/registry"
@@ -40,29 +39,6 @@ export async function getAllModels(customModels?: ModelConfig[]): Promise<ModelC
     // On failure, return empty to signal no models available
     return []
   }
-}
-
-export async function getModelsWithAccessFlags(customModels?: ModelConfig[]): Promise<ModelConfig[]> {
-  const models = await getAllModels(customModels)
-
-  const freeModels = models
-    .filter(
-      (model) =>
-        FREE_MODELS_IDS.includes(model.uniqueId) || model.providerId === "ollama" || model.isCustom
-    )
-    .map((model) => ({
-      ...model,
-      accessible: true,
-    }))
-
-  const proModels = models
-    .filter((model) => !freeModels.map((m) => m.uniqueId).includes(model.uniqueId))
-    .map((model) => ({
-      ...model,
-      accessible: false,
-    }))
-
-  return [...freeModels, ...proModels]
 }
 
 export async function getModelsForProvider(
