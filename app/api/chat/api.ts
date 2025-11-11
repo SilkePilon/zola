@@ -5,7 +5,6 @@ import type {
   StoreAssistantMessageParams,
   SupabaseClientType,
 } from "@/app/types/api.types"
-import { FREE_MODELS_IDS, NON_AUTH_ALLOWED_MODELS } from "@/lib/config"
 import { getAllModels } from "@/lib/models"
 import { sanitizeUserInput } from "@/lib/sanitize"
 import type { Json } from "@/app/types/database.types"
@@ -22,12 +21,9 @@ export async function validateAndTrackUsage({
   if (!supabase) return null
 
   if (!isAuthenticated) {
-    const isAllowed = NON_AUTH_ALLOWED_MODELS.includes(model)
-    if (!isAllowed) {
-      throw new Error(
-        "This model requires authentication. Please sign in to access more models."
-      )
-    }
+    throw new Error(
+      "Authentication required. Please sign in to use AI models."
+    )
   } else {
     const { getCustomModels } = await import("@/lib/models/custom")
     const customModels = await getCustomModels()
@@ -46,12 +42,10 @@ export async function validateAndTrackUsage({
         userId,
         provider as ProviderWithoutOllama
       )
-
-      const isFreeModel = FREE_MODELS_IDS.includes(model) || modelConfig.isCustom
       
-      if (!userApiKey && !isFreeModel) {
+      if (!userApiKey) {
         throw new Error(
-          `This model requires an API key for ${provider}. Please add your API key in settings or use a free model.`
+          `This model requires an API key for ${provider}. Please add your API key in settings.`
         )
       }
     }

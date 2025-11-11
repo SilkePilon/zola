@@ -1,7 +1,6 @@
 import {
   getAllModels,
   getModelsForUserProviders,
-  getModelsWithAccessFlags,
   refreshModelsCache,
 } from "@/lib/models"
 import { getCustomModels } from "@/lib/models/custom"
@@ -24,14 +23,14 @@ export async function GET() {
     const supabase = await createClient()
 
     if (!supabase) {
-      const models = await getModelsWithAccessFlags()
+      const models = await getAllModels()
       return respondWithModels(models)
     }
 
     const { data: authData } = await supabase.auth.getUser()
 
     if (!authData?.user?.id) {
-      const models = await getModelsWithAccessFlags()
+      const models = await getAllModels()
       return respondWithModels(models)
     }
 
@@ -46,14 +45,14 @@ export async function GET() {
 
     if (error) {
       console.error("Error fetching user keys:", error)
-      const models = await getModelsWithAccessFlags(customModels)
+      const models = await getAllModels(customModels)
       return respondWithModels(models)
     }
 
     const userProviders = data?.map((k) => k.provider) || []
 
     if (userProviders.length === 0) {
-      const models = await getModelsWithAccessFlags(customModels)
+      const models = await getAllModels(customModels)
       return respondWithModels(models)
     }
 

@@ -326,7 +326,7 @@ export function ModelsSettings() {
               <button
                 onClick={() => setDialogOpen(true)}
                 type="button"
-                className="text-muted-foreground hover:text-foreground border-border mt-2 flex w-full items-center justify-center gap-2 rounded-md border p-2 transition-colors"
+                className="text-muted-foreground hover:text-foreground border-border flex w-full items-center justify-center gap-2 rounded-md border p-2 transition-colors"
               >
                 <PlusIcon className="size-4" />
                 <span className="text-sm">Add custom model</span>
@@ -345,7 +345,7 @@ export function ModelsSettings() {
                 <button
                   onClick={() => setDialogOpen(true)}
                   type="button"
-                  className="text-foreground bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                  className="text-muted-foreground hover:text-foreground border-border rounded-md border px-4 py-2 text-sm transition-colors"
                 >
                   Add custom model
                 </button>

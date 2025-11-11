@@ -51,7 +51,7 @@ export function MultiChat() {
 
   const availableModels = useMemo(() => {
     return models.map((model) => ({
-      id: model.id,
+      id: model.uniqueId,
       name: model.name,
       provider: model.provider,
     }))
@@ -211,7 +211,7 @@ export function MultiChat() {
             )
 
             if (!existingResponse) {
-              const modelInfo = models.find(m => m.id === chat.model.id)
+              const modelInfo = models.find(m => m.uniqueId === chat.model.id)
               liveGroups[groupKey].responses.push({
                 model: chat.model.id,
                 modelName: chat.model.name,
@@ -233,7 +233,7 @@ export function MultiChat() {
               role: "assistant",
               parts: [{ type: "text", text: "" }],
             }
-            const modelInfo = models.find(m => m.id === chat.model.id)
+            const modelInfo = models.find(m => m.uniqueId === chat.model.id)
             liveGroups[groupKey].responses.push({
               model: chat.model.id,
               modelName: chat.model.name,

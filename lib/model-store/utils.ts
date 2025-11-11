@@ -1,4 +1,3 @@
-import { FREE_MODELS_IDS } from "@/lib/config"
 import { ModelConfig } from "@/lib/models/types"
 
 export function filterAndSortModels(
@@ -21,9 +20,6 @@ export function filterAndSortModels(
       if (favoriteModels && favoriteModels.length > 0) {
         return favoriteModels.indexOf(a.uniqueId) - favoriteModels.indexOf(b.uniqueId)
       }
-
-      const aIsFree = FREE_MODELS_IDS.includes(a.uniqueId) || a.isCustom
-      const bIsFree = FREE_MODELS_IDS.includes(b.uniqueId) || b.isCustom
-      return aIsFree === bIsFree ? 0 : aIsFree ? -1 : 1
+      return 0
     })
 }

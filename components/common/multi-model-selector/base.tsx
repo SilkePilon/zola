@@ -40,8 +40,10 @@ import {
 } from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "motion/react"
 import { useRef, useState } from "react"
-import { ProModelDialog } from "../model-selector/pro-dialog"
+import { ApiKeyRequiredDialog } from "../model-selector/api-key-required-dialog"
 import { SubMenu } from "../model-selector/sub-menu"
+import { VirtualizedMultiModelList } from "./virtualized-list"
+import { VirtualizedMultiModelListMobile } from "./virtualized-list-mobile"
 
 type MultiModelSelectorProps = {
   selectedModelIds: string[]
@@ -70,7 +72,10 @@ export function MultiModelSelector({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isProDialogOpen, setIsProDialogOpen] = useState(false)
-  const [selectedProModel, setSelectedProModel] = useState<string | null>(null)
+  const [selectedProModel, setSelectedProModel] = useState<{
+    name: string
+    provider: string
+  } | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -86,9 +91,15 @@ export function MultiModelSelector({
     }
   )
 
-  const handleModelToggle = (modelId: string, isLocked: boolean) => {
+  const handleModelToggle = (
+    modelId: string,
+    isLocked: boolean,
+    modelInfo?: { name: string; provider: string }
+  ) => {
     if (isLocked) {
-      setSelectedProModel(modelId)
+      if (modelInfo) {
+        setSelectedProModel(modelInfo)
+      }
       setIsProDialogOpen(true)
       return
     }
@@ -104,54 +115,7 @@ export function MultiModelSelector({
     }
   }
 
-  const renderModelItem = (model: ModelConfig) => {
-    const isLocked = !model.accessible
-    const isSelected = selectedModelIds.includes(model.uniqueId)
-    const isAtLimit = selectedModelIds.length >= maxModels
-    const provider = PROVIDERS.find((provider) => provider.id === model.icon)
-
-    return (
-      <div
-        key={model.uniqueId}
-        className={cn(
-          "hover:bg-accent/50 flex w-full cursor-pointer items-center justify-between px-3 py-2",
-          isSelected && "bg-accent"
-        )}
-        onClick={() => handleModelToggle(model.uniqueId, isLocked)}
-      >
-        <div className="flex items-center gap-3">
-          <Checkbox
-            checked={isSelected}
-            disabled={isLocked || (!isSelected && isAtLimit)}
-            onClick={(e) => e.stopPropagation()}
-            onChange={() => handleModelToggle(model.uniqueId, isLocked)}
-          />
-          <ProviderIcon
-            providerId={model.icon}
-            logoUrl={model.logoUrl}
-            className="size-5"
-            title={model.provider}
-          />
-          <div className="flex flex-col gap-0">
-            <span className="text-sm">{model.name}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {isLocked && (
-            <div className="border-input bg-accent text-muted-foreground flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium">
-              <StarIcon className="size-2" />
-              <span>Locked</span>
-            </div>
-          )}
-          {!isSelected && isAtLimit && !isLocked && (
-            <div className="border-input bg-muted text-muted-foreground flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium">
-              <span>Limit</span>
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
+  const isAtLimit = selectedModelIds.length >= maxModels
 
   // Get the hovered model data
   const hoveredModelData = models.find((model) => model.uniqueId === hoveredModel)
@@ -337,11 +301,12 @@ export function MultiModelSelector({
 
   if (isMobile) {
     return (
-      <div>
-        <ProModelDialog
+      <>
+        <ApiKeyRequiredDialog
           isOpen={isProDialogOpen}
           setIsOpen={setIsProDialogOpen}
-          currentModel={selectedProModel || ""}
+          modelName={selectedProModel?.name || ""}
+          providerName={selectedProModel?.provider || ""}
         />
         <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
           <DrawerTrigger asChild>{trigger}</DrawerTrigger>
@@ -364,7 +329,7 @@ export function MultiModelSelector({
                 />
               </div>
             </div>
-            <div className="flex h-full flex-col space-y-0 overflow-y-auto px-4 pb-6">
+            <div className="flex h-full flex-col space-y-0 overflow-hidden pb-6">
               {isLoadingModels ? (
                 <div className="flex h-full flex-col items-center justify-center p-6 text-center">
                   <p className="text-muted-foreground mb-2 text-sm">
@@ -372,7 +337,13 @@ export function MultiModelSelector({
                   </p>
                 </div>
               ) : filteredModels.length > 0 ? (
-                filteredModels.map((model) => renderModelItem(model))
+                <VirtualizedMultiModelListMobile
+                  models={filteredModels}
+                  selectedModelIds={selectedModelIds}
+                  onModelToggle={handleModelToggle}
+                  height={400}
+                  isAtLimit={isAtLimit}
+                />
               ) : (
                 <div className="flex h-full flex-col items-center justify-center p-6 text-center">
                   <p className="text-muted-foreground mb-2 text-sm">
@@ -391,16 +362,17 @@ export function MultiModelSelector({
             </div>
           </DrawerContent>
         </Drawer>
-      </div>
+      </>
     )
   }
 
   return (
     <div>
-      <ProModelDialog
+      <ApiKeyRequiredDialog
         isOpen={isProDialogOpen}
         setIsOpen={setIsProDialogOpen}
-        currentModel={selectedProModel || ""}
+        modelName={selectedProModel?.name || ""}
+        providerName={selectedProModel?.provider || ""}
       />
       <Tooltip>
         <DropdownMenu
@@ -444,7 +416,7 @@ export function MultiModelSelector({
                 />
               </div>
             </div>
-            <div className="flex h-full flex-col space-y-0 overflow-y-auto px-1 pt-0 pb-0">
+            <div className="flex h-full flex-col space-y-0 overflow-hidden px-0 pt-0 pb-0">
               {isLoadingModels ? (
                 <div className="flex h-full flex-col items-center justify-center p-6 text-center">
                   <p className="text-muted-foreground mb-2 text-sm">
@@ -452,57 +424,18 @@ export function MultiModelSelector({
                   </p>
                 </div>
               ) : filteredModels.length > 0 ? (
-                filteredModels.map((model) => {
-                  const isLocked = !model.accessible
-                  const isSelected = selectedModelIds.includes(model.uniqueId)
-                  const provider = PROVIDERS.find(
-                    (provider) => provider.id === model.icon
-                  )
-
-                  return (
-                    <DropdownMenuItem
-                      key={model.uniqueId}
-                      className={cn(
-                        "flex w-full items-center justify-between px-3 py-2",
-                        isSelected && "bg-accent"
-                      )}
-                      onSelect={(e) => {
-                        e.preventDefault()
-                        handleModelToggle(model.uniqueId, isLocked)
-                      }}
-                      onFocus={() => {
-                        if (isDropdownOpen) {
-                          setHoveredModel(model.uniqueId)
-                        }
-                      }}
-                      onMouseEnter={() => {
-                        if (isDropdownOpen) {
-                          setHoveredModel(model.uniqueId)
-                        }
-                      }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <ProviderIcon
-                          providerId={model.icon}
-                          logoUrl={model.logoUrl}
-                          className="size-5"
-                          title={model.provider}
-                        />
-                        <div className="flex flex-col gap-0">
-                          <span className="text-sm">{model.name}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isSelected && <CheckIcon className="size-4" />}
-                        {isLocked && (
-                          <div className="border-input bg-accent text-muted-foreground flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium">
-                            <span>Locked</span>
-                          </div>
-                        )}
-                      </div>
-                    </DropdownMenuItem>
-                  )
-                })
+                <VirtualizedMultiModelList
+                  models={filteredModels}
+                  selectedModelIds={selectedModelIds}
+                  onModelToggle={handleModelToggle}
+                  onHoverModel={(modelId) => {
+                    if (isDropdownOpen) {
+                      setHoveredModel(modelId)
+                    }
+                  }}
+                  height={270}
+                  isDropdownOpen={isDropdownOpen}
+                />
               ) : (
                 <div className="flex h-full flex-col items-center justify-center p-6 text-center">
                   <p className="text-muted-foreground mb-1 text-sm">
