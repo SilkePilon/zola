@@ -99,7 +99,7 @@ export function ProviderIcon({ providerId, logoUrl, className, title }: Props) {
         className={cn("inline-flex items-center justify-center", className)}
       >
         <Icon
-          className={cn("themed-icon text-foreground dark:text-white block")}
+          className="themed-icon block"
           aria-hidden
         />
       </span>
@@ -113,9 +113,7 @@ export function ProviderIcon({ providerId, logoUrl, className, title }: Props) {
         className={cn("inline-flex items-center justify-center", className)}
       >
         <span
-          className={cn(
-            "themed-icon text-foreground dark:text-white inline-flex items-center justify-center"
-          )}
+          className="themed-icon inline-flex items-center justify-center"
           aria-hidden
           dangerouslySetInnerHTML={{ __html: svg }}
         />
