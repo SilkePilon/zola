@@ -17,7 +17,6 @@ export async function getCustomModels(): Promise<ModelConfig[]> {
     if (!data) return []
     
     return data.map((m: any) => {
-      // Extract the actual model ID - if it contains provider prefix, remove it
       const modelId = m.model_id.includes('/') ? m.model_id.split('/')[1] : m.model_id
       
       return {
@@ -49,7 +48,6 @@ export async function getCustomModels(): Promise<ModelConfig[]> {
               return instance(modelId)
             }
           : async (apiKey?: string) => {
-              // If no base URL, look up the provider info from models.dev API
               const { getRawModelsDevAPI } = await import("../providers/registry")
               const providersData = await getRawModelsDevAPI() as any
               const providerInfo = providersData[m.provider_id]

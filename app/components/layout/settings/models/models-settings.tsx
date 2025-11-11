@@ -88,7 +88,13 @@ export function ModelsSettings() {
 
   const customModels = customModelsQuery.data || []
 
-  // Create favorite models list with additional metadata
+  const getCustomModelUniqueId = (model: CustomModel) => {
+    const modelId = model.model_id.includes('/') 
+      ? model.model_id.split('/')[1] 
+      : model.model_id
+    return `${model.provider_id}:${modelId}`
+  }
+
   const favoriteModels: FavoriteModelItem[] = useMemo(() => {
     if (!currentFavoriteModels || !Array.isArray(currentFavoriteModels)) {
       return []
@@ -97,14 +103,12 @@ export function ModelsSettings() {
     return currentFavoriteModels
       .map((id: string) => {
         const model = models.find((m) => m.uniqueId === id)
-        // Only include accessible models (with API keys or free)
         if (!model || isModelHidden(model.id) || model.accessible === false) return null
         return { ...model, isFavorite: true }
       })
       .filter(Boolean) as FavoriteModelItem[]
   }, [currentFavoriteModels, models, isModelHidden])
 
-  // Available models that aren't favorites yet, filtered and grouped by provider
   const availableModelsByProvider = useMemo(() => {
     if (!currentFavoriteModels || !Array.isArray(currentFavoriteModels)) {
       return {}
@@ -115,7 +119,7 @@ export function ModelsSettings() {
         (model) =>
           !currentFavoriteModels.includes(model.uniqueId) && 
           !isModelHidden(model.uniqueId) &&
-          model.accessible !== false // Only show accessible models (with API keys or free)
+          model.accessible !== false
       )
       .filter((model) =>
         model.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -140,34 +144,23 @@ export function ModelsSettings() {
   // Handle reorder - immediate state update with debounced API call
   const handleReorder = (newOrder: FavoriteModelItem[]) => {
     const newOrderIds = newOrder.map((item) => item.uniqueId)
-
-    // Immediate optimistic update with debounced API call
     updateFavoriteModelsDebounced(newOrderIds)
   }
 
   const toggleFavorite = (modelId: string) => {
-    if (!currentFavoriteModels || !Array.isArray(currentFavoriteModels)) {
-      return
-    }
+    if (!currentFavoriteModels || !Array.isArray(currentFavoriteModels)) return
 
     const isCurrentlyFavorite = currentFavoriteModels.includes(modelId)
     const newIds = isCurrentlyFavorite
       ? currentFavoriteModels.filter((id: string) => id !== modelId)
       : [...currentFavoriteModels, modelId]
 
-    // Optimistic update - immediately updates UI
     updateFavoriteModels(newIds)
   }
 
   const removeFavorite = (modelId: string) => {
-    if (!currentFavoriteModels || !Array.isArray(currentFavoriteModels)) {
-      return
-    }
-
-    const newIds = currentFavoriteModels.filter((id: string) => id !== modelId)
-
-    // Optimistic update - immediately updates UI
-    updateFavoriteModels(newIds)
+    if (!currentFavoriteModels || !Array.isArray(currentFavoriteModels)) return
+    updateFavoriteModels(currentFavoriteModels.filter((id: string) => id !== modelId))
   }
 
   const getProviderIconId = (model: ModelConfig) => model.icon || model.baseProviderId
@@ -295,26 +288,19 @@ export function ModelsSettings() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
-                    {(() => {
-                      const uniqueId = `${model.provider_id}:${model.model_id.includes('/') ? model.model_id.split('/')[1] : model.model_id}`
-                      const isCurrentlyFavorite = currentFavoriteModels?.includes(uniqueId)
-                      
-                      return !isCurrentlyFavorite ? (
-                        <button
-                          onClick={() => {
-                            if (!currentFavoriteModels || !Array.isArray(currentFavoriteModels)) {
-                              return
-                            }
-                            updateFavoriteModels([...currentFavoriteModels, uniqueId])
-                          }}
-                          type="button"
-                          className="text-muted-foreground hover:text-foreground rounded-md border p-1 opacity-0 transition-all group-hover:opacity-100"
-                          title="Add to favorites"
-                        >
-                          <PlusIcon className="size-4" />
-                        </button>
-                      ) : null
-                    })()}
+                    {!currentFavoriteModels?.includes(getCustomModelUniqueId(model)) && (
+                      <button
+                        onClick={() => {
+                          if (!currentFavoriteModels || !Array.isArray(currentFavoriteModels)) return
+                          updateFavoriteModels([...currentFavoriteModels, getCustomModelUniqueId(model)])
+                        }}
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground rounded-md border p-1 opacity-0 transition-all group-hover:opacity-100"
+                        title="Add to favorites"
+                      >
+                        <PlusIcon className="size-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         setEditingModel(model)

@@ -76,7 +76,6 @@ export async function POST(req: Request) {
     const { getCustomModels } = await import("@/lib/models/custom")
     const customModels = await getCustomModels()
     const allModels = await getAllModels(customModels)
-    // Find the exact model by uniqueId (providerId:modelId format)
     const modelConfig = allModels.find((m) => m.uniqueId === model)
 
     if (!modelConfig || !modelConfig.apiSdk) {
@@ -85,12 +84,10 @@ export async function POST(req: Request) {
 
     const effectiveSystemPrompt = systemPrompt || SYSTEM_PROMPT_DEFAULT
 
-    // Get API key for the specific provider
     let apiKey: string | undefined
     if (isAuthenticated && userId && modelConfig.providerId !== "ollama") {
       const { getEffectiveApiKey } = await import("@/lib/user-keys")
       let key = await getEffectiveApiKey(userId, modelConfig.providerId as ProviderWithoutOllama)
-      // Fallback to user-specific key lookup for unknown providers
       if (!key) {
         try {
           key = await getUserKey(userId, modelConfig.providerId as any)
@@ -98,6 +95,7 @@ export async function POST(req: Request) {
       }
       apiKey = key || undefined
     }
+    
     const makeModel = modelConfig.apiSdk
     if (!makeModel) {
       throw new Error(`Selected model ${model} is not invokable`)

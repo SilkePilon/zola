@@ -9,37 +9,30 @@ import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { ensureProviderLogosCached } from "@/lib/server/provider-logos"
 
+async function respondWithModels(models: any[]) {
+  await ensureProviderLogosCached(
+    Array.from(new Set(models.map((m) => m.providerId)))
+  )
+  return new Response(JSON.stringify({ models }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  })
+}
+
 export async function GET() {
   try {
     const supabase = await createClient()
 
     if (!supabase) {
-      // No supabase means no user authentication, use free models only
       const models = await getModelsWithAccessFlags()
-      await ensureProviderLogosCached(
-        Array.from(new Set(models.map((m) => m.providerId)))
-      )
-      return new Response(JSON.stringify({ models }), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
+      return respondWithModels(models)
     }
 
     const { data: authData } = await supabase.auth.getUser()
 
     if (!authData?.user?.id) {
       const models = await getModelsWithAccessFlags()
-      await ensureProviderLogosCached(
-        Array.from(new Set(models.map((m) => m.providerId)))
-      )
-      return new Response(JSON.stringify({ models }), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
+      return respondWithModels(models)
     }
 
     const customModels = await getCustomModels()
@@ -52,50 +45,23 @@ export async function GET() {
     if (error) {
       console.error("Error fetching user keys:", error)
       const models = await getModelsWithAccessFlags(customModels)
-      await ensureProviderLogosCached(
-        Array.from(new Set(models.map((m) => m.providerId)))
-      )
-      return new Response(JSON.stringify({ models }), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
+      return respondWithModels(models)
     }
 
     const userProviders = data?.map((k) => k.provider) || []
 
     if (userProviders.length === 0) {
       const models = await getModelsWithAccessFlags(customModels)
-      await ensureProviderLogosCached(
-        Array.from(new Set(models.map((m) => m.providerId)))
-      )
-      return new Response(JSON.stringify({ models }), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
+      return respondWithModels(models)
     }
 
     const models = await getModelsForUserProviders(userProviders, customModels)
-    await ensureProviderLogosCached(
-      Array.from(new Set(models.map((m) => m.providerId)))
-    )
-
-    return new Response(JSON.stringify({ models }), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    })
+    return respondWithModels(models)
   } catch (error) {
     console.error("Error fetching models:", error)
     return new Response(JSON.stringify({ error: "Failed to fetch models" }), {
       status: 500,
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
     })
   }
 }
