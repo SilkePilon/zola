@@ -32,7 +32,7 @@ export function ButtonContextUsage({
   
   // Find the model info from the loaded models
   const modelInfo = useMemo(() => 
-    models.find((m) => m.id === model),
+    models.find((m) => m.uniqueId === model),
     [models, model]
   )
   

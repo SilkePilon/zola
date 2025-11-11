@@ -21,18 +21,26 @@ export async function validateAndTrackUsage({
   const supabase = await validateUserIdentity(userId, isAuthenticated)
   if (!supabase) return null
 
+  // Model now uses uniqueId format: "providerId:modelId"
+  // This ensures exact provider matching
+  
   // Check if user is authenticated
   if (!isAuthenticated) {
-    // For unauthenticated users, only allow specific models
-    if (!NON_AUTH_ALLOWED_MODELS.includes(model)) {
+    // For unauthenticated users, only allow specific models by uniqueId
+    const isAllowed = NON_AUTH_ALLOWED_MODELS.includes(model)
+    if (!isAllowed) {
       throw new Error(
         "This model requires authentication. Please sign in to access more models."
       )
     }
   } else {
     // For authenticated users, check API key requirements
-    const allModels = await getAllModels()
-    const modelConfig = allModels.find((m) => m.id === model)
+    const { getCustomModels } = await import("@/lib/models/custom")
+    const customModels = await getCustomModels()
+    const allModels = await getAllModels(customModels)
+    
+    // Find the model config by uniqueId (providerId:modelId)
+    const modelConfig = allModels.find((m) => m.uniqueId === model)
 
     if (!modelConfig) {
       throw new Error(`Model ${model} not found`)
@@ -46,8 +54,11 @@ export async function validateAndTrackUsage({
         provider as ProviderWithoutOllama
       )
 
+      // Check if model is in free list by uniqueId or is a custom model
+      const isFreeModel = FREE_MODELS_IDS.includes(model) || modelConfig.isCustom
+      
       // If no API key and model is not in free list, deny access
-      if (!userApiKey && !FREE_MODELS_IDS.includes(model)) {
+      if (!userApiKey && !isFreeModel) {
         throw new Error(
           `This model requires an API key for ${provider}. Please add your API key in settings or use a free model.`
         )

@@ -349,29 +349,9 @@ export function DrawerHistory({
                   )}
                   {groupedChats?.map((group) => (
                     <div key={group.name} className="space-y-0.5">
-                      <div className="flex items-center justify-between pr-1">
-                        <h3 className="text-muted-foreground pl-2 text-sm font-medium">
-                          {group.name}
-                        </h3>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="group/delete text-muted-foreground hover:bg-primary/10 size-8"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                void handleDeleteGroup(group.chats)
-                              }}
-                              aria-label={`Delete ${group.name}`}
-                            >
-                              <TrashSimple className="group-hover/delete:text-primary size-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Delete this group</TooltipContent>
-                        </Tooltip>
-                      </div>
+                      <h3 className="text-muted-foreground pl-2 text-sm font-medium">
+                        {group.name}
+                      </h3>
                       <div className="space-y-2">
                         {group.chats.map((chat) => renderChatItem(chat))}
                       </div>

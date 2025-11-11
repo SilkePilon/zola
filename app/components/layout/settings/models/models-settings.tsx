@@ -10,18 +10,45 @@ import {
   PlusIcon,
   StarIcon,
 } from "@phosphor-icons/react"
+import { Pencil, Trash2 } from "lucide-react"
 import { AnimatePresence, motion, Reorder } from "framer-motion"
 import { useMemo, useState } from "react"
 import { useFavoriteModels } from "./use-favorite-models"
+import { AddCustomModelDialog } from "./add-custom-model-dialog"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { fetchClient } from "@/lib/fetch"
+import { toast } from "sonner"
 
 type FavoriteModelItem = ModelConfig & {
   isFavorite: boolean
+}
+
+type CustomModel = {
+  id: string
+  user_id: string
+  name: string
+  model_id: string
+  provider_id: string
+  base_url: string | null
+  context_window: number | null
+  input_cost: number | null
+  output_cost: number | null
+  vision: boolean
+  tools: boolean
+  reasoning: boolean
+  audio: boolean
+  video: boolean
+  created_at: string
+  updated_at: string
 }
 
 export function ModelsSettings() {
   const { models } = useModel()
   const { isModelHidden } = useUserPreferences()
   const [searchQuery, setSearchQuery] = useState("")
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingModel, setEditingModel] = useState<CustomModel | null>(null)
+  const queryClient = useQueryClient()
 
   // Use TanStack Query for favorite models with optimistic updates
   const {
@@ -29,6 +56,37 @@ export function ModelsSettings() {
     updateFavoriteModels,
     updateFavoriteModelsDebounced,
   } = useFavoriteModels()
+
+  const customModelsQuery = useQuery({
+    queryKey: ["custom-models"],
+    queryFn: async (): Promise<CustomModel[]> => {
+      const res = await fetchClient("/api/custom-models")
+      if (!res.ok) throw new Error("Failed to load custom models")
+      const json = await res.json()
+      return json.customModels || []
+    },
+  })
+
+  const deleteCustomModelMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetchClient(`/api/custom-models?id=${id}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) throw new Error("Failed to delete custom model")
+      return res.json()
+    },
+    onSuccess: () => {
+      toast.success("Custom model deleted")
+      queryClient.invalidateQueries({ queryKey: ["custom-models"] })
+    },
+    onError: (error) => {
+      toast.error(
+        `Failed to delete custom model: ${error instanceof Error ? error.message : "Please try again."}`
+      )
+    },
+  })
+
+  const customModels = customModelsQuery.data || []
 
   // Create favorite models list with additional metadata
   const favoriteModels: FavoriteModelItem[] = useMemo(() => {
@@ -38,8 +96,9 @@ export function ModelsSettings() {
 
     return currentFavoriteModels
       .map((id: string) => {
-        const model = models.find((m) => m.id === id)
-        if (!model || isModelHidden(model.id)) return null
+        const model = models.find((m) => m.uniqueId === id)
+        // Only include accessible models (with API keys or free)
+        if (!model || isModelHidden(model.id) || model.accessible === false) return null
         return { ...model, isFavorite: true }
       })
       .filter(Boolean) as FavoriteModelItem[]
@@ -54,7 +113,9 @@ export function ModelsSettings() {
     const availableModels = models
       .filter(
         (model) =>
-          !currentFavoriteModels.includes(model.id) && !isModelHidden(model.id)
+          !currentFavoriteModels.includes(model.uniqueId) && 
+          !isModelHidden(model.uniqueId) &&
+          model.accessible !== false // Only show accessible models (with API keys or free)
       )
       .filter((model) =>
         model.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -73,12 +134,12 @@ export function ModelsSettings() {
         return acc
       },
       {} as Record<string, typeof models>
-    )
+    ) as Record<string, ModelConfig[]>
   }, [models, currentFavoriteModels, isModelHidden, searchQuery])
 
   // Handle reorder - immediate state update with debounced API call
   const handleReorder = (newOrder: FavoriteModelItem[]) => {
-    const newOrderIds = newOrder.map((item) => item.id)
+    const newOrderIds = newOrder.map((item) => item.uniqueId)
 
     // Immediate optimistic update with debounced API call
     updateFavoriteModelsDebounced(newOrderIds)
@@ -135,9 +196,11 @@ export function ModelsSettings() {
             >
               {favoriteModels.map((model) => {
                 const providerId = getProviderIconId(model)
+                // Use unique key: providerId/modelId to handle same model from different providers
+                const uniqueKey = `${model.providerId}/${model.id}`
 
                 return (
-                  <Reorder.Item key={model.id} value={model} className="group">
+                  <Reorder.Item key={uniqueKey} value={model} className="group">
                     <div className="border-border flex items-center gap-3 rounded-lg border bg-transparent p-3">
                       {/* Drag Handle */}
                       <div className="text-muted-foreground cursor-grab opacity-60 transition-opacity group-hover:opacity-100 active:cursor-grabbing">
@@ -167,15 +230,10 @@ export function ModelsSettings() {
 
                       {/* Remove Button */}
                       <button
-                        onClick={() => removeFavorite(model.id)}
+                        onClick={() => removeFavorite(model.uniqueId)}
                         type="button"
-                        disabled={favoriteModels.length <= 1}
-                        className="text-muted-foreground rounded-md border p-1 opacity-0 transition-all group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
-                        title={
-                          favoriteModels.length <= 1
-                            ? "At least one favorite model is required"
-                            : "Remove from favorites"
-                        }
+                        className="text-muted-foreground hover:text-foreground rounded-md border p-1 opacity-0 transition-all group-hover:opacity-100"
+                        title="Remove from favorites"
                       >
                         <MinusIcon className="size-4" />
                       </button>
@@ -199,6 +257,130 @@ export function ModelsSettings() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Custom Models */}
+      <div>
+        <h4 className="mb-3 text-sm font-medium">
+          Custom models ({customModels.length})
+        </h4>
+        <AnimatePresence mode="wait">
+          {customModels.length > 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-2"
+            >
+              {customModels.map((model) => (
+                <div
+                  key={model.id}
+                  className="border-border group flex items-center gap-3 rounded-lg border p-3"
+                >
+                  <ProviderIcon
+                    providerId={model.provider_id}
+                    className="size-5 shrink-0"
+                    title={model.provider_id}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate font-medium">
+                        {model.name}
+                      </span>
+                      <div className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
+                        {model.provider_id}
+                      </div>
+                    </div>
+                    <p className="text-muted-foreground text-xs">
+                      {model.model_id}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {(() => {
+                      const uniqueId = `${model.provider_id}:${model.model_id.includes('/') ? model.model_id.split('/')[1] : model.model_id}`
+                      const isCurrentlyFavorite = currentFavoriteModels?.includes(uniqueId)
+                      
+                      return !isCurrentlyFavorite ? (
+                        <button
+                          onClick={() => {
+                            if (!currentFavoriteModels || !Array.isArray(currentFavoriteModels)) {
+                              return
+                            }
+                            updateFavoriteModels([...currentFavoriteModels, uniqueId])
+                          }}
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground rounded-md border p-1 opacity-0 transition-all group-hover:opacity-100"
+                          title="Add to favorites"
+                        >
+                          <PlusIcon className="size-4" />
+                        </button>
+                      ) : null
+                    })()}
+                    <button
+                      onClick={() => {
+                        setEditingModel(model)
+                        setDialogOpen(true)
+                      }}
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground rounded-md border p-1 opacity-0 transition-all group-hover:opacity-100"
+                      title="Edit custom model"
+                    >
+                      <Pencil className="size-4" />
+                    </button>
+                    <button
+                      onClick={() => deleteCustomModelMutation.mutate(model.id)}
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground rounded-md border p-1 opacity-0 transition-all group-hover:opacity-100"
+                      title="Delete custom model"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={() => setDialogOpen(true)}
+                type="button"
+                className="text-muted-foreground hover:text-foreground border-border mt-2 flex w-full items-center justify-center gap-2 rounded-md border p-2 transition-colors"
+              >
+                <PlusIcon className="size-4" />
+                <span className="text-sm">Add custom model</span>
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="border-border text-muted-foreground flex flex-col items-center justify-center rounded-lg border-2 border-dashed py-8"
+            >
+              <div className="text-center">
+                <PlusIcon className="mx-auto mb-3 size-8 opacity-50" />
+                <p className="text-sm mb-4">No custom models yet</p>
+                <button
+                  onClick={() => setDialogOpen(true)}
+                  type="button"
+                  className="text-foreground bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                >
+                  Add custom model
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <AddCustomModelDialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) setEditingModel(null)
+        }}
+        editingModel={editingModel}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["custom-models"] })
+          setEditingModel(null)
+        }}
+      />
 
       {/* Available Models */}
       <div>
@@ -241,9 +423,11 @@ export function ModelsSettings() {
 
                   <div className="space-y-2 pl-7">
                     {modelsGroup.map((model) => {
+                      // Use unique key: providerId/modelId to handle same model from different providers
+                      const uniqueKey = `${model.providerId}/${model.id}`
                       return (
                         <motion.div
-                          key={model.id}
+                          key={uniqueKey}
                           layout
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -261,7 +445,7 @@ export function ModelsSettings() {
                             {/* API-only: omit description */}
                           </div>
                           <button
-                            onClick={() => toggleFavorite(model.id)}
+                            onClick={() => toggleFavorite(model.uniqueId)}
                             type="button"
                             className="text-muted-foreground hover:text-foreground border-border rounded-md border p-1 transition-colors"
                             title="Add to favorites"

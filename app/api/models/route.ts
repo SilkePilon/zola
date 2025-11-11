@@ -4,6 +4,7 @@ import {
   getModelsWithAccessFlags,
   refreshModelsCache,
 } from "@/lib/models"
+import { getCustomModels } from "@/lib/models/custom"
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { ensureProviderLogosCached } from "@/lib/server/provider-logos"
@@ -13,14 +14,11 @@ export async function GET() {
     const supabase = await createClient()
 
     if (!supabase) {
-      const allModels = await getAllModels()
+      // No supabase means no user authentication, use free models only
+      const models = await getModelsWithAccessFlags()
       await ensureProviderLogosCached(
-        Array.from(new Set(allModels.map((m) => m.providerId)))
+        Array.from(new Set(models.map((m) => m.providerId)))
       )
-      const models = allModels.map((model) => ({
-        ...model,
-        accessible: true,
-      }))
       return new Response(JSON.stringify({ models }), {
         status: 200,
         headers: {
@@ -44,6 +42,8 @@ export async function GET() {
       })
     }
 
+    const customModels = await getCustomModels()
+    
     const { data, error } = await supabase
       .from("user_keys")
       .select("provider")
@@ -51,7 +51,7 @@ export async function GET() {
 
     if (error) {
       console.error("Error fetching user keys:", error)
-      const models = await getModelsWithAccessFlags()
+      const models = await getModelsWithAccessFlags(customModels)
       await ensureProviderLogosCached(
         Array.from(new Set(models.map((m) => m.providerId)))
       )
@@ -66,7 +66,7 @@ export async function GET() {
     const userProviders = data?.map((k) => k.provider) || []
 
     if (userProviders.length === 0) {
-      const models = await getModelsWithAccessFlags()
+      const models = await getModelsWithAccessFlags(customModels)
       await ensureProviderLogosCached(
         Array.from(new Set(models.map((m) => m.providerId)))
       )
@@ -78,7 +78,7 @@ export async function GET() {
       })
     }
 
-    const models = await getModelsForUserProviders(userProviders)
+    const models = await getModelsForUserProviders(userProviders, customModels)
     await ensureProviderLogosCached(
       Array.from(new Set(models.map((m) => m.providerId)))
     )
@@ -103,7 +103,8 @@ export async function GET() {
 export async function POST() {
   try {
     refreshModelsCache()
-    const models = await getAllModels()
+    const customModels = await getCustomModels()
+    const models = await getAllModels(customModels)
 
     return NextResponse.json({
       message: "Models cache refreshed",

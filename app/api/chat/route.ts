@@ -73,47 +73,31 @@ export async function POST(req: Request) {
       })
     }
 
-    const allModels = await getAllModels()
-    // Find all candidates with this model id (could exist under multiple providers)
-    const candidates = allModels.filter((m) => m.id === model)
+    const { getCustomModels } = await import("@/lib/models/custom")
+    const customModels = await getCustomModels()
+    const allModels = await getAllModels(customModels)
+    // Find the exact model by uniqueId (providerId:modelId format)
+    const modelConfig = allModels.find((m) => m.uniqueId === model)
 
-    if (candidates.length === 0 || !candidates.some((c) => c.apiSdk)) {
+    if (!modelConfig || !modelConfig.apiSdk) {
       throw new Error(`Model ${model} not found`)
     }
 
     const effectiveSystemPrompt = systemPrompt || SYSTEM_PROMPT_DEFAULT
 
-    // Prefer a candidate with an available API key for the user/env
-    let selected = candidates[0]!
+    // Get API key for the specific provider
     let apiKey: string | undefined
-    if (isAuthenticated && userId) {
+    if (isAuthenticated && userId && modelConfig.providerId !== "ollama") {
       const { getEffectiveApiKey } = await import("@/lib/user-keys")
-      for (const c of candidates) {
-        if (c.providerId === "ollama") {
-          selected = c
-          apiKey = undefined
-          break
-        }
-        let key = await getEffectiveApiKey(userId, c.providerId as ProviderWithoutOllama)
-        // Fallback to user-specific key lookup for unknown providers (e.g., deepseek, deepinfra)
-        if (!key) {
-          try {
-            key = await getUserKey(userId, c.providerId as any)
-          } catch {}
-        }
-        if (key) {
-          selected = c
-          apiKey = key || undefined
-          break
-        }
+      let key = await getEffectiveApiKey(userId, modelConfig.providerId as ProviderWithoutOllama)
+      // Fallback to user-specific key lookup for unknown providers
+      if (!key) {
+        try {
+          key = await getUserKey(userId, modelConfig.providerId as any)
+        } catch {}
       }
-    } else {
-      // Unauthenticated: keep first candidate (already sorted by priority)
-      selected = candidates[0]!
-      apiKey = undefined
+      apiKey = key || undefined
     }
-
-    const modelConfig = selected
     const makeModel = modelConfig.apiSdk
     if (!makeModel) {
       throw new Error(`Selected model ${model} is not invokable`)
@@ -148,34 +132,24 @@ export async function POST(req: Request) {
     }
 
     try {
+      const modelInstance = await makeModel(apiKey, { enableSearch })
+      
       const result = streamText({
-      model: makeModel(apiKey, { enableSearch }),
+      model: modelInstance,
       system: effectiveSystemPrompt,
       messages: modelMessages,
       tools: mcpTools as ToolSet,
       stopWhen: stepCountIs(10),
 
-      onFinish: async ({ response, steps }) => {
+      onFinish: async ({ response }) => {
         try {
-          if (supabase) {
-            const allMessages: Message[] = []
-            
-            if (steps?.length) {
-              for (const step of steps) {
-                if (step.response?.messages) {
-                  allMessages.push(...(step.response.messages as any[]))
-                }
-              }
-            }
-            
-            if (response.messages?.length) {
-              allMessages.push(...(response.messages as any[]))
-            }
-            
+          if (supabase && response.messages?.length) {
+            // Only use response.messages - it contains the complete final response
+            // Steps are intermediate and already included in the final response
             await storeAssistantMessage({
               supabase,
               chatId,
-              messages: allMessages,
+              messages: response.messages as any[],
               message_group_id,
               model,
             })
@@ -206,7 +180,6 @@ export async function POST(req: Request) {
       },
     });
     } catch (streamError) {
-      // Ensure MCP is closed on early failure (e.g., during streamText setup)
       await safeCloseMcp()
       throw streamError
     }

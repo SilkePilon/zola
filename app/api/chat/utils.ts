@@ -276,6 +276,28 @@ export function extractErrorMessage(error: unknown): string {
       return "Insufficient credits or payment required."
     } else if (aiError.statusCode === 429) {
       return "Rate limit exceeded. Please try again later."
+    } else if (aiError.statusCode === 422) {
+      // Handle validation errors (like invalid tool names)
+      if (aiError.responseBody) {
+        try {
+          const parsed = JSON.parse(aiError.responseBody)
+          if (parsed.error?.message) {
+            // Check if it's a tool name validation error
+            if (parsed.error.details && Array.isArray(parsed.error.details)) {
+              const toolErrors = parsed.error.details
+                .filter((d: any) => d.loc?.includes('tools'))
+                .map((d: any) => d.msg)
+              if (toolErrors.length > 0) {
+                return `Invalid tool configuration: ${toolErrors.join(', ')}`
+              }
+            }
+            return parsed.error.message
+          }
+        } catch {
+          // Fall through to generic message
+        }
+      }
+      return "Invalid request. Please try again."
     } else if (aiError.responseBody) {
       try {
         const parsed = JSON.parse(aiError.responseBody)

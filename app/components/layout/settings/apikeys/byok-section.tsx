@@ -237,7 +237,7 @@ export function ByokSection() {
         />
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 pb-6">
         {filteredProviders.map((provider) => (
           <div
             key={provider.id}

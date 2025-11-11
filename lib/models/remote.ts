@@ -1,17 +1,7 @@
 import { ModelConfig } from "./types"
-import { createOpenAI } from "@ai-sdk/openai"
-import { createMistral } from "@ai-sdk/mistral"
-import { createGoogleGenerativeAI } from "@ai-sdk/google"
-import { createPerplexity } from "@ai-sdk/perplexity"
-import { createAnthropic } from "@ai-sdk/anthropic"
-import { createXai } from "@ai-sdk/xai"
+import { getRawModelsDevAPI } from "../providers/registry"
 
-// Remote source
-const MODELS_DEV_URL = process.env.MODELS_DEV_URL || "https://models.dev/api.json"
-const MODELS_DEV_LOGO = (providerId: string) =>
-  `https://models.dev/logos/${encodeURIComponent(providerId)}.svg`
-
-// Cache
+// Cache - Note: Provider registry handles the actual API caching
 let cache: { data: ModelConfig[]; ts: number } | null = null
 const TTL_MS = 5 * 60 * 1000
 
@@ -40,6 +30,7 @@ type RemoteProvider = {
   api?: string // base URL for API
   name: string
   doc?: string
+  logoUrl?: string
   models: Record<string, RemoteModel>
 }
 
@@ -48,9 +39,8 @@ export async function fetchModelsDevModels(): Promise<ModelConfig[]> {
   if (cache && now - cache.ts < TTL_MS) return cache.data
 
   try {
-    const res = await fetch(MODELS_DEV_URL, { next: { revalidate: 300 } })
-    if (!res.ok) throw new Error(`models.dev fetch failed: ${res.status}`)
-    const json = (await res.json()) as Record<string, RemoteProvider>
+    // Use the provider registry to get full API data (single source of truth)
+    const json = (await getRawModelsDevAPI()) as Record<string, RemoteProvider>
 
     const out: ModelConfig[] = []
 
@@ -58,7 +48,7 @@ export async function fetchModelsDevModels(): Promise<ModelConfig[]> {
       const provider = json[providerId]
       if (!provider?.models) continue
 
-      const logoUrl = MODELS_DEV_LOGO(provider.id)
+      const logoUrl = provider.logoUrl || `https://models.dev/logos/${encodeURIComponent(provider.id)}.svg`
 
       for (const modelId of Object.keys(provider.models)) {
         const m = provider.models[modelId]
@@ -71,6 +61,7 @@ export async function fetchModelsDevModels(): Promise<ModelConfig[]> {
 
         const cfg: ModelConfig = {
           id: m.id,
+          uniqueId: `${provider.id}:${m.id}`,
           name: m.name,
           provider: provider.name,
           providerId: provider.id,
@@ -91,94 +82,10 @@ export async function fetchModelsDevModels(): Promise<ModelConfig[]> {
           openSource: Boolean(m.open_weights),
           icon: provider.id,
           logoUrl,
-          apiSdk: (apiKey?: string, _opts?: { enableSearch?: boolean }) => {
-            // Explicit provider mappings
-            switch (provider.id) {
-              case "openai": {
-                const instance = createOpenAI({
-                  apiKey: apiKey || process.env.OPENAI_API_KEY
-                })
-                return instance(m.id)
-              }
-
-              case "mistral": {
-                const instance = createMistral({
-                  apiKey: apiKey || process.env.MISTRAL_API_KEY,
-                })
-                return instance(m.id)
-              }
-
-              case "google": {
-                const instance = createGoogleGenerativeAI({
-                  apiKey: apiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-                })
-                return instance(m.id)
-              }
-
-              case "perplexity": {
-                const instance = createPerplexity({
-                  apiKey: apiKey || process.env.PERPLEXITY_API_KEY,
-                })
-                return instance(m.id)
-              }
-
-              case "anthropic": {
-                const instance = createAnthropic({
-                  apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
-                })
-                return instance(m.id)
-              }
-
-              case "xai": {
-                const instance = createXai({
-                  apiKey: apiKey || process.env.XAI_API_KEY,
-                })
-                return instance(m.id)
-              }
-
-              case "deepseek": {
-                // DeepSeek is OpenAI-compatible via chat/completions
-                const instance = createOpenAI({
-                  apiKey: apiKey || process.env.DEEPSEEK_API_KEY,
-                  baseURL: "https://api.deepseek.com/v1",
-                  name: "deepseek",
-                })
-                return instance.chat(m.id)
-              }
-
-              case "openrouter": {
-                const instance = createOpenAI({
-                  apiKey: apiKey || process.env.OPENROUTER_API_KEY,
-                  baseURL: "https://openrouter.ai/api/v1",
-                })
-                // Use Chat Completions for OpenAI-compatible routers
-                return instance.chat(m.id)
-              }
-            }
-
-            // Generic OpenAI-compatible mapping if provider.api is given
-            if (provider.npm === "@ai-sdk/openai-compatible" && provider.api) {
-              const base = provider.api.replace(/\/+$/, "")
-              const baseURL = base.includes("/v1") ? base : `${base}/v1`
-              const instance = createOpenAI({
-                apiKey: apiKey || process.env.OPENAI_API_KEY,
-                baseURL,
-              })
-              return instance.chat(m.id)
-            }
-
-            if (provider.api) {
-              const base = provider.api.replace(/\/+$/, "")
-              const baseURL = base.includes("/v1") ? base : `${base}/v1`
-              const instance = createOpenAI({
-                apiKey: apiKey || process.env.OPENAI_API_KEY,
-                baseURL,
-              })
-              return instance.chat(m.id)
-            }
-
-            // No mapping available
-            throw new Error(`No SDK mapping for provider ${provider.id}`)
+          apiSdk: async (apiKey?: string, _opts?: { enableSearch?: boolean }) => {
+            // Lazy load SDK creation to avoid bundling AI SDK packages on client
+            const { createModelSDK } = await import("./sdk")
+            return await createModelSDK(provider, m.id, apiKey)
           },
         }
 

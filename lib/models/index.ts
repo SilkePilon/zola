@@ -1,6 +1,7 @@
 import { FREE_MODELS_IDS } from "../config"
 import { ModelConfig } from "./types"
 import { fetchModelsDevModels } from "./remote"
+import { getProviderPriority } from "../providers/registry"
 
 // Dynamic models cache
 let dynamicModelsCache: ModelConfig[] | null = null
@@ -8,11 +9,11 @@ let lastFetchTime = 0
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 // // Function to get all models including dynamically detected ones
-export async function getAllModels(): Promise<ModelConfig[]> {
+export async function getAllModels(customModels?: ModelConfig[]): Promise<ModelConfig[]> {
   const now = Date.now()
 
-  // Use cache if it's still valid
-  if (dynamicModelsCache && now - lastFetchTime < CACHE_DURATION) {
+  // Use cache if it's still valid and no custom models provided
+  if (dynamicModelsCache && now - lastFetchTime < CACHE_DURATION && !customModels) {
     return dynamicModelsCache
   }
 
@@ -20,23 +21,13 @@ export async function getAllModels(): Promise<ModelConfig[]> {
     // API-only: load from models.dev and use as the single source of truth
     const remote = await fetchModelsDevModels()
     
-    // Prefer direct providers over aggregators when duplicates exist
-    const providerPriority: Record<string, number> = {
-      openai: 100,
-      google: 100,
-      anthropic: 100,
-      mistral: 100,
-      perplexity: 100,
-      xai: 100,
-      ollama: 90,
-      // common aggregators/resellers get lower priority
-      openrouter: 20,
-      "github-copilot": 10,
-    }
-
-    dynamicModelsCache = remote.sort((a, b) => {
-      const pa = providerPriority[a.providerId] ?? 50
-      const pb = providerPriority[b.providerId] ?? 50
+    // Combine remote and custom models
+    const allModels = [...remote, ...(customModels || [])]
+    
+    // Sort models by provider priority (uses dynamic registry)
+    dynamicModelsCache = allModels.sort((a, b) => {
+      const pa = getProviderPriority(a.providerId)
+      const pb = getProviderPriority(b.providerId)
       if (pa !== pb) return pb - pa
       // Stable tie-break by id then providerId
       if (a.id !== b.id) return a.id.localeCompare(b.id)
@@ -51,13 +42,13 @@ export async function getAllModels(): Promise<ModelConfig[]> {
   }
 }
 
-export async function getModelsWithAccessFlags(): Promise<ModelConfig[]> {
-  const models = await getAllModels()
+export async function getModelsWithAccessFlags(customModels?: ModelConfig[]): Promise<ModelConfig[]> {
+  const models = await getAllModels(customModels)
 
   const freeModels = models
     .filter(
       (model) =>
-        FREE_MODELS_IDS.includes(model.id) || model.providerId === "ollama"
+        FREE_MODELS_IDS.includes(model.uniqueId) || model.providerId === "ollama" || model.isCustom
     )
     .map((model) => ({
       ...model,
@@ -65,7 +56,7 @@ export async function getModelsWithAccessFlags(): Promise<ModelConfig[]> {
     }))
 
   const proModels = models
-    .filter((model) => !freeModels.map((m) => m.id).includes(model.id))
+    .filter((model) => !freeModels.map((m) => m.uniqueId).includes(model.uniqueId))
     .map((model) => ({
       ...model,
       accessible: false,
@@ -75,9 +66,10 @@ export async function getModelsWithAccessFlags(): Promise<ModelConfig[]> {
 }
 
 export async function getModelsForProvider(
-  provider: string
+  provider: string,
+  customModels?: ModelConfig[]
 ): Promise<ModelConfig[]> {
-  const models = await getAllModels()
+  const models = await getAllModels(customModels)
 
   const providerModels = models
     .filter((model) => model.providerId === provider)
@@ -91,10 +83,11 @@ export async function getModelsForProvider(
 
 // Function to get models based on user's available providers
 export async function getModelsForUserProviders(
-  providers: string[]
+  providers: string[],
+  customModels?: ModelConfig[]
 ): Promise<ModelConfig[]> {
   const providerModels = await Promise.all(
-    providers.map((provider) => getModelsForProvider(provider))
+    providers.map((provider) => getModelsForProvider(provider, customModels))
   )
 
   const flatProviderModels = providerModels.flat()
@@ -103,10 +96,10 @@ export async function getModelsForUserProviders(
 }
 
 // Synchronous function to get model info for simple lookups
-export function getModelInfo(modelId: string): ModelConfig | undefined {
+export function getModelInfo(uniqueId: string): ModelConfig | undefined {
   // First check the cache if it exists
   if (dynamicModelsCache) {
-    return dynamicModelsCache.find((model) => model.id === modelId)
+    return dynamicModelsCache.find((model) => model.uniqueId === uniqueId)
   }
   // If cache is not ready, no synchronous fallback in API-only mode
   return undefined

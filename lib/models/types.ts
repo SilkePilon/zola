@@ -2,6 +2,7 @@ import { LanguageModelV2 } from '@ai-sdk/provider'
 
 type ModelConfig = {
   id: string // "gpt-4.1-nano" // same from AI SDKs
+  uniqueId: string // "providerId:modelId" format for unique identification
   name: string // "GPT-4.1 Nano"
   provider: string // "OpenAI", "Mistral", etc.
   providerId: string // "openai", "mistral", etc.
@@ -43,9 +44,11 @@ type ModelConfig = {
   apiSdk?: (
     apiKey?: string,
     opts?: { enableSearch?: boolean }
-  ) => LanguageModelV2
+  ) => Promise<LanguageModelV2>
 
   accessible?: boolean // true if the model is accessible to the user
+  isCustom?: boolean // true if the model is a user-created custom model
+  baseUrl?: string // custom base URL for custom models
 }
 
 export type { ModelConfig }

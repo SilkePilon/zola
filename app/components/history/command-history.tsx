@@ -632,26 +632,7 @@ export function CommandHistory({
                   <CommandGroup
                     key={group.name}
                     heading={
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold break-all">{group.name}</span>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="group/delete text-muted-foreground hover:bg-primary/10 size-8 transition-colors duration-150"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                void handleDeleteGroup(group.chats)
-                              }}
-                              aria-label={`Delete ${group.name}`}
-                            >
-                              <TrashSimple className="group-hover/delete:text-primary size-4 transition-colors duration-150" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Delete this group</TooltipContent>
-                        </Tooltip>
-                      </div>
+                      <span className="font-semibold break-all">{group.name}</span>
                     }
                     className="space-y-0 px-1.5"
                   >
