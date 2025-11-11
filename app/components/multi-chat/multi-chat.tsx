@@ -160,7 +160,7 @@ export function MultiChat() {
           responses: group.assistantMessages.map((msg, index) => {
             const modelId =
               (msg as any).model || selectedModelIds[index] || `model-${index}`
-            const modelInfo = models.find((m) => m.id === modelId)
+            const modelInfo = models.find((m) => m.uniqueId === modelId)
             const provider = modelInfo?.provider || "unknown"
 
             return {

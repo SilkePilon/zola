@@ -106,11 +106,14 @@ export function ChatsProvider({
     redirect?: () => void
   ) => {
     const prev = [...chats]
+    const isCurrentChat = id === currentChatId
     setChats((prev) => prev.filter((c) => c.id !== id))
 
     try {
       await deleteChatFromDb(id)
-      if (id === currentChatId && redirect) redirect()
+      if (isCurrentChat && redirect) {
+        redirect()
+      }
     } catch {
       setChats(prev)
       toast({ title: "Failed to delete chat", status: "error" })

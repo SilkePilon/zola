@@ -66,7 +66,7 @@ export function ButtonFileUpload({
 
   // Derive accepted MIME types/extensions from model capabilities; text is always allowed
   // Prefer client model-store (authoritative in client), fallback to sync cache
-  const info = models.find((m) => m.id === model) || getModelInfo(model)
+  const info = models.find((m) => m.uniqueId === model) || getModelInfo(model)
   const allowImage = Boolean(info?.vision)
   const allowAudio = Boolean(info?.audio)
   const allowVideo = Boolean(info?.video)

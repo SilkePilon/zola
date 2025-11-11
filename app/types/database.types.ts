@@ -116,6 +116,71 @@ export type Database = {
           },
         ]
       }
+      custom_models: {
+        Row: {
+          audio: boolean | null
+          base_url: string | null
+          context_window: number | null
+          created_at: string | null
+          id: string
+          input_cost: number | null
+          model_id: string
+          name: string
+          output_cost: number | null
+          provider_id: string
+          reasoning: boolean | null
+          tools: boolean | null
+          updated_at: string | null
+          user_id: string
+          video: boolean | null
+          vision: boolean | null
+        }
+        Insert: {
+          audio?: boolean | null
+          base_url?: string | null
+          context_window?: number | null
+          created_at?: string | null
+          id?: string
+          input_cost?: number | null
+          model_id: string
+          name: string
+          output_cost?: number | null
+          provider_id: string
+          reasoning?: boolean | null
+          tools?: boolean | null
+          updated_at?: string | null
+          user_id: string
+          video?: boolean | null
+          vision?: boolean | null
+        }
+        Update: {
+          audio?: boolean | null
+          base_url?: string | null
+          context_window?: number | null
+          created_at?: string | null
+          id?: string
+          input_cost?: number | null
+          model_id?: string
+          name?: string
+          output_cost?: number | null
+          provider_id?: string
+          reasoning?: boolean | null
+          tools?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+          video?: boolean | null
+          vision?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_models_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feedback: {
         Row: {
           created_at: string | null

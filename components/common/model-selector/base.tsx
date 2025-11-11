@@ -56,7 +56,9 @@ export function ModelSelector({
   const { models, isLoading: isLoadingModels, favoriteModels } = useModel()
   const { isModelHidden } = useUserPreferences()
 
-  const currentModel = models.find((model) => model.id === selectedModelId)
+  // Find current model using uniqueId (providerId:modelId format)
+  const currentModel = models.find((m) => m.uniqueId === selectedModelId)
+    
   const currentProvider = PROVIDERS.find(
     (provider) => provider.id === currentModel?.icon
   )
@@ -89,19 +91,20 @@ export function ModelSelector({
 
     return (
       <div
-        key={model.id}
+        key={model.uniqueId}
         className={cn(
           "flex w-full items-center justify-between px-3 py-2",
-          selectedModelId === model.id && "bg-accent"
+          selectedModelId === model.uniqueId && "bg-accent"
         )}
         onClick={() => {
           if (isLocked) {
-            setSelectedProModel(model.id)
+            setSelectedProModel(model.uniqueId)
             setIsProDialogOpen(true)
             return
           }
 
-          setSelectedModelId(model.id)
+          // Set model using uniqueId (providerId:modelId format)
+          setSelectedModelId(model.uniqueId)
           if (isMobile) {
             setIsDrawerOpen(false)
           } else {
@@ -131,7 +134,7 @@ export function ModelSelector({
   }
 
   // Get the hovered model data
-  const hoveredModelData = models.find((model) => model.id === hoveredModel)
+  const hoveredModelData = models.find((model) => model.uniqueId === hoveredModel)
 
   const filteredModels = filterAndSortModels(
     models,
@@ -237,7 +240,7 @@ export function ModelSelector({
                     No results found.
                   </p>
                   <a
-                    href="https://github.com/ibelick/zola/issues/new?title=Model%20Request%3A%20"
+                    href="https://github.com/sst/models.dev#contributing"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-muted-foreground text-sm underline"
@@ -315,29 +318,29 @@ export function ModelSelector({
 
                   return (
                     <DropdownMenuItem
-                      key={model.id}
+                      key={model.uniqueId}
                       className={cn(
                         "flex w-full items-center justify-between px-3 py-2",
-                        selectedModelId === model.id && "bg-accent"
+                        selectedModelId === model.uniqueId && "bg-accent"
                       )}
                       onSelect={() => {
                         if (isLocked) {
-                          setSelectedProModel(model.id)
+                          setSelectedProModel(model.uniqueId)
                           setIsProDialogOpen(true)
                           return
                         }
 
-                        setSelectedModelId(model.id)
+                        setSelectedModelId(model.uniqueId)
                         setIsDropdownOpen(false)
                       }}
                       onFocus={() => {
                         if (isDropdownOpen) {
-                          setHoveredModel(model.id)
+                          setHoveredModel(model.uniqueId)
                         }
                       }}
                       onMouseEnter={() => {
                         if (isDropdownOpen) {
-                          setHoveredModel(model.id)
+                          setHoveredModel(model.uniqueId)
                         }
                       }}
                     >

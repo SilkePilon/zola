@@ -426,7 +426,10 @@ async function buildMcpToolsFromConfigs(configs: MCPServerConfig[]): Promise<Mcp
 
       // Add tools with server name prefix to avoid collisions
       for (const t of listed) {
-        const toolName = `${serverName}__${t.name}`
+        // Sanitize tool name to only contain a-z, A-Z, 0-9, underscores and dashes
+        const sanitizedServerName = serverName.replace(/[^a-zA-Z0-9_-]/g, '_')
+        const sanitizedToolName = t.name.replace(/[^a-zA-Z0-9_-]/g, '_')
+        const toolName = `${sanitizedServerName}__${sanitizedToolName}`.slice(0, 64)
         const description = t.description
 
         let inputSchema: ZodTypeAny

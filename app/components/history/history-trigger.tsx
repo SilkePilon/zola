@@ -44,7 +44,14 @@ export function HistoryTrigger({
       await clearMessagesForChat(id)
       
       // Delete the chat with redirect if it's the current chat
-      await deleteChat(id, chatId ?? undefined, isCurrentChat ? () => router.push("/") : undefined)
+      if (isCurrentChat) {
+        await deleteChat(id, chatId ?? undefined, () => router.push("/"))
+        // Close the dialog when deleting current chat since we're navigating away
+        setIsOpen(false)
+      } else {
+        await deleteChat(id, chatId ?? undefined)
+        // Keep dialog open when deleting other chats
+      }
     } catch (error) {
       console.error("Error deleting chat:", error)
       const { toast } = await import("@/components/ui/toast")
@@ -53,8 +60,6 @@ export function HistoryTrigger({
         description: error instanceof Error ? error.message : "An unexpected error occurred",
         status: "error",
       })
-    } finally {
-      setIsOpen(false)
     }
   }
 

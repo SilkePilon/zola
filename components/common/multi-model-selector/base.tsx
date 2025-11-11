@@ -62,7 +62,7 @@ export function MultiModelSelector({
   const { isModelHidden } = useUserPreferences()
 
   const selectedModels = models.filter((model) =>
-    selectedModelIds.includes(model.id)
+    selectedModelIds.includes(model.uniqueId)
   )
   const isMobile = useBreakpoint(768)
 
@@ -106,25 +106,25 @@ export function MultiModelSelector({
 
   const renderModelItem = (model: ModelConfig) => {
     const isLocked = !model.accessible
-    const isSelected = selectedModelIds.includes(model.id)
+    const isSelected = selectedModelIds.includes(model.uniqueId)
     const isAtLimit = selectedModelIds.length >= maxModels
     const provider = PROVIDERS.find((provider) => provider.id === model.icon)
 
     return (
       <div
-        key={model.id}
+        key={model.uniqueId}
         className={cn(
           "hover:bg-accent/50 flex w-full cursor-pointer items-center justify-between px-3 py-2",
           isSelected && "bg-accent"
         )}
-        onClick={() => handleModelToggle(model.id, isLocked)}
+        onClick={() => handleModelToggle(model.uniqueId, isLocked)}
       >
         <div className="flex items-center gap-3">
           <Checkbox
             checked={isSelected}
             disabled={isLocked || (!isSelected && isAtLimit)}
             onClick={(e) => e.stopPropagation()}
-            onChange={() => handleModelToggle(model.id, isLocked)}
+            onChange={() => handleModelToggle(model.uniqueId, isLocked)}
           />
           <ProviderIcon
             providerId={model.icon}
@@ -154,7 +154,7 @@ export function MultiModelSelector({
   }
 
   // Get the hovered model data
-  const hoveredModelData = models.find((model) => model.id === hoveredModel)
+  const hoveredModelData = models.find((model) => model.uniqueId === hoveredModel)
 
   const filteredModels = filterAndSortModels(
     models,
@@ -234,9 +234,9 @@ export function MultiModelSelector({
                   {selectedModels.slice(0, 3).map((model, index) => {
                     return (
                       <motion.div
-                        key={`${model.id}`}
+                        key={`${model.uniqueId}`}
                         layout="position"
-                        layoutId={`${model.id}`}
+                        layoutId={`${model.uniqueId}`}
                         initial={{
                           scale: 0,
                           rotate: -180,
@@ -379,7 +379,7 @@ export function MultiModelSelector({
                     No results found.
                   </p>
                   <a
-                    href="https://github.com/ibelick/zola/issues/new?title=Model%20Request%3A%20"
+                    href="https://github.com/sst/models.dev#contributing"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-muted-foreground text-sm underline"
@@ -454,30 +454,30 @@ export function MultiModelSelector({
               ) : filteredModels.length > 0 ? (
                 filteredModels.map((model) => {
                   const isLocked = !model.accessible
-                  const isSelected = selectedModelIds.includes(model.id)
+                  const isSelected = selectedModelIds.includes(model.uniqueId)
                   const provider = PROVIDERS.find(
                     (provider) => provider.id === model.icon
                   )
 
                   return (
                     <DropdownMenuItem
-                      key={model.id}
+                      key={model.uniqueId}
                       className={cn(
                         "flex w-full items-center justify-between px-3 py-2",
                         isSelected && "bg-accent"
                       )}
                       onSelect={(e) => {
                         e.preventDefault()
-                        handleModelToggle(model.id, isLocked)
+                        handleModelToggle(model.uniqueId, isLocked)
                       }}
                       onFocus={() => {
                         if (isDropdownOpen) {
-                          setHoveredModel(model.id)
+                          setHoveredModel(model.uniqueId)
                         }
                       }}
                       onMouseEnter={() => {
                         if (isDropdownOpen) {
-                          setHoveredModel(model.id)
+                          setHoveredModel(model.uniqueId)
                         }
                       }}
                     >
