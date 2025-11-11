@@ -1,81 +1,179 @@
+<div align="center">
+  <img src="./public/cover_zola.jpg" alt="Zola - Open Source AI Chat Interface" width="100%">
+
 # Zola
 
-[zola.chat](https://zola.chat)
+### The Open-Source Multi-Model AI Chat Interface
 
-**Zola** is the open-source chat interface for all your models.
+**Unified access to 100+ AI models from OpenAI, Anthropic, Google, Mistral, and more**
 
-![zola cover](./public/cover_zola.jpg)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org)
+[![Vercel AI SDK](https://img.shields.io/badge/Vercel%20AI%20SDK-5.0-black)](https://sdk.vercel.ai)
+
+[Website](https://zola.chat) • [Documentation](./INSTALL.md) • [Discord](#) • [Twitter](#)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/SilkePilon/zola)
+
+</div>
+
+---
 
 ## Features
 
-- Multi-model support: OpenAI, Mistral, Claude, Gemini, Ollama (local models)
-- Bring your own API key (BYOK) support via OpenRouter
-- File uploads
-- Clean, responsive UI with light/dark themes
-- Built with Tailwind CSS, shadcn/ui, and prompt-kit
-- Open-source and self-hostable
-- Customizable: user system prompt, multiple layout options
-- Local AI with Ollama: Run models locally with automatic model detection
-- Full MCP support (wip)
+### Multi-Model Support
+
+Access over 100 AI models from all major providers through a single interface. Switch between models seamlessly during conversations. Powered by the [models.dev](https://models.dev) API with support for OpenAI, Anthropic, Google, Mistral, xAI, Perplexity, and many more providers.
+
+### Bring Your Own Key (BYOK)
+
+Use your own API keys securely with AES-256 encryption. Store keys for all major providers without vendor lock-in. Users can manage their own API keys through the settings interface, maintaining full control over their usage and billing.
+
+### Local AI with Ollama
+
+Run AI models completely locally on your machine with Ollama integration. Automatic model detection means no configuration needed. Enjoy zero API costs and complete privacy. Support for popular models like LLaMA, Mistral, Gemma, Qwen, Phi, and more.
+
+### Beautiful, Modern Interface
+
+Clean and responsive design that works on all devices. Supports both light and dark themes with multiple layout options. Built with modern technologies including Tailwind CSS and shadcn/ui for a polished user experience.
+
+### Custom Models
+
+Add your own AI models to the interface through the settings panel. Use any OpenAI-compatible API endpoint. Configure model capabilities including vision, tools, reasoning, audio, and video support. Full control over pricing information and context window sizes.
+
+### Advanced Features
+
+- File uploads supporting images, documents, and PDFs
+- Model Context Protocol (MCP) support for extended capabilities
+- Multi-model conversations in a single chat
+- Customizable system prompts per chat or globally
+- Project organization for managing multiple conversations
+- Chat history with search and filtering
+- Export conversations in multiple formats
+
+---
 
 ## Quick Start
 
-### Option 1: With OpenAI (Cloud)
+### Option 1: Cloud Models (OpenAI, Anthropic, etc.)
 
 ```bash
-git clone https://github.com/ibelick/zola.git
+# Clone the repository
+git clone https://github.com/SilkePilon/zola.git
 cd zola
+
+# Install dependencies
 npm install
-echo "OPENAI_API_KEY=your-key" > .env.local
+
+# Start the development server
 npm run dev
 ```
 
-### Option 2: With Ollama (Local)
+Open [http://localhost:3000](http://localhost:3000) in your browser, then add your API keys through the Settings interface. Navigate to Settings > API Keys and securely add keys for the providers you want to use. All keys are encrypted before storage.
+
+### Option 2: Local AI with Ollama (Recommended)
 
 ```bash
-# Install and start Ollama
+# Install Ollama
 curl -fsSL https://ollama.ai/install.sh | sh
-ollama pull llama3.2  # or any model you prefer
+
+# Pull a model (e.g., LLaMA 3.2)
+ollama pull llama3.2
 
 # Clone and run Zola
-git clone https://github.com/ibelick/zola.git
+git clone https://github.com/SilkePilon/zola.git
 cd zola
 npm install
 npm run dev
 ```
 
-Zola will automatically detect your local Ollama models!
+Zola will automatically detect all your Ollama models. No configuration needed - just start chatting with your local models completely free and private.
 
 ### Option 3: Docker with Ollama
 
 ```bash
-git clone https://github.com/ibelick/zola.git
+git clone https://github.com/SilkePilon/zola.git
 cd zola
 docker-compose -f docker-compose.ollama.yml up
 ```
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/SilkePilon/zola)
+Access Zola at [http://localhost:3000](http://localhost:3000). Add API keys for cloud providers through Settings, or use the pre-configured Ollama models immediately.
 
-To unlock features like auth, file uploads, see [INSTALL.md](./INSTALL.md).
+---
 
-## Built with
+## Documentation
 
-- [prompt-kit](https://prompt-kit.com/) — AI components
-- [shadcn/ui](https://ui.shadcn.com) — core components
-- [motion-primitives](https://motion-primitives.com) — animated components
-- [vercel ai sdk](https://vercel.com/blog/introducing-the-vercel-ai-sdk) — model integration, AI features
-- [supabase](https://supabase.com) — auth and storage
+### Full Installation Guide
 
-## Sponsors
+For complete setup instructions including database configuration (Supabase), authentication setup (Google OAuth, guest mode), file upload configuration, and environment variables, see the [INSTALL.md](./INSTALL.md) guide.
 
-<a href="https://vercel.com/oss">
-  <img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge.svg" />
-</a>
+### Adding Custom Models
 
-## License
+Zola supports adding custom AI models in two ways:
 
-Apache License 2.0
+#### Method 1: Add Custom Models via UI
 
-## Notes
+1. Log in to your Zola instance
+2. Open Settings and navigate to Models
+3. Click "Add Custom Model"
+4. Fill in the model details:
+   - Model Name: Display name (e.g., "My Custom GPT-4")
+   - Model ID: The actual model identifier (e.g., `gpt-4-custom`)
+   - Provider: Select from available providers or use "Custom"
+   - Base URL (if Custom): Your API endpoint (e.g., `https://api.example.com/v1`)
+   - Context Window: Maximum tokens (e.g., `128000`)
+   - Pricing: Input/output cost per 1M tokens
+   - Capabilities: Enable vision, tools, reasoning, audio, video support
+5. Click "Add Model"
 
-This is a beta release. The codebase is evolving and may change.
+Your custom model will now appear in the model selector. 2. **Fork the [models.dev repository](https://github.com/modelcontextprotocol/models.dev)** 3. **Add your provider/model** to `api.json`:
+
+#### Method 2: Contribute to models.dev
+
+To make your model available to all Zola users and the broader AI community:
+
+1. Visit [models.dev](https://models.dev)
+2. Fork the [models.dev repository](https://github.com/modelcontextprotocol/models.dev)
+3. Add your provider/model to `api.json`:
+
+```
+{
+    "api": "https://api.yourprovider.com/v1",
+    "env": ["YOUR_PROVIDER_API_KEY_ENV_VAR"],
+    "models": {
+        "your-model-id": {
+            "id": "your-model-id",
+            "name": "Your Model Name",
+            "tool_call": true,
+            "attachment": true,
+            "cost": {
+                "input": 0.5,
+                "output": 1.5
+            },
+            "limit": {
+                "context": 128000,
+                "output": 4096
+            },
+            "modalities": {
+                "input": ["text", "image"],
+                "output": ["text"]
+            }
+        }
+    }
+}
+```
+
+4. **Submit a Pull Request**
+5. Once merged, your model will be available in Zola (and other tools using models.dev)!
+
+#### OpenAI-Compatible APIs
+
+Zola works with any OpenAI-compatible API. Popular options include:
+
+- OpenRouter - Access 100+ models through one API
+- Together AI - Fast inference for open-source models
+- Replicate - Run models with auto-scaling
+- LocalAI - Self-hosted OpenAI alternative
+- LM Studio - Desktop app with API server
+- Text Generation WebUI - Popular UI with OpenAI API extension

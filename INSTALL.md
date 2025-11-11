@@ -1,61 +1,206 @@
+<div align="center">
+
 # Zola Installation Guide
 
-Zola is a free, open-source AI chat app with multi-model support. This guide covers how to install and run Zola on different platforms, including Docker deployment options.
+**Complete setup guide for self-hosting Zola with authentication, storage, and AI models**
 
-![Zola screenshot](./public/cover_zola.webp)
+![Zola Installation](./public/cover_zola.webp)
+
+[Back to Main README](./README.md)
+
+</div>
+
+---
+
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Environment Setup](#environment-setup)
+- [Database Configuration](#database-configuration)
+- [Authentication Setup](#authentication-setup)
+- [Storage Configuration](#storage-configuration)
+- [Ollama Setup](#ollama-setup-local-ai)
+- [Local Development](#local-development)
+- [Docker Deployment](#docker-deployment)
+- [Production Deployment](#production-deployment)
+- [Troubleshooting](#troubleshooting)
+
+---
 
 ## Prerequisites
 
-- Node.js 18.x or later
-- npm or yarn
-- Git
-- Supabase account (for auth and storage)
-- API keys for supported AI models (OpenAI, Mistral, etc.) OR Ollama for local models
+Before you begin, ensure you have the following installed:
+
+- Node.js 18.x or later - Runtime environment
+- npm or yarn (latest) - Package manager
+- Git (latest) - Version control
+- Supabase Account - For authentication and database (optional for basic use)
+- API Keys - For AI providers like OpenAI, Anthropic, Google, etc.
+- Ollama (optional) - For running local AI models
+
+Note: You can run Zola without Supabase for basic functionality, but you'll lose authentication, file uploads, and user preferences.
 
 ## Environment Setup
 
-First, you'll need to set up your environment variables. Create a `.env.local` file in the root of the project with the variables from `.env.example`
+### Step 1: Create Environment File
+
+Create a `.env.local` file in the root directory:
 
 ```bash
-# Supabase
+cp .env.example .env.local
+```
+
+### Step 2: Configure Environment Variables
+
+Edit `.env.local` with your credentials:
+
+#### Database (Required for full features)
+```bash
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE=your_supabase_service_role_key
-
-# OpenAI
-OPENAI_API_KEY=your_openai_api_key
-
-# Mistral
-MISTRAL_API_KEY=your_mistral_api_key
-
-# OpenRouter
-OPENROUTER_API_KEY=your_openrouter_api_key
-
-# CSRF Protection
-CSRF_SECRET=your_csrf_secret_key
-
-# Exa
-EXA_API_KEY=your_exa_api_key
-
-# Gemini
-GOOGLE_GENERATIVE_AI_API_KEY=your_gemini_api_key
-
-# Anthropic
-ANTHROPIC_API_KEY=your_anthropic_api_key
-
-# Xai
-XAI_API_KEY=your_xai_api_key
-
-# Ollama (for local AI models)
-OLLAMA_BASE_URL=http://localhost:11434
-
-# Optional: Set the URL for production
-# NEXT_PUBLIC_VERCEL_URL=your_production_url
 ```
 
-A `.env.example` file is included in the repository for reference. Copy this file to `.env.local` and update the values with your credentials.
+#### Security (Required)
+```bash
+# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+CSRF_SECRET=your_csrf_secret_key
 
-### Generating a CSRF Secret
+# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+ENCRYPTION_KEY=your_encryption_key  # Required for BYOK feature
+```
+
+#### AI Provider API Keys (Optional - choose what you need)
+```bash
+# OpenAI (GPT-4, GPT-3.5, etc.)
+OPENAI_API_KEY=sk-...
+
+# Anthropic (Claude models)
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Google (Gemini models)
+GOOGLE_GENERATIVE_AI_API_KEY=...
+
+# Mistral AI
+MISTRAL_API_KEY=...
+### Generating Security Keys
+
+#### CSRF Secret
+
+The `CSRF_SECRET` protects against Cross-Site Request Forgery attacks. Generate a secure random string:
+
+<table>
+<tr>
+<td width="33%">
+
+**Node.js**
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+</td>
+<td width="33%">
+
+**OpenSSL**
+```bash
+openssl rand -hex 32
+```
+
+</td>
+#### Encryption Key (for BYOK)
+
+The `ENCRYPTION_KEY` encrypts user API keys in the database (AES-256-GCM). This enables the Bring Your Own Key feature.
+
+Using Node.js:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Using OpenSSL:
+```bash
+openssl rand -base64 32
+```
+
+Using Python:
+```bash
+python -c "import base64, secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())"
+```
+
+Add to `.env.local`:
+---
+
+## Authentication Setup
+
+Zola supports multiple authentication methods through Supabase.
+
+### Google OAuth Setup
+
+#### Step 1: Create Google OAuth Credentials
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create a new project or select existing
+3. Navigate to **APIs & Services** > **Credentials**
+4. Click **Create Credentials** > **OAuth Client ID**
+5. Configure the OAuth consent screen if prompted
+6. Select application type: **Web application**
+7. Add **Authorized redirect URIs**:
+   ```
+   https://[YOUR_PROJECT_REF].supabase.co/auth/v1/callback
+   http://localhost:3000/auth/callback
+   ```
+8. Click **Create** and save the **Client ID** and **Client Secret**
+
+#### Step 2: Configure in Supabase
+
+1. Go to your [Supabase Dashboard](https://app.supabase.com)
+2. Navigate to **Authentication** > **Providers**
+3. Find **Google** and toggle it on
+4. Paste your **Client ID** and **Client Secret**
+5. Click **Save**
+
+### Guest Mode Setup
+
+Enable anonymous sign-ins for users to try Zola without creating an account:
+
+1. Go to **Supabase Dashboard** > **Authentication** > **Providers**
+2. Scroll to **Anonymous sign-ins**
+3. Toggle **Enable anonymous sign-ins** to **ON**
+---
+
+## Database Configuration
+
+### Quick Setup
+
+Zola includes a complete database schema in `supabase/schema.sql`. 
+
+#### Method 1: Use the Provided Schema (Recommended)
+
+1. Go to your Supabase Dashboard
+2. Navigate to **SQL Editor**
+3. Copy the contents of `supabase/schema.sql`
+4. Paste and run the SQL script
+5. Done! All tables, triggers, and policies are created
+
+#### Method 2: Manual Setup
+
+If you prefer to create tables manually, here's the schema:
+### Email Authentication (Optional)
+
+Supabase supports email/password authentication out of the box:
+
+1. Already enabled by default in Supabase
+2. Users can sign up with email and password
+3. Configure email templates in **Authentication** > **Email Templates**
+
+### Additional Providers
+
+Supabase supports many OAuth providers:
+- GitHub, GitLab, Bitbucket
+- Facebook, Twitter, Discord
+- Azure, Apple, LinkedIn
+- And more...
+
+Configure them similarly to Google OAuth in the **Authentication** > **Providers** section.
 
 The `CSRF_SECRET` is used to protect your application against Cross-Site Request Forgery attacks. You need to generate a secure random string for this value. Here are a few ways to generate one:
 
@@ -148,23 +293,102 @@ Here are the detailed steps to set up Google OAuth:
 1. Go to your Supabase project dashboard
 2. Navigate to Authentication > Providers
 3. Toggle on "Allow anonymous sign-ins"
+-- Custom models table (for user-added models)
+CREATE TABLE custom_models (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  provider_id TEXT NOT NULL,
+  base_url TEXT,
+  context_window INTEGER,
+  input_cost DECIMAL(10, 6),
+  output_cost DECIMAL(10, 6),
+  vision BOOLEAN DEFAULT false,
+  tools BOOLEAN DEFAULT false,
+  reasoning BOOLEAN DEFAULT false,
+  audio BOOLEAN DEFAULT false,
+  video BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-This allows users limited access to try the product before properly creating an account.
+CREATE INDEX idx_custom_models_user_id ON custom_models(user_id);
+CREATE UNIQUE INDEX idx_custom_models_user_model ON custom_models(user_id, provider_id, model_id);
+```
 
-### Database Schema
+Tip: The complete, production-ready schema is in `supabase/schema.sql` with all triggers, indexes, and RLS policies.
 
-Create the following tables in your Supabase SQL editor:
+### Row Level Security (RLS)
+
+For production, enable RLS policies to secure your data. The schema file includes commented examples:
 
 ```sql
--- Users table
-CREATE TABLE users (
-  id UUID PRIMARY KEY NOT NULL, -- Assuming the PK is from auth.users, typically not nullable
-  email TEXT NOT NULL,
-  anonymous BOOLEAN,
-  daily_message_count INTEGER,
-  daily_reset TIMESTAMPTZ,
-  display_name TEXT,
-  favorite_models TEXT[],
+-- Enable RLS on tables
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+-- Example: Users can only access their own data
+CREATE POLICY "Users can view own data" ON users FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own data" ON users FOR UPDATE USING (auth.uid() = id);
+```
+
+Uncomment the RLS section in `supabase/schema.sql` for production deployments.
+
+---
+
+## Storage Configuration
+
+Zola uses Supabase Storage for file uploads (images, documents, PDFs).
+
+### Step 1: Create Storage Buckets
+
+1. Go to **Supabase Dashboard** > **Storage**
+2. Click **New bucket**
+3. Create two buckets:
+   - **Name**: `chat-attachments` | **Public**: ✅ Yes
+   - **Name**: `avatars` | **Public**: ✅ Yes
+
+### Step 2: Configure Bucket Policies
+
+The `supabase/schema.sql` file includes storage policies that:
+- Allow authenticated users to upload files
+- Allow public read access to files
+- Allow users to delete their own files
+- Restrict file paths to prevent unauthorized access
+
+These policies are automatically created when you run the schema SQL script.
+
+### Manual Policy Setup (Optional)
+
+If you need to create policies manually:
+
+```sql
+-- Allow authenticated uploads
+CREATE POLICY "Authenticated users can upload"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (bucket_id = 'chat-attachments');
+
+---
+
+## Ollama Setup (Local AI)
+CREATE POLICY "Public can download"
+ON storage.objects FOR SELECT TO public
+USING (bucket_id = 'chat-attachments');
+
+-- Allow users to delete own files
+CREATE POLICY "Users can delete own files"
+ON storage.objects FOR DELETE TO authenticated
+USING (bucket_id = 'chat-attachments' AND auth.uid()::text = (storage.foldername(name))[1]);
+```
+
+### File Upload Limits
+
+Configure in `lib/config.ts`:
+```typescript
+export const DAILY_FILE_UPLOAD_LIMIT = 5 // Uploads per day for non-premium users
+```
   message_count INTEGER,
   premium BOOLEAN,
   profile_image TEXT,
@@ -320,101 +544,55 @@ docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
 ```
 
 ### Setting up Models
+---
 
-After installing Ollama, you can download and run models:
+## Local Development
 
-```bash
-# Popular models to get started
-ollama pull llama3.2          # Meta's Llama 3.2 (3B)
-ollama pull llama3.2:1b       # Smaller, faster version
-ollama pull gemma2:2b         # Google's Gemma 2 (2B)
-ollama pull qwen2.5:3b        # Alibaba's Qwen 2.5 (3B)
-ollama pull phi3.5:3.8b       # Microsoft's Phi 3.5 (3.8B)
-
-# Coding-focused models
-ollama pull codellama:7b      # Meta's Code Llama
-ollama pull deepseek-coder:6.7b # DeepSeek Coder
-
-# List available models
-ollama list
-
-# Start the Ollama service (if not running)
-ollama serve
-```
-
-### Zola + Ollama Integration
-
-Zola automatically detects all models available in your Ollama installation. No additional configuration is needed!
-
-**Features:**
-
-- **Automatic Model Detection**: Zola scans your Ollama instance and makes all models available
-- **Intelligent Categorization**: Models are automatically categorized by family (Llama, Gemma, Qwen, etc.)
-- **Smart Tagging**: Models get appropriate tags (local, open-source, coding, size-based)
-- **No Pro Restrictions**: All Ollama models are free to use
-- **Custom Endpoints**: Support for remote Ollama instances
-
-### Configuration Options
-
-#### Default Configuration
-
-By default, Zola connects to Ollama at `http://localhost:11434`. This works for local installations.
-
-#### Custom Ollama URL
-
-To use a remote Ollama instance or custom port:
+### Quick Start
 
 ```bash
-# In your .env.local file
-OLLAMA_BASE_URL=http://192.168.1.100:11434
+# Clone the repository
+git clone https://github.com/SilkePilon/zola.git
+cd zola
+
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env.local
+# Edit .env.local with your credentials
+
+# Run the development server
+npm run dev
 ```
 
-#### Runtime Configuration
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can also set the Ollama URL at runtime:
+### Development Scripts
 
 ```bash
-OLLAMA_BASE_URL=http://your-ollama-server:11434 npm run dev
+npm run dev          # Start development server with Turbopack
+npm run build        # Build for production
+npm run start        # Start production server
+npm run lint         # Run ESLint
+npm run type-check   # Run TypeScript type checking
 ```
 
-#### Settings UI
+### Development Tips
 
-Zola includes a settings interface where you can:
+- **Hot Reload**: Changes are automatically reflected in the browser
+- **Type Safety**: TypeScript catches errors before runtime
+- **Turbopack**: Fast bundling with Next.js 15
+- **Error Overlay**: Helpful error messages in development
 
-- Enable/disable Ollama integration
-- Configure custom Ollama base URLs
-- Add multiple Ollama instances
-- Manage other AI providers
+### Project Structure
+### Option 1: Single Container
 
-Access settings through the gear icon in the interface.
-
-### Docker with Ollama
-
-For a complete Docker setup with both Zola and Ollama:
-
-```bash
-# Use the provided Docker Compose file
-docker-compose -f docker-compose.ollama.yml up
-
-# Or manually with separate containers
-docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
-docker run -p 3000:3000 -e OLLAMA_BASE_URL=http://ollama:11434 zola
-```
-
-The `docker-compose.ollama.yml` file includes:
-
-- Ollama service with GPU support (if available)
-- Automatic model pulling
-- Health checks
-- Proper networking between services
-
-### Troubleshooting Ollama
-
-#### Ollama not detected
-
-1. Ensure Ollama is running: `ollama serve`
-2. Check the URL: `curl http://localhost:11434/api/tags`
-3. Verify firewall settings if using remote Ollama
+A `Dockerfile` is included in the repository:
+│   ├── components/        # Page-specific components
+│   └── lib/              # Client-side utilities
+├── components/            # Shared components
+**Build and run:**g remote Ollama
 
 #### Models not appearing
 
@@ -497,31 +675,9 @@ cd zola
 # Install dependencies
 npm install
 
-# Run the development server
-npm run dev
-```
+### Option 2: Docker Compose (Standard)
 
-The application will be available at [http://localhost:3000](http://localhost:3000).
-
-## Supabase Setup
-
-Zola requires Supabase for authentication and storage. Follow these steps to set up your Supabase project:
-
-1. Create a new project at [Supabase](https://supabase.com)
-2. Set up the database schema using the SQL script below
-3. Create storage buckets for chat attachments
-4. Configure authentication providers (Google OAuth)
-5. Get your API keys and add them to your `.env.local` file
-
-## Docker Installation
-
-### Option 1: Single Container with Docker
-
-Create a `Dockerfile` in the root of your project if that doesnt exist:
-
-```dockerfile
-# Base Node.js image
-FROM node:18-alpine AS base
+A `docker-compose.yml` file is included. **Run with:**ase
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -556,72 +712,314 @@ WORKDIR /app
 # Set environment variables
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
+### Option 3: Docker Compose with Ollama (Recommended)
 
-# Create a non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-# Set the correct permission for prerender cache
-RUN mkdir -p .next/cache && chown -R nextjs:nodejs .next/cache
-
-# Copy necessary files for production
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Switch to non-root user
-USER nextjs
-
-# Expose application port
-EXPOSE 3000
-
-# Set environment variable for port
-ENV PORT 3000
-ENV HOSTNAME 0.0.0.0
-
-# Health check to verify container is running properly
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
-
-# Start the application
-CMD ["node", "server.js"]
-```
-
-Build and run the Docker container:
+The **complete setup** with both Zola and Ollama is in `docker-compose.ollama.yml`:
 
 ```bash
-# Build the Docker image
-docker build -t zola .
+# Start both services
+docker-compose -f docker-compose.ollama.yml up -d
 
-# Run the container
-docker run -p 3000:3000 \
-  -e NEXT_PUBLIC_SUPABASE_URL=your_supabase_url \
-  -e NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key \
-  -e SUPABASE_SERVICE_ROLE=your_supabase_service_role_key \
-  -e OPENAI_API_KEY=your_openai_api_key \
-  -e MISTRAL_API_KEY=your_mistral_api_key \
-  zola
+# View logs
+docker-compose -f docker-compose.ollama.yml logs -f
+
+# Stop everything
+docker-compose -f docker-compose.ollama.yml down
 ```
 
-### Option 2: Docker Compose
+What's included:
+- Zola web interface
+- Ollama server with GPU support (if available)
+- Automatic model pulling (llama3.2:3b by default)
+- Health checks for both services
+- Proper networking (Zola to Ollama communication)
+- Volume persistence for models
+- Ready to use at [http://localhost:3000](http://localhost:3000)
 
-Create a `docker-compose.yml` file in the root of your project:
+**Customize models:**
+
+Edit `docker-compose.ollama.yml` and change the `OLLAMA_MODELS` environment variable:
 
 ```yaml
-version: "3"
+environment:
+  - OLLAMA_MODELS=llama3.2:3b,gemma2:2b,qwen2.5:3b,codellama:7b
+```
+---
 
-services:
-  zola:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE=${SUPABASE_SERVICE_ROLE}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+## Production Deployment
+
+### Deploy to Vercel (Recommended)
+
+Vercel is the easiest way to deploy Zola:
+
+#### Option A: One-Click Deploy
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/SilkePilon/zola)
+
+#### Option B: Manual Deploy
+
+1. Push your code to GitHub/GitLab/Bitbucket
+2. Go to [Vercel Dashboard](https://vercel.com/dashboard)
+3. Click **Import Project**
+4. Select your repository
+5. Configure environment variables:
+   - Add all variables from `.env.local`
+   - Set `NEXT_PUBLIC_VERCEL_URL` to your domain
+6. Click **Deploy**
+
+#### Option C: Vercel CLI
+
+```bash
+# Install Vercel CLI
+npm install -g vercel
+
+# Deploy
+vercel
+
+# Deploy to production
+vercel --prod
+```
+
+### Self-Hosted Production
+
+### Common Issues
+
+<details>
+<summary><strong>Supabase connection fails</strong></summary>
+
+Symptoms: "Database connection failed" errors
+
+**Solutions**:
+1. Verify `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local`
+2. Check Supabase project status at [Supabase Dashboard](https://app.supabase.com)
+3. Ensure IP address is not blocked (check Supabase logs)
+4. Verify database schema is set up correctly
+5. For minimal testing, comment out Supabase env vars (works without auth)
+
+</details>
+
+<details>
+<summary><strong>AI models not responding</strong></summary>
+
+Symptoms: Empty responses, timeout errors
+
+**Solutions**:
+1. Verify API keys are correct and have sufficient credits
+2. Check provider status pages (OpenAI, Anthropic, etc.)
+3. Test with a free model first: `google:gemini-2.5-pro`
+4. Check browser console for error messages
+5. Verify model ID matches provider's documentation
+6. Check for rate limiting (429 errors)
+
+</details>
+
+<details>
+<summary><strong>Ollama models not detected</strong></summary>
+
+Symptoms: No local models appear in selector
+
+**Solutions**:
+1. Ensure Ollama is running: `ollama serve`
+2. Test Ollama API: `curl http://localhost:11434/api/tags`
+3. Verify `OLLAMA_BASE_URL` in `.env.local` (default: `http://localhost:11434`)
+4. Check if `DISABLE_OLLAMA=true` is set
+5. Pull at least one model: `ollama pull llama3.2`
+6. Restart Zola after adding models
+
+</details>
+
+<details>
+<summary><strong>Docker container exits immediately</strong></summary>
+
+Symptoms: Container starts then stops
+
+**Solutions**:
+1. Check logs: `docker logs <container_id>`
+2. Verify all required env vars are set
+3. Check if port 3000 is already in use
+4. Ensure `.env.local` is not being used (use `-e` flags or `.env` file)
+5. Try running without Supabase first (minimal config)
+
+</details>
+
+<details>
+<summary><strong>File uploads not working</strong></summary>
+
+Symptoms: Upload button doesn't work or files don't save
+
+**Solutions**:
+1. Verify Supabase Storage buckets exist: `chat-attachments` and `avatars`
+2. Check bucket policies allow uploads (see Storage Configuration section)
+3. Ensure user is authenticated
+4. Check file size limits (default: 10MB per file)
+5. Verify `SUPABASE_SERVICE_ROLE` key has admin access
+
+</details>
+
+<details>
+<summary><strong>BYOK (user API keys) not working</strong></summary>
+
+Symptoms: Can't save API keys in settings
+
+**Solutions**:
+1. Verify `ENCRYPTION_KEY` is set in `.env.local`
+2. Key must be 32 bytes base64-encoded
+3. Check `user_keys` table exists in database
+4. Ensure user is authenticated
+5. Check browser console for encryption errors
+
+</details>
+
+<details>
+<summary><strong>Build errors with Next.js 15</strong></summary>
+
+Symptoms: Build fails with type errors
+
+**Solutions**:
+1. Delete `.next` folder and `node_modules`
+2. Run `npm install` again
+3. Check Node.js version (requires 18.x+)
+4. Clear npm cache: `npm cache clean --force`
+5. Check TypeScript version: `npm list typescript`
+
+</details>
+
+<details>
+<summary><strong>"models.dev API failed" errors</strong></summary>
+
+Symptoms: No models load, console shows API errors
+
+**Solutions**:
+1. Check internet connection
+2. Verify models.dev is accessible: `curl https://models.dev/api.json`
+3. Check if corporate firewall blocks the API
+4. Try setting custom `MODELS_DEV_URL` if using mirror
+5. Cache will retry after 5 minutes
+
+</details>
+
+### Getting Help
+
+Still having issues? Here's how to get help:
+
+1. **Check existing issues**: [GitHub Issues](https://github.com/SilkePilon/zola/issues)
+2. **Search discussions**: [GitHub Discussions](https://github.com/SilkePilon/zola/discussions)
+3. **Create new issue**: Include:
+   - Error messages (full stack trace)
+   - Environment (OS, Node version, deployment platform)
+   - Steps to reproduce
+   - Configuration (without sensitive keys!)
+4. **Join community**: Discord (coming soon)
+
+### Debug Mode
+
+Enable verbose logging:
+
+```bash
+# In .env.local
+DEBUG=zola:*
+NODE_ENV=development
+```
+
+Check browser console and terminal for detailed logs.
+
+---
+
+## Additional Resources
+
+- [Main README](./README.md) - Overview and features
+- [models.dev](https://models.dev) - AI model registry
+- [Supabase Docs](https://supabase.com/docs) - Database and auth
+- [Vercel AI SDK](https://sdk.vercel.ai) - AI integration
+- [Next.js Docs](https://nextjs.org/docs) - Framework documentation
+- [shadcn/ui](https://ui.shadcn.com) - UI components
+
+---
+
+## Community & Support
+
+- **GitHub Issues** - [Report bugs](https://github.com/SilkePilon/zola/issues)
+- **GitHub Discussions** - [Ask questions](https://github.com/SilkePilon/zola/discussions)
+- **Discord** - Coming soon
+- **Twitter** - [@zola_chat](https://twitter.com/zola_chat)
+
+---
+
+## License
+
+Zola is open-source software licensed under the [Apache License 2.0](LICENSE).
+
+---
+
+<div align="center">
+
+[Back to Top](#zola-installation-guide)
+
+Made with care by the open-source community
+
+[Back to Main README](./README.md)
+
+</div>TTPS
+- [ ] Configure CORS if needed
+- [ ] Enable Supabase RLS policies
+- [ ] Set up monitoring (Sentry, LogRocket, etc.)
+- [ ] Configure backups for database
+
+### Deployment Platforms
+
+Zola works on various platforms:
+
+- Vercel - Recommended, zero-config deployment
+- Netlify - Requires build settings configuration
+- Railway - Good Docker support
+- Fly.io - Global edge deployment
+- AWS - Use AWS Amplify or ECS
+- Google Cloud - Use Cloud Run
+- Azure - Use App Service
+- DigitalOcean - Use App Platform
+- Self-hosted - Any VPS with Node.js
+
+---
+
+## Configuration Options
+
+### Application Config
+
+Edit `lib/config.ts` to customize:
+
+```typescript
+// Rate limits
+export const NON_AUTH_DAILY_MESSAGE_LIMIT = 5
+export const AUTH_DAILY_MESSAGE_LIMIT = 1000
+export const DAILY_LIMIT_PRO_MODELS = 500
+
+// Free models (no authentication required)
+export const FREE_MODELS_IDS = [
+  "google:gemini-2.5-pro",
+]
+
+// Default model
+export const MODEL_DEFAULT = "google:gemini-2.5-pro"
+
+// System prompt
+export const SYSTEM_PROMPT_DEFAULT = `You are Zola, a thoughtful and clear assistant...`
+```
+
+### Custom Models
+
+Users can add custom models through the UI:
+1. Go to **Settings** > **Models**
+2. Click **Add Custom Model**
+3. Fill in model details
+4. Models are stored per-user in `custom_models` table
+
+### Provider Configuration
+
+Models are fetched from [models.dev](https://models.dev) API. To add new providers globally, contribute to the [models.dev repository](https://github.com/modelcontextprotocol/models.dev).
+
+---
+
+## Troubleshooting
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
     restart: unless-stopped
 ```
