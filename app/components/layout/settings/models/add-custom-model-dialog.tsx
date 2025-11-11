@@ -104,7 +104,7 @@ export function AddCustomModelDialog({
   const providersQuery = useQuery({
     queryKey: ["providers"],
     queryFn: async (): Promise<ProviderItem[]> => {
-      const res = await fetch("/api/providers", { cache: "no-store" })
+      const res = await fetchClient("/api/providers", { cache: "no-store" })
       if (!res.ok) throw new Error("Failed to load providers")
       const json = await res.json()
       return (json.providers || []) as ProviderItem[]
@@ -176,15 +176,47 @@ export function AddCustomModelDialog({
       return
     }
 
+    // Validate and parse numeric fields
+    let parsedContextWindow: number | undefined
+    let parsedInputCost: number | undefined
+    let parsedOutputCost: number | undefined
+
+    if (contextWindow && contextWindow.trim()) {
+      const num = Number(contextWindow.trim())
+      if (!Number.isFinite(num) || num < 0) {
+        toast.error("Context window must be a valid positive number")
+        return
+      }
+      parsedContextWindow = Math.floor(num)
+    }
+
+    if (inputCost && inputCost.trim()) {
+      const num = Number(inputCost.trim())
+      if (!Number.isFinite(num) || num < 0) {
+        toast.error("Input cost must be a valid positive number")
+        return
+      }
+      parsedInputCost = num
+    }
+
+    if (outputCost && outputCost.trim()) {
+      const num = Number(outputCost.trim())
+      if (!Number.isFinite(num) || num < 0) {
+        toast.error("Output cost must be a valid positive number")
+        return
+      }
+      parsedOutputCost = num
+    }
+
     createMutation.mutate({
       id: editingModel?.id,
       name,
       modelId,
       providerId,
       baseUrl: baseUrl || undefined,
-      contextWindow: contextWindow ? parseInt(contextWindow) : undefined,
-      inputCost: inputCost ? parseFloat(inputCost) : undefined,
-      outputCost: outputCost ? parseFloat(outputCost) : undefined,
+      contextWindow: parsedContextWindow,
+      inputCost: parsedInputCost,
+      outputCost: parsedOutputCost,
       vision,
       tools,
       reasoning,

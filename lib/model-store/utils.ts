@@ -12,7 +12,7 @@ export function filterAndSortModels(
     .filter((model) => 
       favoriteModels && favoriteModels.length > 0 
         ? favoriteModels.includes(model.uniqueId) 
-        : false
+        : true
     )
     .filter((model) =>
       model.name.toLowerCase().includes(searchQuery.toLowerCase())

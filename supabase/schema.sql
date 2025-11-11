@@ -168,7 +168,7 @@ create table if not exists public.custom_models (
 );
 
 create index if not exists idx_custom_models_user_id on public.custom_models(user_id);
-create unique index if not exists idx_custom_models_user_model on public.custom_models(user_id, model_id);
+create unique index if not exists idx_custom_models_user_model on public.custom_models(user_id, provider_id, model_id);
 -- Optional: updated_at trigger for tables that track updates
 do $$ begin
   if not exists (select 1 from pg_proc where proname = 'set_updated_at') then
@@ -210,6 +210,16 @@ do $$ begin
   ) then
     create trigger trg_mcp_servers_updated_at
     before update on public.mcp_servers
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_trigger where tgname = 'trg_custom_models_updated_at'
+  ) then
+    create trigger trg_custom_models_updated_at
+    before update on public.custom_models
     for each row execute function public.set_updated_at();
   end if;
 end $$;

@@ -82,10 +82,10 @@ async function fetchProviderMetadata(): Promise<Map<string, ProviderMetadata>> {
     return metadata
   } catch (error) {
     console.error("Failed to fetch provider metadata:", error)
-    // Return empty cache on error
+    // Return empty cache on error and reset lastFetchTime to allow immediate retry
     providerCache = new Map()
     rawApiCache = null
-    lastFetchTime = now
+    lastFetchTime = 0
     return providerCache
   }
 }

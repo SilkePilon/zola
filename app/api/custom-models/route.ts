@@ -22,7 +22,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("custom_models")
     .select("*")
     .eq("user_id", user.id)
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("custom_models")
     .insert({
       user_id: user.id,
@@ -159,7 +159,7 @@ export async function PUT(request: NextRequest) {
     )
   }
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("custom_models")
     .update({
       name,
@@ -174,7 +174,7 @@ export async function PUT(request: NextRequest) {
       reasoning: reasoning || false,
       audio: audio || false,
       video: video || false,
-      updated_at: new Date().toISOString(),
+      // updated_at is automatically set by DB trigger (trg_custom_models_updated_at)
     })
     .eq("id", id)
     .eq("user_id", user.id)
@@ -218,7 +218,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Missing model ID" }, { status: 400 })
   }
 
-  const { error } = await (supabase as any)
+  const { error } = await supabase
     .from("custom_models")
     .delete()
     .eq("id", id)

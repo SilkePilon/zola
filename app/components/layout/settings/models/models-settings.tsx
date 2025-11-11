@@ -103,7 +103,7 @@ export function ModelsSettings() {
     return currentFavoriteModels
       .map((id: string) => {
         const model = models.find((m) => m.uniqueId === id)
-        if (!model || isModelHidden(model.id) || model.accessible === false) return null
+        if (!model || isModelHidden(model.uniqueId) || model.accessible === false) return null
         return { ...model, isFavorite: true }
       })
       .filter(Boolean) as FavoriteModelItem[]

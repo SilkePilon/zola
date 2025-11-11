@@ -75,7 +75,18 @@ export async function POST(req: Request) {
 
     const { getCustomModels } = await import("@/lib/models/custom")
     const customModels = await getCustomModels()
-    const allModels = await getAllModels(customModels)
+    
+    // Only pass customModels to getAllModels if non-empty to avoid polluting shared cache
+    const customModelsForCache = customModels && customModels.length > 0 ? customModels : undefined
+    
+    // Get global models from cache (without custom models)
+    const globalModels = await getAllModels(undefined)
+    
+    // Merge custom models locally after fetching cached global models
+    const allModels = customModelsForCache 
+      ? [...globalModels, ...customModelsForCache]
+      : globalModels
+    
     const modelConfig = allModels.find((m) => m.uniqueId === model)
 
     if (!modelConfig || !modelConfig.apiSdk) {

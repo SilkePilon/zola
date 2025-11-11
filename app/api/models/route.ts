@@ -35,7 +35,9 @@ export async function GET() {
       return respondWithModels(models)
     }
 
-    const customModels = await getCustomModels()
+    // Convert empty array to undefined to avoid cache miss in getAllModels
+    const customModelsResult = await getCustomModels()
+    const customModels = customModelsResult?.length ? customModelsResult : undefined
     
     const { data, error } = await supabase
       .from("user_keys")
