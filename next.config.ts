@@ -7,7 +7,14 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["@phosphor-icons/react"],
     nodeMiddleware: true,
   },
-  serverExternalPackages: ["shiki", "vscode-oniguruma"],
+  serverExternalPackages: [
+    "shiki",
+    "vscode-oniguruma",
+    "@ai-sdk/baseten",
+    "@basetenlabs/performance-client",
+    "@basetenlabs/performance-client-linux-x64-gnu",
+    "@basetenlabs/performance-client-linux-x64-musl",
+  ],
   images: {
     remotePatterns: [
       {
