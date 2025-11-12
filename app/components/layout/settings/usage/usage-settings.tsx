@@ -30,6 +30,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { ProviderIcon } from "@/components/common/provider-icon"
 import { fetchClient } from "@/lib/fetch"
 import { useQuery } from "@tanstack/react-query"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -129,13 +131,20 @@ const columns: ColumnDef<ModelUsage>[] = [
         </Button>
       )
     },
-    cell: ({ row }: any) => (
-      <div className="capitalize">{row.getValue("provider_id")}</div>
-    ),
+    cell: ({ row }: any) => {
+      const providerId = row.getValue("provider_id") as string
+      const providerName = providerId.charAt(0).toUpperCase() + providerId.slice(1)
+      return (
+        <Badge variant="secondary" className="inline-flex items-center gap-1.5 h-5 px-2 py-0 text-xs translate-y-0.5">
+          <ProviderIcon providerId={providerId} className="size-3" />
+          {providerName}
+        </Badge>
+      )
+    },
   },
   {
     id: "chat",
-    accessorFn: (row: any) => row.chats?.title || "Untitled",
+    accessorFn: (row: any) => row.chats?.title || (row.chat_id ? "Untitled" : "Deleted Chat"),
     header: ({ column }: any) => {
       return (
         <Button
@@ -150,8 +159,13 @@ const columns: ColumnDef<ModelUsage>[] = [
       )
     },
     cell: ({ row }: any) => {
-      const title = row.original.chats?.title || "Untitled"
-      return <div className="max-w-[200px] truncate">{title}</div>
+      const title = row.original.chats?.title || (row.original.chat_id ? "Untitled" : "Deleted Chat")
+      const isDeleted = !row.original.chats && !row.original.chat_id
+      return (
+        <div className={`max-w-[200px] truncate ${isDeleted ? "text-muted-foreground italic" : ""}`}>
+          {title}
+        </div>
+      )
     },
   },
   {
@@ -221,11 +235,18 @@ export function UsageSettings() {
   ])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+  const [pagination, setPagination] = React.useState({
+    pageIndex: 0,
+    pageSize: 10,
+  })
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["model-usage"],
+    queryKey: ["model-usage", pagination.pageIndex, pagination.pageSize],
     queryFn: async () => {
-      const response = await fetchClient("/api/model-usage")
+      const offset = pagination.pageIndex * pagination.pageSize
+      const response = await fetchClient(
+        `/api/model-usage?limit=${pagination.pageSize}&offset=${offset}`
+      )
       if (!response.ok) {
         throw new Error("Failed to fetch usage data")
       }
@@ -236,22 +257,20 @@ export function UsageSettings() {
   const table = useReactTable({
     data: data?.usage || [],
     columns,
+    pageCount: data?.total ? Math.ceil(data.total / pagination.pageSize) : 0,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
+    manualPagination: true,
     state: {
       sorting,
       columnFilters,
       columnVisibility,
-    },
-    initialState: {
-      pagination: {
-        pageSize: 10,
-      },
+      pagination,
     },
   })
 
@@ -305,42 +324,7 @@ export function UsageSettings() {
       )}
 
       <div className="w-full space-y-4">
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Filter models..."
-            value={(table.getColumn("model_id")?.getFilterValue() as string) ?? ""}
-            onChange={(event) =>
-              table.getColumn("model_id")?.setFilterValue(event.target.value)
-            }
-            className="max-w-sm"
-          />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="ml-auto">
-                Columns <ChevronDown className="ml-2 h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column: any) => column.getCanHide())
-              .map((column: any) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                )
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <div className="overflow-hidden rounded-md border">
+        <div className="overflow-hidden rounded-md border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup: any) => (

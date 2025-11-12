@@ -4,6 +4,12 @@
 -- Extensions
 create extension if not exists "pgcrypto";
 
+-- Enable PostgREST aggregate functions
+-- This allows using .sum(), .avg(), .max(), .min(), .count() in queries
+ALTER ROLE authenticator SET pgrst.db_aggregates_enabled = 'true';
+-- Note: After running this, you may need to reload PostgREST config with:
+-- NOTIFY pgrst, 'reload config';
+
 -- Helper ENUM for message roles
 do $$ begin
   if not exists (
@@ -170,10 +176,11 @@ create index if not exists idx_custom_models_user_id on public.custom_models(use
 create unique index if not exists idx_custom_models_user_model on public.custom_models(user_id, provider_id, model_id);
 
 -- Model usage tracking table
+-- Note: chat_id is nullable to preserve usage history when chats are deleted
 create table if not exists public.model_usage (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
-  chat_id uuid not null references public.chats(id) on delete cascade,
+  chat_id uuid references public.chats(id) on delete set null,
   message_id bigint references public.messages(id) on delete set null,
   model_id text not null,
   provider_id text not null,

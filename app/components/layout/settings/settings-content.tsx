@@ -129,6 +129,15 @@ export function SettingsContent({
                   <Server className="size-4" />
                   <span>MCP Servers</span>
                 </TabsTrigger>
+                {isSupabaseEnabled && (
+                  <TabsTrigger
+                    value="usage"
+                    className="mr-6 flex shrink-0 items-center gap-2"
+                  >
+                    <Database className="size-4" />
+                    <span>Usage & Cost</span>
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
 
@@ -159,7 +168,6 @@ export function SettingsContent({
 
             <TabsContent value="models" className="px-6">
               <ModelsSettings />
-              {/* <ModelVisibilitySettings /> */}
             </TabsContent>
 
             <TabsContent value="connections" className="space-y-6 px-6">
@@ -171,6 +179,12 @@ export function SettingsContent({
             <TabsContent value="mcp" className="space-y-6 px-6">
               <MCPSettings />
             </TabsContent>
+
+            {isSupabaseEnabled && (
+              <TabsContent value="usage" className="space-y-6 px-6">
+                <UsageSettings />
+              </TabsContent>
+            )}
           </div>
         ) : (
           // Desktop version - tabs on left

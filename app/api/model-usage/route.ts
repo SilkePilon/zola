@@ -26,6 +26,7 @@ export async function GET(req: Request) {
     const offset = parseInt(searchParams.get("offset") || "0")
 
     // Fetch usage data for the user
+    // Use left join to include rows where chat_id is NULL (deleted chats)
     const { data: usageData, error: usageError } = await supabase
       .from("model_usage")
       .select(
@@ -41,7 +42,7 @@ export async function GET(req: Request) {
         total_cost_usd,
         created_at,
         chat_id,
-        chats!inner(title)
+        chats(title)
       `
       )
       .eq("user_id", user.id)
@@ -66,18 +67,16 @@ export async function GET(req: Request) {
       console.error("Error counting usage data:", countError)
     }
 
-    // Calculate total costs
+    // Calculate total costs using Postgres aggregation
     const { data: totals, error: totalsError } = await supabase
       .from("model_usage")
-      .select("total_cost_usd")
+      .select("total:total_cost_usd.sum()")
       .eq("user_id", user.id)
+      .single()
 
     let totalCost = 0
     if (!totalsError && totals) {
-      totalCost = totals.reduce(
-        (sum, row) => sum + (row.total_cost_usd || 0),
-        0
-      )
+      totalCost = (totals as any).total || 0
     }
 
     return NextResponse.json({
