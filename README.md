@@ -18,6 +18,45 @@
 
 </div>
 
+> [!WARNING] > **This project is under active development!** Some features may be incomplete or subject to change. We're working hard to bring you the best AI chat experience.
+>
+> **Current Status:**
+>
+> - [x] Vercel AI SDK integration
+> - [x] Usage tracking & cost monitoring
+> - [x] MCP (Model Context Protocol) servers
+> - [x] Models.dev API integration
+> - [ ] Next.js 15 compatibility updates
+> - [ ] Budget limits and warnings system
+
+---
+
+## Screenshots
+
+<div align="center">
+
+### Main Chat Interface
+
+<img src="./public/examples/main_page.png" alt="Zola Main Chat Interface" width="90%">
+
+### Model Providers
+
+<img src="./public/examples/model_providers_tab.png" alt="Model Providers Configuration" width="90%">
+
+### Available Models
+
+<img src="./public/examples/models_tab.png" alt="Available AI Models" width="90%">
+
+### Usage & Cost Tracking
+
+<img src="./public/examples/usage_and_cost_tab.png" alt="Usage and Cost Dashboard" width="90%">
+
+### MCP Servers
+
+<img src="./public/examples/mcp_servers_tab.png" alt="Model Context Protocol Servers" width="90%">
+
+</div>
+
 ---
 
 ## Features
@@ -90,6 +129,9 @@ npm run dev
 
 Zola will automatically detect all your Ollama models. No configuration needed - just start chatting with your local models completely free and private.
 
+> [!TIP]
+> Using Ollama is completely free and runs entirely on your machine. Perfect for privacy-conscious users or those who want to avoid API costs!
+
 ### Option 3: Docker with Ollama
 
 ```bash
@@ -107,6 +149,9 @@ Access Zola at [http://localhost:3000](http://localhost:3000). Add API keys for 
 ### Full Installation Guide
 
 For complete setup instructions including database configuration (Supabase), authentication setup (Google OAuth, guest mode), file upload configuration, and environment variables, see the [INSTALL.md](./INSTALL.md) guide.
+
+> [!NOTE]
+> Zola requires a Supabase account for authentication and data storage. A free tier is available and sufficient for personal use.
 
 ### Adding Custom Models
 
@@ -158,10 +203,13 @@ To make your model available to all Zola users and the broader AI community:
             "modalities": {
                 "input": ["text", "image"],
                 "output": ["text"]
-            }
-        }
-    }
-}
+4. **Submit a Pull Request**
+5. Once merged, your model will be available in Zola (and other tools using models.dev)!
+
+> [!TIP]
+> Contributing to models.dev makes your model available not just in Zola, but across the entire ecosystem of tools that use the models.dev API!
+
+#### OpenAI-Compatible APIs
 ```
 
 4. **Submit a Pull Request**
