@@ -83,57 +83,57 @@ export function MCPServersSubmenu({ onBack, onClose }: MCPServersSubmenuProps) {
           onBack();
         }}
         onSelect={(e) => e.preventDefault()}
-        className="gap-2.5 h-8 cursor-pointer"
+        className="gap-2.5 h-8 cursor-pointer mb-1"
       >
         <ArrowLeft className="size-4 opacity-50" />
         <span className="opacity-60">Manage MCP servers</span>
-        {totalActiveTools > 0 && (
-          <Badge variant="secondary" className="ml-auto text-xs shrink-0">
-            {totalActiveTools} {totalActiveTools === 1 ? 'tool' : 'tools'}
-          </Badge>
-        )}
       </DropdownMenuItem>
 
       {servers.length === 0 ? (
-        <div className="px-1.5 py-3 text-center">
+        <div className="px-2 py-4 text-center">
           <p className="text-xs text-muted-foreground">No MCP servers configured</p>
         </div>
       ) : (
-        servers.map((server) => (
-          <div
-            key={server.id}
-            className="flex items-center justify-between gap-2.5 px-1.5 py-2 rounded-lg hover:bg-accent/5 group/server"
-          >
-            <div className="flex flex-col min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm truncate">{server.name}</span>
+        <div className="space-y-0.5">
+          {servers.map((server) => (
+            <div
+              key={server.id}
+              className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-accent/50 transition-colors group/server"
+            >
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <span className="text-sm truncate leading-none">{server.name}</span>
                 {server.enabled && toolCounts[server.id] !== undefined && (
-                  <Badge variant="secondary" className="text-xs shrink-0">
-                    {toolCounts[server.id]}
+                  <Badge variant="secondary" className="text-[10px] h-4 px-1 leading-none">
+                    {toolCounts[server.id]} {toolCounts[server.id] === 1 ? 'tool' : 'tools'}
+                  </Badge>
+                )}
+                {server.headers?.Authorization && (
+                  <Badge variant="outline" className="text-[10px] h-4 px-1 leading-none">
+                    Auth
                   </Badge>
                 )}
               </div>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => handleToggle(server.id)}
+                    className="text-muted-foreground hover:text-foreground rounded-md border border-border p-1 transition-colors hover:bg-accent shrink-0"
+                  >
+                    {server.enabled ? (
+                      <Power className="size-3.5" />
+                    ) : (
+                      <PowerOff className="size-3.5" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {server.enabled ? "Disable server" : "Enable server"}
+                </TooltipContent>
+              </Tooltip>
             </div>
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => handleToggle(server.id)}
-                  className="text-muted-foreground hover:text-foreground border-border rounded-md border p-1 transition-colors hover:bg-accent shrink-0"
-                >
-                  {server.enabled ? (
-                    <Power className="size-3.5" />
-                  ) : (
-                    <PowerOff className="size-3.5" />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {server.enabled ? "Disable" : "Enable"}
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        ))
+          ))}
+        </div>
       )}
     </motion.div>
   );
