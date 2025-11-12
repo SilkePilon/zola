@@ -121,6 +121,7 @@ export async function POST(req: Request) {
             email_notifications,
             in_app_notifications,
             enforce_limits,
+            user_id: user.id,
           })
           .eq("id", existing.id)
           .select()
