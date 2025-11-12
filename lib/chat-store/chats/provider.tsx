@@ -114,7 +114,8 @@ export function ChatsProvider({
       if (isCurrentChat && redirect) {
         redirect()
       }
-    } catch {
+    } catch (error) {
+      console.error("Failed to delete chat:", error)
       setChats(prev)
       toast({ title: "Failed to delete chat", status: "error" })
     }

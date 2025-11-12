@@ -12,6 +12,7 @@ import {
   validateAndTrackUsage,
 } from "./api"
 import { createErrorResponse, extractErrorMessage } from "./utils"
+import { trackModelUsage } from "./usage-tracking"
 
 export const maxDuration = 60
 
@@ -150,8 +151,10 @@ export async function POST(req: Request) {
       tools: mcpTools as ToolSet,
       stopWhen: stepCountIs(10),
 
-      onFinish: async ({ response }) => {
+      onFinish: async ({ response, usage }) => {
         try {
+          let savedMessageId: number | undefined
+          
           if (supabase && response.messages?.length) {
             // Only use response.messages - it contains the complete final response
             // Steps are intermediate and already included in the final response
@@ -161,6 +164,45 @@ export async function POST(req: Request) {
               messages: response.messages as any[],
               message_group_id,
               model,
+            })
+            
+            // Try to get the message ID for tracking (query the most recent assistant message for this chat)
+            try {
+              const { data: messageData } = await supabase
+                .from("messages")
+                .select("id")
+                .eq("chat_id", chatId)
+                .eq("role", "assistant")
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle()
+              
+              if (messageData) {
+                savedMessageId = messageData.id
+              }
+            } catch (err) {
+              console.error("Error fetching message ID:", err)
+            }
+          }
+          
+          // Track model usage if we have token data and pricing
+          if (supabase && usage && (usage.inputTokens || usage.outputTokens)) {
+            await trackModelUsage({
+              supabase,
+              userId,
+              chatId,
+              messageId: savedMessageId,
+              modelId: modelConfig.id,
+              providerId: modelConfig.providerId,
+              usage: {
+                inputTokens: usage.inputTokens || 0,
+                outputTokens: usage.outputTokens || 0,
+                totalTokens: usage.totalTokens || 0,
+              },
+              pricing: {
+                inputCost: modelConfig.inputCost,
+                outputCost: modelConfig.outputCost,
+              },
             })
           }
         } catch (saveError) {

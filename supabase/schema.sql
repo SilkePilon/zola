@@ -4,6 +4,12 @@
 -- Extensions
 create extension if not exists "pgcrypto";
 
+-- Enable PostgREST aggregate functions
+-- This allows using .sum(), .avg(), .max(), .min(), .count() in queries
+ALTER ROLE authenticator SET pgrst.db_aggregates_enabled = 'true';
+-- Note: After running this, you may need to reload PostgREST config with:
+-- NOTIFY pgrst, 'reload config';
+
 -- Helper ENUM for message roles
 do $$ begin
   if not exists (
@@ -168,6 +174,37 @@ create table if not exists public.custom_models (
 
 create index if not exists idx_custom_models_user_id on public.custom_models(user_id);
 create unique index if not exists idx_custom_models_user_model on public.custom_models(user_id, provider_id, model_id);
+
+-- Model usage tracking table
+-- Note: chat_id is nullable to preserve usage history when chats are deleted
+create table if not exists public.model_usage (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  chat_id uuid references public.chats(id) on delete set null,
+  message_id bigint references public.messages(id) on delete set null,
+  model_id text not null,
+  provider_id text not null,
+  
+  -- Token counts
+  input_tokens integer not null default 0,
+  output_tokens integer not null default 0,
+  total_tokens integer not null default 0,
+  
+  -- Costs (USD)
+  input_cost_per_million decimal(10, 6),
+  output_cost_per_million decimal(10, 6),
+  input_cost_usd decimal(12, 8),
+  output_cost_usd decimal(12, 8),
+  total_cost_usd decimal(12, 8),
+  
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_model_usage_user_id on public.model_usage(user_id);
+create index if not exists idx_model_usage_chat_id on public.model_usage(chat_id);
+create index if not exists idx_model_usage_created_at on public.model_usage(created_at);
+create index if not exists idx_model_usage_model_provider on public.model_usage(model_id, provider_id);
+
 -- Optional: updated_at trigger for tables that track updates
 do $$ begin
   if not exists (select 1 from pg_proc where proname = 'set_updated_at') then
