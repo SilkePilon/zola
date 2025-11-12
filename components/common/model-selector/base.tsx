@@ -61,7 +61,7 @@ export function ModelSelector({
   // Find current model using uniqueId (providerId:modelId format)
   const currentModel = models.find((m) => m.uniqueId === selectedModelId)
     
-  const currentProviderIcon = currentModel?.icon ? getProviderIcon(currentModel.icon) : undefined
+  const CurrentProviderIcon = currentModel?.icon ? getProviderIcon(currentModel.icon) : undefined
   const isMobile = useBreakpoint(768)
 
   const [hoveredModel, setHoveredModel] = useState<string | null>(null)
@@ -138,8 +138,8 @@ export function ModelSelector({
                 className={cn(className, "border-border dark:bg-secondary text-accent-foreground h-9 w-auto border bg-transparent rounded-[8px]")}
                 type="button"
               >
-                {currentProviderIcon && (
-                  <currentProviderIcon className="size-5" />
+                {CurrentProviderIcon && (
+                  <CurrentProviderIcon className="size-5" />
                 )}
                 {currentModel?.name}
                 <CaretDownIcon className="size-4" />

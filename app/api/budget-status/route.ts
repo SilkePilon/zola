@@ -59,7 +59,7 @@ export async function GET() {
       now.getUTCMonth() !== dayReset.getUTCMonth() ||
       now.getUTCDate() !== dayReset.getUTCDate()
 
-    if (isDayReset && budgetLimits.current_day_spend > 0) {
+    if (isDayReset && (budgetLimits.current_day_spend ?? 0) > 0) {
       needsUpdate = true
       updates.current_day_spend = 0
       updates.day_reset = now.toISOString()
@@ -75,7 +75,7 @@ export async function GET() {
       now.getUTCFullYear() !== monthReset.getUTCFullYear() ||
       now.getUTCMonth() !== monthReset.getUTCMonth()
 
-    if (isMonthReset && budgetLimits.current_month_spend > 0) {
+    if (isMonthReset && (budgetLimits.current_month_spend ?? 0) > 0) {
       needsUpdate = true
       updates.current_month_spend = 0
       updates.month_reset = now.toISOString()
