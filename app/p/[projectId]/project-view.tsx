@@ -320,7 +320,7 @@ export function ProjectView({ projectId }: ProjectViewProps) {
       console.error("Error details:", {
         errorMessage: error instanceof Error ? error.message : "Unknown error",
         errorStack: error instanceof Error ? error.stack : undefined,
-        currentChatId,
+        chatId: activeChatId || chatId,
         userId: user?.id,
         selectedModel,
         inputLength: input.length,
