@@ -87,8 +87,6 @@ export function useChatCore({
 
   // Handle errors directly in onError callback
   const handleError = useCallback((error: Error) => {
-    console.error("Chat error:", error)
-    console.error("Error message:", error.message)
     let errorMsg = error.message || "Something went wrong."
 
     if (errorMsg === "An error occurred" || errorMsg === "fetch failed") {

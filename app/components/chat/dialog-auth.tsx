@@ -46,7 +46,6 @@ export function DialogAuth({ open, setOpen }: DialogAuthProps) {
         window.location.href = data.url
       }
     } catch (err: unknown) {
-      console.error("Error signing in with Google:", err)
       setError(
         (err as Error).message ||
           "An unexpected error occurred. Please try again."

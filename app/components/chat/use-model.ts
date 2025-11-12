@@ -70,7 +70,6 @@ export function useModel({
         } catch (err) {
           // Revert on error
           setLocalSelectedModel(null)
-          console.error("Failed to update chat model:", err)
           toast({
             title: "Failed to update chat model",
             status: "error",

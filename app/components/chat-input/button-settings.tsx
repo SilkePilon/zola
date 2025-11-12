@@ -8,6 +8,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
+  Popover,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -22,13 +26,15 @@ import { AnimateIcon } from "@/components/animate-ui/icons/icon"
 import React, { useState } from "react"
 import { UseStyleSubmenu } from "./submenu-use-style"
 import { MCPServersSubmenu } from "./submenu-mcp-servers"
+import { PopoverContentAuth } from "./popover-content-auth"
 import { motion, AnimatePresence } from "framer-motion"
 
 type ButtonSettingsProps = {
   disabled?: boolean
+  isUserAuthenticated?: boolean
 }
 
-export function ButtonSettings({ disabled = false }: ButtonSettingsProps) {
+export function ButtonSettings({ disabled = false, isUserAuthenticated = true }: ButtonSettingsProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [submenuOpen, setSubmenuOpen] = useState(false)
   const [mcpSubmenuOpen, setMcpSubmenuOpen] = useState(false)
@@ -40,6 +46,33 @@ export function ButtonSettings({ disabled = false }: ButtonSettingsProps) {
 
   const handleManageMCPServers = () => {
     setMcpSubmenuOpen(true)
+  }
+
+  // If user is not authenticated, show the auth popover
+  if (!isUserAuthenticated) {
+    return (
+      <Popover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                size="sm"
+                variant="secondary"
+                className={cn(
+                  "border-border dark:bg-secondary size-9 rounded-[8px] border bg-transparent transition-all hover:bg-bg-100 active:scale-[0.98]"
+                )}
+                type="button"
+                aria-label="Open tools menu"
+              >
+                <SlidersVertical className="size-4" />
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Open tools menu</TooltipContent>
+        </Tooltip>
+        <PopoverContentAuth />
+      </Popover>
+    )
   }
 
   return (

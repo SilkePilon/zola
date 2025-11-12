@@ -23,7 +23,6 @@ export async function GET() {
 
     return NextResponse.json({ providers })
   } catch (error) {
-    console.error("Error listing providers:", error)
     return NextResponse.json(
       { error: "Failed to list providers" },
       { status: 500 }
@@ -69,7 +68,6 @@ export async function POST(request: NextRequest) {
       provider,
     })
   } catch (error) {
-    console.error("Error checking provider keys:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

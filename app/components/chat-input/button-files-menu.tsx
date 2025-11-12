@@ -9,6 +9,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
+  Popover,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -20,6 +24,7 @@ import { AnimateIcon } from "@/components/animate-ui/icons/icon"
 import React, { useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { UseProjectSubmenu } from "./submenu-use-project"
+import { PopoverContentAuth } from "./popover-content-auth"
 
 type ButtonFilesMenuProps = {
   onFileUpload: (files: File[]) => void
@@ -105,6 +110,33 @@ export function ButtonFilesMenu({
 
   const handleProject = () => {
     setShowProjectSubmenu(true)
+  }
+
+  // If user is not authenticated, show the auth popover
+  if (!isUserAuthenticated) {
+    return (
+      <Popover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                size="sm"
+                variant="secondary"
+                className={cn(
+                  "border-border dark:bg-secondary size-9 rounded-[8px] border bg-transparent transition-all hover:bg-bg-100 active:scale-[0.98]"
+                )}
+                type="button"
+                aria-label="Open attachments menu"
+              >
+                <Paperclip className="size-4" />
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Open attachments menu</TooltipContent>
+        </Tooltip>
+        <PopoverContentAuth />
+      </Popover>
+    )
   }
 
   return (

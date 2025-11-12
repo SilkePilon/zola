@@ -123,7 +123,7 @@ export function Chat() {
 
       return true
     } catch (err) {
-      console.error("Rate limit check failed:", err)
+      // Silent failure - default to not allowing messages
       return false
     }
   }, [isAuthenticated, setHasDialogAuth])
