@@ -19,15 +19,15 @@
 </div>
 
 > [!WARNING] > **This project is under active development!** Some features may be incomplete or subject to change. We're working hard to bring you the best AI chat experience.
->
-> **Current Status:**
->
-> - [X] Vercel AI SDK integration
-> - [X] Usage tracking & cost monitoring
-> - [X] MCP (Model Context Protocol) servers
-> - [X] Models.dev API integration
-> - [ ] Next.js 15 compatibility updates
-> - [X] Budget limits and warnings system
+
+**Current Status:**
+
+- [X] Vercel AI SDK integration
+- [X] Usage tracking & cost monitoring
+- [X] MCP (Model Context Protocol) servers
+- [X] Models.dev API integration
+- [ ] Next.js 15 compatibility updates
+- [X] Budget limits and warnings system
 
 ---
 
