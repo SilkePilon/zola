@@ -9,7 +9,8 @@ import {
 } from "@/components/prompt-kit/prompt-input"
 import { Button } from "@/components/ui/button"
 import { SendButtonIconAnimated } from "../chat-input/button-send-animated"
-import { ButtonFileUpload } from "../chat-input/button-file-upload"
+import { ButtonFilesMenu } from "../chat-input/button-files-menu"
+import { ButtonSettings } from "../chat-input/button-settings"
 import { FileList } from "../chat-input/file-list"
 import { Stop } from "@phosphor-icons/react"
 import React, { useCallback } from "react"
@@ -101,43 +102,45 @@ export function MultiChatInput({
           />
           <PromptInputActions className="mt-3 w-full justify-between p-2">
             <div className="flex gap-2">
-              <ButtonFileUpload
+              <ButtonFilesMenu
                 onFileUpload={onFileUpload}
                 isUserAuthenticated={isUserAuthenticated}
-                model={selectedModelIds[0] || ""}
                 disabled
               />
+              <ButtonSettings />
+            </div>
+            <div className="flex gap-2">
               <MultiModelSelector
                 selectedModelIds={selectedModelIds}
                 setSelectedModelIds={onSelectedModelIdsChange}
               />
-            </div>
-            <PromptInputAction
-              tooltip={status === "streaming" ? "Stop" : "Send"}
-            >
-              <Button
-                size="sm"
-                className="size-9 rounded-md transition-all duration-300 ease-out"
-                disabled={
-                  !value ||
-                  isSubmitting ||
-                  anyLoading ||
-                  isOnlyWhitespace(value) ||
-                  selectedModelIds.length === 0
-                }
-                type="button"
-                onClick={handleSend}
-                aria-label={status === "streaming" ? "Stop" : "Send message"}
+              <PromptInputAction
+                tooltip={status === "streaming" ? "Stop" : "Send"}
               >
-                {status === "streaming" || anyLoading ? (
-                  <SendButtonIconAnimated mode="responding" />
-                ) : !isOnlyWhitespace(value) ? (
-                  <SendButtonIconAnimated mode="typing" />
-                ) : (
-                  <SendButtonIconAnimated mode="idle" />
-                )}
-              </Button>
-            </PromptInputAction>
+                <Button
+                  size="sm"
+                  className="size-9 rounded-md transition-all duration-300 ease-out"
+                  disabled={
+                    !value ||
+                    isSubmitting ||
+                    anyLoading ||
+                    isOnlyWhitespace(value) ||
+                    selectedModelIds.length === 0
+                  }
+                  type="button"
+                  onClick={handleSend}
+                  aria-label={status === "streaming" ? "Stop" : "Send message"}
+                >
+                  {status === "streaming" || anyLoading ? (
+                    <SendButtonIconAnimated mode="responding" />
+                  ) : !isOnlyWhitespace(value) ? (
+                    <SendButtonIconAnimated mode="typing" />
+                  ) : (
+                    <SendButtonIconAnimated mode="idle" />
+                  )}
+                </Button>
+              </PromptInputAction>
+            </div>
           </PromptInputActions>
         </PromptInput>
       </div>
