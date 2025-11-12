@@ -48,11 +48,11 @@ const RowComponent = ({
   const isSelected = selectedModelIds.includes(model.uniqueId)
 
   return (
-    <div style={style} className="overflow-hidden">
+    <div style={style}>
       <DropdownMenuItem
         key={model.uniqueId}
         className={cn(
-          "flex w-full items-center justify-between px-3 py-2",
+          "flex w-full items-center justify-between gap-2.5 h-8 cursor-pointer py-0",
           isSelected && "bg-accent"
         )}
         onSelect={(e) => {
@@ -105,7 +105,7 @@ export function VirtualizedMultiModelList({
   height,
   isDropdownOpen,
 }: VirtualizedMultiModelListProps) {
-  const ITEM_HEIGHT = 40 // Height of each model item in pixels
+  const ITEM_HEIGHT = 32 // Height of each model item in pixels
 
   const customRowProps: CustomRowProps = {
     models,
@@ -116,13 +116,15 @@ export function VirtualizedMultiModelList({
   }
 
   return (
-    <List<CustomRowProps>
-      defaultHeight={height}
-      rowComponent={RowComponent}
-      rowCount={models.length}
-      rowHeight={ITEM_HEIGHT}
-      rowProps={customRowProps}
-      style={{ height, width: "100%", overflow: "hidden auto" }}
-    />
+    <div className="px-1.5 pb-1.5">
+      <List<CustomRowProps>
+        defaultHeight={height}
+        rowComponent={RowComponent}
+        rowCount={models.length}
+        rowHeight={ITEM_HEIGHT}
+        rowProps={customRowProps}
+        style={{ height, width: "100%", overflow: "hidden auto" }}
+      />
+    </div>
   )
 }

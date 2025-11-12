@@ -13,7 +13,8 @@ import { getModelInfo } from "@/lib/models"
 import { SendButtonIconAnimated } from "./button-send-animated"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { PromptSystem } from "../suggestions/prompt-system"
-import { ButtonFileUpload } from "./button-file-upload"
+import { ButtonFilesMenu } from "./button-files-menu"
+import { ButtonSettings } from "./button-settings"
 import { ButtonSearch } from "./button-search"
 import { ButtonContextUsage } from "./button-context-usage"
 import { FileList } from "./file-list"
@@ -196,17 +197,11 @@ export function ChatInput({
           />
           <PromptInputActions className="mt-3 w-full justify-between p-2">
             <div className="flex gap-2">
-              <ButtonFileUpload
+              <ButtonFilesMenu
                 onFileUpload={onFileUpload}
                 isUserAuthenticated={isUserAuthenticated}
-                model={selectedModel}
               />
-              <ModelSelector
-                selectedModelId={selectedModel}
-                setSelectedModelId={onSelectModel}
-                isUserAuthenticated={isUserAuthenticated}
-                className="rounded-[8px]"
-              />
+              <ButtonSettings />
               {hasSearchSupport ? (
                 <ButtonSearch
                   isSelected={enableSearch}
@@ -223,24 +218,32 @@ export function ChatInput({
                 />
               ) : null}
             </div>
-            <PromptInputAction tooltip={status === "streaming" ? "Stop" : "Send"}>
-              <Button
-                size="sm"
-                className="size-9 rounded-md transition-all duration-300 ease-out"
-                disabled={!value || isSubmitting || isOnlyWhitespace(value)}
-                type="button"
-                onClick={handleSend}
-                aria-label={status === "streaming" ? "Stop" : "Send message"}
-              >
-                {status === "streaming" ? (
-                  <SendButtonIconAnimated mode="responding" />
-                ) : !isOnlyWhitespace(value) ? (
-                  <SendButtonIconAnimated mode="typing" />
-                ) : (
-                  <SendButtonIconAnimated mode="idle" />
-                )}
-              </Button>
-            </PromptInputAction>
+            <div className="flex gap-2">
+              <ModelSelector
+                selectedModelId={selectedModel}
+                setSelectedModelId={onSelectModel}
+                isUserAuthenticated={isUserAuthenticated}
+                className="rounded-[8px]"
+              />
+              <PromptInputAction tooltip={status === "streaming" ? "Stop" : "Send"}>
+                <Button
+                  size="sm"
+                  className="size-9 rounded-md transition-all duration-300 ease-out"
+                  disabled={!value || isSubmitting || isOnlyWhitespace(value)}
+                  type="button"
+                  onClick={handleSend}
+                  aria-label={status === "streaming" ? "Stop" : "Send message"}
+                >
+                  {status === "streaming" ? (
+                    <SendButtonIconAnimated mode="responding" />
+                  ) : !isOnlyWhitespace(value) ? (
+                    <SendButtonIconAnimated mode="typing" />
+                  ) : (
+                    <SendButtonIconAnimated mode="idle" />
+                  )}
+                </Button>
+              </PromptInputAction>
+            </div>
           </PromptInputActions>
         </PromptInput>
       </div>
