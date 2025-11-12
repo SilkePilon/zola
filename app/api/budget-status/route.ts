@@ -85,6 +85,7 @@ export async function GET() {
 
       // Update if needed and get the updated row
       if (needsUpdate) {
+        updates.user_id = user.id
         const { data: updatedRow, error: updateError } = await supabase
           .from("budget_limits")
           .update(updates)

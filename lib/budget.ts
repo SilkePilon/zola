@@ -100,6 +100,7 @@ export async function checkBudgetBeforeChat(
   // Update if needed
   if (needsUpdate) {
     // Target specific budget record by user_id + provider_id (or id as fallback)
+    updates.user_id = userId
     let query = supabase
       .from("budget_limits")
       .update(updates)
@@ -220,6 +221,7 @@ export async function updateBudgetSpending(
     .update({
       current_day_spend: currentDaySpend,
       current_month_spend: currentMonthSpend,
+      user_id: userId,
     })
     .eq("user_id", userId)
     .eq("id", budgetLimits.id)

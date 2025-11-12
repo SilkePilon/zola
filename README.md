@@ -22,12 +22,12 @@
 >
 > **Current Status:**
 >
-> - [x] Vercel AI SDK integration
-> - [x] Usage tracking & cost monitoring
-> - [x] MCP (Model Context Protocol) servers
-> - [x] Models.dev API integration
+> - [X] Vercel AI SDK integration
+> - [X] Usage tracking & cost monitoring
+> - [X] MCP (Model Context Protocol) servers
+> - [X] Models.dev API integration
 > - [ ] Next.js 15 compatibility updates
-> - [ ] Budget limits and warnings system
+> - [X] Budget limits and warnings system
 
 ---
 
