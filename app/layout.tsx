@@ -31,6 +31,15 @@ export const metadata: Metadata = {
   title: "Zola",
   description:
     "Zola is the open-source interface for AI chat. Multi-model, BYOK-ready, and fully self-hostable. Use Claude, OpenAI, Gemini, local models, and more, all in one place.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Zola",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 }
 
 export default async function RootLayout({
