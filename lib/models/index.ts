@@ -35,8 +35,9 @@ export async function getAllModels(customModels?: ModelConfig[]): Promise<ModelC
     lastFetchTime = now
     return dynamicModelsCache
   } catch (error) {
-    console.warn("Failed to load remote models from API:", error)
-    // On failure, return empty to signal no models available
+    // On failure, return empty array and allow retry
+    dynamicModelsCache = null
+    lastFetchTime = 0
     return []
   }
 }

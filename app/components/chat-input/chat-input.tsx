@@ -201,7 +201,7 @@ export function ChatInput({
                 onFileUpload={onFileUpload}
                 isUserAuthenticated={isUserAuthenticated}
               />
-              <ButtonSettings />
+              <ButtonSettings isUserAuthenticated={isUserAuthenticated} />
               {hasSearchSupport ? (
                 <ButtonSearch
                   isSelected={enableSearch}

@@ -53,7 +53,6 @@ export function useChatOperations({
         try {
           await deleteMessagesFromIdForChat(chatId, id, remainingMessages)
         } catch (error) {
-          console.error("Failed to delete messages from database:", error)
           toast({
             title: "Failed to delete messages",
             status: "error",

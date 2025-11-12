@@ -107,7 +107,7 @@ export function MultiChatInput({
                 isUserAuthenticated={isUserAuthenticated}
                 disabled
               />
-              <ButtonSettings />
+              <ButtonSettings isUserAuthenticated={isUserAuthenticated} />
             </div>
             <div className="flex gap-2">
               <MultiModelSelector

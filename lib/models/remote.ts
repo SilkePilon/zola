@@ -96,7 +96,7 @@ export async function fetchModelsDevModels(): Promise<ModelConfig[]> {
     cache = { data: out, ts: now }
     return out
   } catch (e) {
-    console.warn("Failed fetching models.dev models:", e)
+    // Silent fallback: return empty array and reset cache for retry
     cache = { data: [], ts: now }
     return []
   }

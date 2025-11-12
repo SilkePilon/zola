@@ -295,7 +295,6 @@ export function ProjectView({ projectId }: ProjectViewProps) {
         },
       }
       
-      console.log("Removing optimistic message and sending...")
       // Remove optimistic message before sending
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
       
@@ -307,8 +306,6 @@ export function ProjectView({ projectId }: ProjectViewProps) {
         text: input,
         files: fileList
       } as any, options)
-      
-      console.log("Message sent successfully")
       cleanupOptimisticAttachments(optimisticAttachments)
 
       // Bump existing chats to top (non-blocking, after submit)
@@ -316,16 +313,6 @@ export function ProjectView({ projectId }: ProjectViewProps) {
         bumpChat(currentChatId)
       }
     } catch (error) {
-      console.error("Failed to send message:", error)
-      console.error("Error details:", {
-        errorMessage: error instanceof Error ? error.message : "Unknown error",
-        errorStack: error instanceof Error ? error.stack : undefined,
-        chatId: activeChatId || chatId,
-        userId: user?.id,
-        selectedModel,
-        inputLength: input.length,
-        filesCount: submittedFiles.length,
-      })
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
       cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
       toast({ 
