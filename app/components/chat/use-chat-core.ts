@@ -55,6 +55,7 @@ export function useChatCore({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasDialogAuth, setHasDialogAuth] = useState(false)
   const [enableSearch, setEnableSearch] = useState(false)
+  const [activeChatId, setActiveChatId] = useState<string | null>(null)
   const [usageData, setUsageData] = useState<{
     inputTokens: number
     outputTokens: number
@@ -72,6 +73,13 @@ export function useChatCore({
     () => user?.system_prompt || SYSTEM_PROMPT_DEFAULT,
     [user?.system_prompt]
   )
+
+  // Sync activeChatId with chatId from session
+  useEffect(() => {
+    if (chatId) {
+      setActiveChatId(chatId)
+    }
+  }, [chatId])
 
   // Search params handling
   const searchParams = useSearchParams()
@@ -146,6 +154,7 @@ export function useChatCore({
   useEffect(() => {
     if (prevChatIdRef.current !== null && chatId === null && messages.length > 0) {
       setMessages([])
+      setActiveChatId(null)
     }
     prevChatIdRef.current = chatId
     // We intentionally depend on chatId and messages.length to avoid updates during render
@@ -170,9 +179,16 @@ export function useChatCore({
         return
       }
 
-      const currentChatId = await ensureChatExists(uid, input)
+      // Use activeChatId if available, otherwise create/get chatId
+      let currentChatId = activeChatId || chatId
+      
       if (!currentChatId) {
-        return
+        currentChatId = await ensureChatExists(uid, input)
+        if (!currentChatId) {
+          return
+        }
+        // Store the newly created chatId for subsequent messages
+        setActiveChatId(currentChatId)
       }
 
       if (input.length > MESSAGE_MAX_LENGTH) {
@@ -240,6 +256,8 @@ export function useChatCore({
     bumpChat,
     setIsSubmitting,
     sendMessage,
+    activeChatId,
+    chatId,
   ])
 
   // Handle suggestion

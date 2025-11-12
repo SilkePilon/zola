@@ -163,6 +163,8 @@ export async function POST(req: Request) {
               model,
             })
           }
+        } catch (saveError) {
+          console.error("Error in onFinish:", saveError)
         } finally {
           await safeCloseMcp()
         }

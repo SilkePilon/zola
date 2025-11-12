@@ -9,6 +9,7 @@ import { ProjectChatItem } from "@/app/components/layout/sidebar/project-chat-it
 import { toast } from "@/components/ui/toast"
 import { useChats } from "@/lib/chat-store/chats/provider"
 import { useMessages } from "@/lib/chat-store/messages/provider"
+import { useChatSession } from "@/lib/chat-store/session/provider"
 import { MESSAGE_MAX_LENGTH, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { Attachment } from "@/lib/file-handling"
 import { API_ROUTE_CHAT } from "@/lib/routes"
@@ -36,16 +37,27 @@ type ProjectViewProps = {
 export function ProjectView({ projectId }: ProjectViewProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [enableSearch, setEnableSearch] = useState(false)
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null)
+  const [activeChatId, setActiveChatId] = useState<string | null>(null)
   const [usageData, setUsageData] = useState<{ inputTokens: number; outputTokens: number; totalTokens: number }>({
     inputTokens: 0,
     outputTokens: 0,
     totalTokens: 0,
   })
   const { user } = useUser()
+  const { chatId } = useChatSession()
   const { createNewChat, bumpChat } = useChats()
   const { messages: initialMessages, cacheAndAddMessage } = useMessages()
   const pathname = usePathname()
+
+  // Sync activeChatId with chatId from session
+  useEffect(() => {
+    if (chatId) {
+      setActiveChatId(chatId)
+    } else if (pathname === `/p/${projectId}`) {
+      // Reset when on project home
+      setActiveChatId(null)
+    }
+  }, [chatId, pathname, projectId])
   const {
     files,
     setFiles,
@@ -108,7 +120,7 @@ export function ProjectView({ projectId }: ProjectViewProps) {
     setMessages,
     sendMessage,
   } = useChat({
-    id: `project-${projectId}-${currentChatId}`,
+    id: chatId || `project-${projectId}`,
     onFinish: ({ message }) => {
       cacheAndAddMessage(message as any)
       // Extract usage data from message metadata
@@ -142,9 +154,14 @@ export function ProjectView({ projectId }: ProjectViewProps) {
   // Simplified ensureChatExists for authenticated project context
   const ensureChatExists = useCallback(
     async (userId: string, messageContent: string) => {
-      // If we already have a current chat ID, return it
-      if (currentChatId) {
-        return currentChatId
+      // If we have an active chat ID (either from session or previously created), use it
+      if (activeChatId) {
+        return activeChatId
+      }
+
+      // If we have a chat ID from the session (e.g., navigated from sidebar), use it
+      if (chatId) {
+        return chatId
       }
 
       // Create a new chat for the first message
@@ -160,9 +177,12 @@ export function ProjectView({ projectId }: ProjectViewProps) {
 
         if (!newChat) return null
 
-        setCurrentChatId(newChat.id)
-        // Redirect to the chat page as expected
-        window.history.pushState(null, "", `/c/${newChat.id}`)
+        // Store the newly created chatId
+        setActiveChatId(newChat.id)
+        
+        // Use window.history to update URL without triggering navigation
+        window.history.replaceState(null, "", `/c/${newChat.id}`)
+        
         return newChat.id
       } catch (err: unknown) {
         let errorMessage = "Something went wrong."
@@ -184,7 +204,8 @@ export function ProjectView({ projectId }: ProjectViewProps) {
       }
     },
     [
-      currentChatId,
+      activeChatId,
+      chatId,
       createNewChat,
       selectedModel,
       projectId,
@@ -212,18 +233,12 @@ export function ProjectView({ projectId }: ProjectViewProps) {
   )
 
   const submit = useCallback(async () => {
-    console.log("=== Submit called ===")
     setIsSubmitting(true)
 
     if (!user?.id) {
-      console.error("No user ID found")
       setIsSubmitting(false)
       return
     }
-
-    console.log("User ID:", user.id)
-    console.log("Input:", input)
-    console.log("Files:", files.length)
 
     const optimisticId = `optimistic-${Date.now().toString()}`
     const optimisticAttachments =
@@ -243,12 +258,9 @@ export function ProjectView({ projectId }: ProjectViewProps) {
     setFiles([])
 
     try {
-      console.log("Ensuring chat exists...")
       const currentChatId = await ensureChatExists(user.id, input)
-      console.log("Chat ID:", currentChatId)
       
       if (!currentChatId) {
-        console.error("Failed to get/create chat ID")
         setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
         cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
         return

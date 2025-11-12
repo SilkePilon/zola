@@ -147,7 +147,8 @@ export function Chat() {
 
         if (!newChat) return null
         if (isAuthenticated) {
-          window.history.pushState(null, "", `/c/${newChat.id}`)
+          // Use window.history to update URL without triggering navigation
+          window.history.replaceState(null, "", `/c/${newChat.id}`)
         } else {
           localStorage.setItem("guestChatId", newChat.id)
         }
