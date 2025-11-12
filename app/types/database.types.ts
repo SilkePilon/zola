@@ -181,6 +181,82 @@ export type Database = {
           },
         ]
       }
+      model_usage: {
+        Row: {
+          chat_id: string
+          created_at: string | null
+          id: string
+          input_cost_per_million: number | null
+          input_cost_usd: number | null
+          input_tokens: number
+          message_id: number | null
+          model_id: string
+          output_cost_per_million: number | null
+          output_cost_usd: number | null
+          output_tokens: number
+          provider_id: string
+          total_cost_usd: number | null
+          total_tokens: number
+          user_id: string
+        }
+        Insert: {
+          chat_id: string
+          created_at?: string | null
+          id?: string
+          input_cost_per_million?: number | null
+          input_cost_usd?: number | null
+          input_tokens?: number
+          message_id?: number | null
+          model_id: string
+          output_cost_per_million?: number | null
+          output_cost_usd?: number | null
+          output_tokens?: number
+          provider_id: string
+          total_cost_usd?: number | null
+          total_tokens?: number
+          user_id: string
+        }
+        Update: {
+          chat_id?: string
+          created_at?: string | null
+          id?: string
+          input_cost_per_million?: number | null
+          input_cost_usd?: number | null
+          input_tokens?: number
+          message_id?: number | null
+          model_id?: string
+          output_cost_per_million?: number | null
+          output_cost_usd?: number | null
+          output_tokens?: number
+          provider_id?: string
+          total_cost_usd?: number | null
+          total_tokens?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "model_usage_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "model_usage_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "model_usage_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feedback: {
         Row: {
           created_at: string | null

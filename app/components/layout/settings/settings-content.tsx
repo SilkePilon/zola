@@ -30,13 +30,14 @@ import { SystemPromptSection } from "./general/system-prompt"
 import { UserProfile } from "./general/user-profile"
 import { ModelsSettings } from "./models/models-settings"
 import { MCPSettings } from "./mcp/mcp-settings"
+import { UsageSettings } from "./usage/usage-settings"
 
 type SettingsContentProps = {
   isDrawer?: boolean
   activeTab?: TabType
 }
 
-type TabType = "general" | "appearance" | "prompts" | "models" | "connections" | "mcp"
+type TabType = "general" | "appearance" | "prompts" | "models" | "connections" | "mcp" | "usage"
 
 export function SettingsContent({
   isDrawer = false,
@@ -243,6 +244,18 @@ export function SettingsContent({
                     <span>MCP Servers</span>
                   </div>
                 </TabsTrigger>
+
+                {isSupabaseEnabled && (
+                  <TabsTrigger
+                    value="usage"
+                    className="w-full justify-start rounded-md px-3 py-2 text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Database className="size-4" />
+                      <span>Usage & Cost</span>
+                    </div>
+                  </TabsTrigger>
+                )}
               </div>
             </TabsList>
 
@@ -274,7 +287,6 @@ export function SettingsContent({
 
               <TabsContent value="models" className="mt-0 space-y-6">
                 <ModelsSettings />
-                {/* <ModelVisibilitySettings /> */}
               </TabsContent>
 
               <TabsContent value="connections" className="mt-0 space-y-6">
@@ -286,6 +298,12 @@ export function SettingsContent({
               <TabsContent value="mcp" className="mt-0 space-y-6">
                 <MCPSettings />
               </TabsContent>
+
+              {isSupabaseEnabled && (
+                <TabsContent value="usage" className="mt-0 space-y-6">
+                  <UsageSettings />
+                </TabsContent>
+              )}
             </div>
           </>
         )}
