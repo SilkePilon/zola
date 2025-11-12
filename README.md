@@ -23,7 +23,7 @@
 >
 > **Current Status:**
 >
-> - [X] Vercel AI SDK integration
+> - [X] Vercel AI SDK v5 integration
 > - [X] Usage tracking & cost monitoring
 > - [X] MCP (Model Context Protocol) servers
 > - [X] Models.dev API integration
