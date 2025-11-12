@@ -17,7 +17,7 @@ export const DAILY_LIMIT_PRO_MODELS = 500
 export const MODEL_DEFAULT = "google:gemini-2.5-pro"
 
 export const APP_NAME = "Zola"
-export const APP_DOMAIN = "https://zola.silkepilo.dev"
+export const APP_DOMAIN = "https://zola.silkepilon.dev"
 
 export const SUGGESTIONS = [
   {
