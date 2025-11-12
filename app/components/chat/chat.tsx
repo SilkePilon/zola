@@ -29,6 +29,11 @@ const DialogAuth = dynamic(
   { ssr: false }
 )
 
+const BudgetErrorDialog = dynamic(
+  () => import("./budget-error-dialog").then((mod) => mod.BudgetErrorDialog),
+  { ssr: false }
+)
+
 export function Chat() {
   const { chatId } = useChatSession()
   const {
@@ -195,6 +200,8 @@ export function Chat() {
     handleInputChange,
     setMessages: setChatMessages,
     setInput: setChatInput,
+    budgetError,
+    setBudgetError,
   } = useChatCore({
     initialMessages,
     draftValue,
@@ -317,6 +324,17 @@ export function Chat() {
       )}
     >
       <DialogAuth open={hasDialogAuth} setOpen={setHasDialogAuth} />
+      
+      {budgetError && (
+        <BudgetErrorDialog
+          open={budgetError.open}
+          onOpenChange={(open) => setBudgetError(open ? budgetError : null)}
+          budgetType={budgetError.budgetType}
+          spent={budgetError.spent}
+          limit={budgetError.limit}
+          provider={budgetError.provider}
+        />
+      )}
 
       <AnimatePresence initial={false} mode="popLayout">
         {showOnboarding ? (

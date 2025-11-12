@@ -237,11 +237,17 @@ export async function POST(req: Request) {
       throw streamError
     }
   } catch (err: unknown) {
-    console.error("Error in /api/chat:", err)
+    // Don't log BudgetExceededError to console (user-facing, not a system error)
+    const errorName = (err as any)?.name
+    if (errorName !== "BudgetExceededError") {
+      console.error("Error in /api/chat:", err)
+    }
+    
     const error = err as {
       code?: string
       message?: string
       statusCode?: number
+      name?: string
     }
 
     return createErrorResponse(error)

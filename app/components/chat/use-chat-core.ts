@@ -11,6 +11,14 @@ import { DefaultChatTransport } from "ai"
 import { useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+type BudgetErrorState = {
+  open: boolean
+  budgetType: "monthly" | "daily" | "per_chat"
+  spent: number
+  limit: number
+  provider?: string
+} | null
+
 type UseChatCoreProps = {
   initialMessages: any[]
   draftValue: string
@@ -85,9 +93,38 @@ export function useChatCore({
   const searchParams = useSearchParams()
   const prompt = searchParams.get("prompt")
 
+  // Budget error dialog state
+  const [budgetError, setBudgetError] = useState<BudgetErrorState>(null)
+
   // Handle errors directly in onError callback
   const handleError = useCallback((error: Error) => {
     let errorMsg = error.message || "Something went wrong."
+
+    // Check if this is a budget error
+    if (errorMsg.includes("budget limit exceeded")) {
+      // Parse budget error details
+      const budgetTypeMatch = errorMsg.match(/(Monthly|Daily|Per-chat) budget limit exceeded/i)
+      const spentMatch = errorMsg.match(/spent \$([0-9.]+)/)
+      const limitMatch = errorMsg.match(/of your \$([0-9.]+)/)
+      const providerMatch = errorMsg.match(/for ([a-zA-Z0-9]+)/)
+
+      if (budgetTypeMatch && spentMatch && limitMatch) {
+        const budgetTypeMap: Record<string, "monthly" | "daily" | "per_chat"> = {
+          monthly: "monthly",
+          daily: "daily",
+          "per-chat": "per_chat",
+        }
+
+        setBudgetError({
+          open: true,
+          budgetType: budgetTypeMap[budgetTypeMatch[1].toLowerCase()] || "monthly",
+          spent: parseFloat(spentMatch[1]),
+          limit: parseFloat(limitMatch[1]),
+          provider: providerMatch?.[1],
+        })
+        return
+      }
+    }
 
     if (errorMsg === "An error occurred" || errorMsg === "fetch failed") {
       errorMsg = "Something went wrong. Please try again."
@@ -354,11 +391,13 @@ export function useChatCore({
     enableSearch,
     setEnableSearch,
     usageData,
+    budgetError,
 
     // Actions
     submit,
     handleSuggestion,
     handleReload,
     handleInputChange,
+    setBudgetError,
   }
 }

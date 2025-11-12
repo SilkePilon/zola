@@ -11,6 +11,7 @@ import { MCPProvider } from "@/lib/mcp-store/provider"
 import { TanstackQueryProvider } from "@/lib/tanstack-query/tanstack-query-provider"
 import { UserPreferencesProvider } from "@/lib/user-preference-store/provider"
 import { UserProvider } from "@/lib/user-store/provider"
+import { BudgetProvider } from "@/lib/budget-store/provider"
 import { getUserProfile } from "@/lib/user/api"
 import { ThemeProvider } from "next-themes"
 import Script from "next/script"
@@ -64,22 +65,24 @@ export default async function RootLayout({
                       userId={userProfile?.id}
                       initialPreferences={userProfile?.preferences}
                     >
-                      <TooltipProvider
-                        delayDuration={200}
-                        skipDelayDuration={500}
-                      >
-                        <ThemeProvider
-                          attribute="class"
-                          defaultTheme="light"
-                          enableSystem
-                          disableTransitionOnChange
+                      <BudgetProvider userId={userProfile?.id}>
+                        <TooltipProvider
+                          delayDuration={200}
+                          skipDelayDuration={500}
                         >
-                          <SidebarProvider defaultOpen>
-                            <Toaster position="top-center" />
-                            {children}
-                          </SidebarProvider>
-                        </ThemeProvider>
-                      </TooltipProvider>
+                          <ThemeProvider
+                            attribute="class"
+                            defaultTheme="light"
+                            enableSystem
+                            disableTransitionOnChange
+                          >
+                            <SidebarProvider defaultOpen>
+                              <Toaster position="top-center" />
+                              {children}
+                            </SidebarProvider>
+                          </ThemeProvider>
+                        </TooltipProvider>
+                      </BudgetProvider>
                     </UserPreferencesProvider>
                   </ChatSessionProvider>
                 </ChatsProvider>

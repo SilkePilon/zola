@@ -1,6 +1,6 @@
 "use client"
 
-import { PROVIDERS } from "@/lib/providers"
+import { getProviderIcon } from "@/lib/providers"
 import { cn } from "@/lib/utils"
 import React from "react"
 
@@ -12,9 +12,7 @@ type Props = {
 }
 
 export function ProviderIcon({ providerId, logoUrl, className, title }: Props) {
-  const Icon = providerId
-    ? PROVIDERS.find((p) => p.id === providerId)?.icon
-    : undefined
+  const Icon = providerId ? getProviderIcon(providerId) : undefined
 
   const [svg, setSvg] = React.useState<string | null>(null)
 

@@ -1,5 +1,5 @@
 import { ModelConfig } from "@/lib/models/types"
-import { PROVIDERS } from "@/lib/providers"
+import { getProviderIcon } from "@/lib/providers"
 import ProviderIcon from "@/components/common/provider-icon"
 import { BrainIcon, GlobeIcon, ImageIcon, WrenchIcon } from "@phosphor-icons/react"
 
@@ -8,9 +8,7 @@ type SubMenuProps = {
 }
 
 export function SubMenu({ hoveredModelData }: SubMenuProps) {
-  const provider = PROVIDERS.find(
-    (provider) => provider.id === hoveredModelData.icon
-  )
+  const providerIcon = hoveredModelData.icon ? getProviderIcon(hoveredModelData.icon) : undefined
   const hasReasoning = Boolean(
     (hoveredModelData as any).reasoning ?? hoveredModelData.reasoningText
   )

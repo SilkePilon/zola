@@ -15,7 +15,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { SettingsContent } from "./settings-content"
 
-type TabType = "general" | "appearance" | "prompts" | "models" | "connections" | "mcp"
+type TabType = "general" | "appearance" | "prompts" | "models" | "connections" | "mcp" | "usage" | "budget"
 
 type SettingsTriggerProps = {
   onOpenChange: (open: boolean) => void
