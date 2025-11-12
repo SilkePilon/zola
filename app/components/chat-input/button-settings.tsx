@@ -149,7 +149,7 @@ export function ButtonSettings({ disabled = false, isUserAuthenticated = true }:
                   className="gap-2.5 h-8 cursor-pointer"
                 >
                   <Gear className="size-4" />
-                  <span>Manage MCP servers</span>
+                  <span>MCP servers</span>
                   <CaretRight className="ml-auto size-4 opacity-50" />
                 </DropdownMenuItem>
               </motion.div>

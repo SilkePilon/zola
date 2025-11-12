@@ -257,6 +257,118 @@ export type Database = {
           },
         ]
       }
+      budget_alerts: {
+        Row: {
+          acknowledged: boolean | null
+          alert_type: string
+          amount_spent: number | null
+          budget_limit: number | null
+          budget_type: string
+          created_at: string | null
+          id: string
+          message: string | null
+          threshold_percent: number | null
+          user_id: string
+        }
+        Insert: {
+          acknowledged?: boolean | null
+          alert_type: string
+          amount_spent?: number | null
+          budget_limit?: number | null
+          budget_type: string
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          threshold_percent?: number | null
+          user_id: string
+        }
+        Update: {
+          acknowledged?: boolean | null
+          alert_type?: string
+          amount_spent?: number | null
+          budget_limit?: number | null
+          budget_type?: string
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          threshold_percent?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_alerts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_limits: {
+        Row: {
+          created_at: string | null
+          current_day_spend: number | null
+          current_month_spend: number | null
+          daily_budget_usd: number | null
+          day_reset: string | null
+          email_notifications: boolean | null
+          enforce_limits: boolean | null
+          id: string
+          in_app_notifications: boolean | null
+          monthly_budget_usd: number | null
+          month_reset: string | null
+          per_chat_budget_usd: number | null
+          provider_id: string | null
+          updated_at: string | null
+          user_id: string
+          warning_threshold_percent: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_day_spend?: number | null
+          current_month_spend?: number | null
+          daily_budget_usd?: number | null
+          day_reset?: string | null
+          email_notifications?: boolean | null
+          enforce_limits?: boolean | null
+          id?: string
+          in_app_notifications?: boolean | null
+          monthly_budget_usd?: number | null
+          month_reset?: string | null
+          per_chat_budget_usd?: number | null
+          provider_id?: string | null
+          updated_at?: string | null
+          user_id: string
+          warning_threshold_percent?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          current_day_spend?: number | null
+          current_month_spend?: number | null
+          daily_budget_usd?: number | null
+          day_reset?: string | null
+          email_notifications?: boolean | null
+          enforce_limits?: boolean | null
+          id?: string
+          in_app_notifications?: boolean | null
+          monthly_budget_usd?: number | null
+          month_reset?: string | null
+          per_chat_budget_usd?: number | null
+          provider_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+          warning_threshold_percent?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_limits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feedback: {
         Row: {
           created_at: string | null

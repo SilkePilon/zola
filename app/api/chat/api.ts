@@ -53,6 +53,25 @@ export async function validateAndTrackUsage({
 
   await checkUsageByModel(supabase, userId, model, isAuthenticated)
 
+  // Check budget limits before allowing chat
+  // Extract provider from model string (format: "provider:model-name")
+  const providerId = model.includes(":") ? model.split(":")[0] : model
+  
+  try {
+    const { checkBudgetBeforeChat } = await import("@/lib/budget")
+    await checkBudgetBeforeChat(supabase, userId, providerId)
+  } catch (err: any) {
+    // If it's a budget exceeded error, re-throw it with enhanced message
+    if (err.name === "BudgetExceededError") {
+      // Enhance the error message with detailed info for client parsing
+      const providerText = err.provider ? ` for ${err.provider}` : ""
+      err.message = `${err.message}${providerText}. You've spent $${err.spent.toFixed(4)} of your $${err.limit} ${err.budgetType} budget limit.`
+      throw err // Re-throw the BudgetExceededError, not a generic Error
+    }
+    // For other errors, just log and continue
+    console.error("Error checking budget:", err)
+  }
+
   return supabase
 }
 

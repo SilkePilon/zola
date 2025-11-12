@@ -205,6 +205,60 @@ create index if not exists idx_model_usage_chat_id on public.model_usage(chat_id
 create index if not exists idx_model_usage_created_at on public.model_usage(created_at);
 create index if not exists idx_model_usage_model_provider on public.model_usage(model_id, provider_id);
 
+-- Budget limits table (per-provider budgets)
+create table if not exists public.budget_limits (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  provider_id text,
+  
+  -- Budget settings
+  monthly_budget_usd decimal(10, 2),
+  daily_budget_usd decimal(10, 2),
+  per_chat_budget_usd decimal(10, 2),
+  
+  -- Spending tracking
+  current_month_spend decimal(12, 8) default 0,
+  current_day_spend decimal(12, 8) default 0,
+  month_reset timestamptz default now(),
+  day_reset timestamptz default now(),
+  
+  -- Warning thresholds (percentage)
+  warning_threshold_percent integer default 80 check (warning_threshold_percent between 0 and 100),
+  
+  -- Notifications
+  email_notifications boolean default true,
+  
+  -- Hard limits (stop usage when reached)
+  enforce_limits boolean default true,
+  
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  
+  -- Ensure one budget per user per provider (null provider_id means global)
+  unique(user_id, provider_id)
+);
+
+create index if not exists idx_budget_limits_user_id on public.budget_limits(user_id);
+create index if not exists idx_budget_limits_provider on public.budget_limits(provider_id) where provider_id is not null;
+
+-- Budget alerts history
+create table if not exists public.budget_alerts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  alert_type text not null check (alert_type in ('warning', 'limit_reached', 'budget_exceeded')),
+  budget_type text not null check (budget_type in ('monthly', 'daily', 'per_chat')),
+  threshold_percent integer,
+  amount_spent decimal(12, 8),
+  budget_limit decimal(10, 2),
+  message text,
+  acknowledged boolean default false,
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_budget_alerts_user_id on public.budget_alerts(user_id);
+create index if not exists idx_budget_alerts_created_at on public.budget_alerts(created_at);
+create index if not exists idx_budget_alerts_acknowledged on public.budget_alerts(acknowledged) where acknowledged = false;
+
 -- Optional: updated_at trigger for tables that track updates
 do $$ begin
   if not exists (select 1 from pg_proc where proname = 'set_updated_at') then
@@ -256,6 +310,16 @@ do $$ begin
   ) then
     create trigger trg_custom_models_updated_at
     before update on public.custom_models
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_trigger where tgname = 'trg_budget_limits_updated_at'
+  ) then
+    create trigger trg_budget_limits_updated_at
+    before update on public.budget_limits
     for each row execute function public.set_updated_at();
   end if;
 end $$;

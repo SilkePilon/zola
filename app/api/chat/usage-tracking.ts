@@ -72,6 +72,17 @@ export async function trackModelUsage({
       console.error("Error tracking model usage:", error)
       // Don't throw - usage tracking shouldn't break the chat flow
     }
+
+    // Update budget spending if we have a cost
+    if (totalCostUsd && totalCostUsd > 0) {
+      try {
+        const { updateBudgetSpending } = await import("@/lib/budget")
+        await updateBudgetSpending(supabase, userId, providerId, totalCostUsd)
+      } catch (budgetError) {
+        console.error("Error updating budget spending:", budgetError)
+        // Don't throw - budget tracking shouldn't break the chat flow
+      }
+    }
   } catch (err) {
     console.error("Failed to track model usage:", err)
     // Don't throw - usage tracking shouldn't break the chat flow

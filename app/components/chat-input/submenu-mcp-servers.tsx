@@ -86,7 +86,7 @@ export function MCPServersSubmenu({ onBack, onClose }: MCPServersSubmenuProps) {
         className="gap-2.5 h-8 cursor-pointer mb-1"
       >
         <ArrowLeft className="size-4 opacity-50" />
-        <span className="opacity-60">Manage MCP servers</span>
+        <span className="opacity-60">MCP servers</span>
       </DropdownMenuItem>
 
       {servers.length === 0 ? (

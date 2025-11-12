@@ -15,7 +15,7 @@ import {
   NotePencilIcon,
   XIcon,
 } from "@phosphor-icons/react"
-import { Server } from "lucide-react"
+import { Server, DollarSign } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ByokSection } from "./apikeys/byok-section"
 import { InteractionPreferences } from "./appearance/interaction-preferences"
@@ -31,13 +31,14 @@ import { UserProfile } from "./general/user-profile"
 import { ModelsSettings } from "./models/models-settings"
 import { MCPSettings } from "./mcp/mcp-settings"
 import { UsageSettings } from "./usage/usage-settings"
+import { BudgetSettings } from "./budget/budget-settings"
 
 type SettingsContentProps = {
   isDrawer?: boolean
   activeTab?: TabType
 }
 
-type TabType = "general" | "appearance" | "prompts" | "models" | "connections" | "mcp" | "usage"
+type TabType = "general" | "appearance" | "prompts" | "models" | "connections" | "mcp" | "usage" | "budget"
 
 export function SettingsContent({
   isDrawer = false,
@@ -130,13 +131,22 @@ export function SettingsContent({
                   <span>MCP Servers</span>
                 </TabsTrigger>
                 {isSupabaseEnabled && (
-                  <TabsTrigger
-                    value="usage"
-                    className="mr-6 flex shrink-0 items-center gap-2"
-                  >
-                    <Database className="size-4" />
-                    <span>Usage & Cost</span>
-                  </TabsTrigger>
+                  <>
+                    <TabsTrigger
+                      value="usage"
+                      className="flex shrink-0 items-center gap-2"
+                    >
+                      <Database className="size-4" />
+                      <span>Usage & Cost</span>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="budget"
+                      className="mr-6 flex shrink-0 items-center gap-2"
+                    >
+                      <DollarSign className="size-4" />
+                      <span>Budget</span>
+                    </TabsTrigger>
+                  </>
                 )}
               </TabsList>
             </div>
@@ -181,9 +191,15 @@ export function SettingsContent({
             </TabsContent>
 
             {isSupabaseEnabled && (
-              <TabsContent value="usage" className="space-y-6 px-6">
-                <UsageSettings />
-              </TabsContent>
+              <>
+                <TabsContent value="usage" className="space-y-6 px-6">
+                  <UsageSettings />
+                </TabsContent>
+
+                <TabsContent value="budget" className="space-y-6 px-6">
+                  <BudgetSettings />
+                </TabsContent>
+              </>
             )}
           </div>
         ) : (
@@ -260,15 +276,27 @@ export function SettingsContent({
                 </TabsTrigger>
 
                 {isSupabaseEnabled && (
-                  <TabsTrigger
-                    value="usage"
-                    className="w-full justify-start rounded-md px-3 py-2 text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Database className="size-4" />
-                      <span>Usage & Cost</span>
-                    </div>
-                  </TabsTrigger>
+                  <>
+                    <TabsTrigger
+                      value="usage"
+                      className="w-full justify-start rounded-md px-3 py-2 text-left"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Database className="size-4" />
+                        <span>Usage & Cost</span>
+                      </div>
+                    </TabsTrigger>
+
+                    <TabsTrigger
+                      value="budget"
+                      className="w-full justify-start rounded-md px-3 py-2 text-left"
+                    >
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="size-4" />
+                        <span>Budget</span>
+                      </div>
+                    </TabsTrigger>
+                  </>
                 )}
               </div>
             </TabsList>
@@ -314,9 +342,15 @@ export function SettingsContent({
               </TabsContent>
 
               {isSupabaseEnabled && (
-                <TabsContent value="usage" className="mt-0 space-y-6">
-                  <UsageSettings />
-                </TabsContent>
+                <>
+                  <TabsContent value="usage" className="mt-0 space-y-6">
+                    <UsageSettings />
+                  </TabsContent>
+
+                  <TabsContent value="budget" className="mt-0 space-y-6">
+                    <BudgetSettings />
+                  </TabsContent>
+                </>
               )}
             </div>
           </>
