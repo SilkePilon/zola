@@ -14,7 +14,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { Plus, Camera, GithubLogo, Stack, CaretRight } from "@phosphor-icons/react"
+import { Camera, Stack, CaretRight } from "@phosphor-icons/react"
 import { Paperclip } from "@/components/animate-ui/icons/paperclip"
 import { AnimateIcon } from "@/components/animate-ui/icons/icon"
 import React, { useState } from "react"
@@ -51,16 +51,56 @@ export function ButtonFilesMenu({
     input.click()
   }
 
-  const handleScreenshot = () => {
-    // Placeholder for screenshot functionality
-    console.log("Screenshot feature")
-    setIsOpen(false)
-  }
+  const handleScreenshot = async () => {
+    try {
+      // Check if the browser supports the Screen Capture API
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        alert("Screenshot capture is not supported in your browser")
+        setIsOpen(false)
+        return
+      }
 
-  const handleGitHub = () => {
-    // Placeholder for GitHub integration
-    console.log("GitHub integration")
-    setIsOpen(false)
+      // Capture the screen
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { mediaSource: "screen" } as MediaTrackConstraints,
+      })
+
+      // Create a video element to capture the frame
+      const video = document.createElement("video")
+      video.srcObject = stream
+      video.play()
+
+      // Wait for the video to be ready
+      await new Promise((resolve) => {
+        video.onloadedmetadata = resolve
+      })
+
+      // Create a canvas and capture the current frame
+      const canvas = document.createElement("canvas")
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      const ctx = canvas.getContext("2d")
+      ctx?.drawImage(video, 0, 0)
+
+      // Stop the stream
+      stream.getTracks().forEach((track) => track.stop())
+
+      // Convert canvas to blob
+      canvas.toBlob((blob) => {
+        if (blob) {
+          // Create a File object from the blob
+          const file = new File([blob], `screenshot-${Date.now()}.png`, {
+            type: "image/png",
+          })
+          onFileUpload([file])
+        }
+      }, "image/png")
+    } catch (error) {
+      // User cancelled or error occurred
+      console.log("Screenshot cancelled or failed:", error)
+    } finally {
+      setIsOpen(false)
+    }
   }
 
   const handleProject = () => {
@@ -68,7 +108,12 @@ export function ButtonFilesMenu({
   }
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+    <DropdownMenu open={isOpen} onOpenChange={(open) => {
+      setIsOpen(open);
+      if (!open) {
+        setShowProjectSubmenu(false);
+      }
+    }}>
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
@@ -99,7 +144,7 @@ export function ButtonFilesMenu({
         align="start"
         side="top"
         sideOffset={8}
-        className="w-[20rem] max-w-[calc(100vw-16px)] p-1.5"
+        className="w-[14rem] max-w-[calc(100vw-16px)] p-1.5"
       >
         <div className="relative overflow-hidden">
           <AnimatePresence mode="wait">
@@ -119,11 +164,6 @@ export function ButtonFilesMenu({
                 <DropdownMenuItem onClick={handleScreenshot} className="gap-2.5 h-8 cursor-pointer">
                   <Camera className="size-4" />
                   <span>Take a screenshot</span>
-                </DropdownMenuItem>
-
-                <DropdownMenuItem onClick={handleGitHub} className="gap-2.5 h-8 cursor-pointer">
-                  <GithubLogo className="size-4" />
-                  <span>Add from GitHub</span>
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator className="mx-1.5" />

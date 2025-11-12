@@ -14,13 +14,13 @@ import { Attachment } from "@/lib/file-handling"
 import { API_ROUTE_CHAT } from "@/lib/routes"
 import { useUser } from "@/lib/user-store/provider"
 import { cn } from "@/lib/utils"
-import { useChat } from "@ai-sdk/react";
+import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { ChatCircleIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { AnimatePresence, motion } from "motion/react"
 import { usePathname } from "next/navigation"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 type Project = {
   id: string
@@ -44,7 +44,7 @@ export function ProjectView({ projectId }: ProjectViewProps) {
   })
   const { user } = useUser()
   const { createNewChat, bumpChat } = useChats()
-  const { cacheAndAddMessage} = useMessages()
+  const { messages: initialMessages, cacheAndAddMessage } = useMessages()
   const pathname = usePathname()
   const {
     files,
@@ -93,6 +93,13 @@ export function ProjectView({ projectId }: ProjectViewProps) {
 
   const [input, setInput] = useState('')
 
+  const { selectedModel, handleModelChange } = useModel({
+    currentChat: null,
+    user,
+    updateChatModel: () => Promise.resolve(),
+    chatId: null,
+  })
+
   const {
     messages,
     status,
@@ -102,7 +109,6 @@ export function ProjectView({ projectId }: ProjectViewProps) {
     sendMessage,
   } = useChat({
     id: `project-${projectId}-${currentChatId}`,
-    messages: [],
     onFinish: ({ message }) => {
       cacheAndAddMessage(message as any)
       // Extract usage data from message metadata
@@ -116,70 +122,70 @@ export function ProjectView({ projectId }: ProjectViewProps) {
       }
     },
     onError: handleError,
-
     transport: new DefaultChatTransport({ api: API_ROUTE_CHAT })
   })
 
-  const { selectedModel, handleModelChange } = useModel({
-    currentChat: null,
-    user,
-    updateChatModel: () => Promise.resolve(),
-    chatId: null,
-  })
+  // Sync messages from initialMessages when they're loaded (e.g., after page reload or chat navigation)
+  useEffect(() => {
+    if (initialMessages.length > 0 && messages.length === 0) {
+      // Keep messages as-is for display - just remove extra DB fields
+      const cleanMessages = initialMessages.map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        parts: msg.parts,
+      }))
+      setMessages(cleanMessages as any[])
+    }
+  }, [initialMessages, messages.length, setMessages])
 
   // Simplified ensureChatExists for authenticated project context
   const ensureChatExists = useCallback(
-    async (userId: string) => {
+    async (userId: string, messageContent: string) => {
       // If we already have a current chat ID, return it
       if (currentChatId) {
         return currentChatId
       }
 
-      // Only create a new chat if we haven't started one yet
-      if (messages.length === 0) {
+      // Create a new chat for the first message
+      try {
+        const newChat = await createNewChat(
+          userId,
+          messageContent,
+          selectedModel,
+          true, // Always authenticated in this context
+          SYSTEM_PROMPT_DEFAULT,
+          projectId
+        )
+
+        if (!newChat) return null
+
+        setCurrentChatId(newChat.id)
+        // Redirect to the chat page as expected
+        window.history.pushState(null, "", `/c/${newChat.id}`)
+        return newChat.id
+      } catch (err: unknown) {
+        let errorMessage = "Something went wrong."
         try {
-          const newChat = await createNewChat(
-            userId,
-            input,
-            selectedModel,
-            true, // Always authenticated in this context
-            SYSTEM_PROMPT_DEFAULT,
-            projectId
-          )
-
-          if (!newChat) return null
-
-          setCurrentChatId(newChat.id)
-          // Redirect to the chat page as expected
-          window.history.pushState(null, "", `/c/${newChat.id}`)
-          return newChat.id
-        } catch (err: unknown) {
-          let errorMessage = "Something went wrong."
-          try {
-            const errorObj = err as { message?: string }
-            if (errorObj.message) {
-              const parsed = JSON.parse(errorObj.message)
-              errorMessage = parsed.error || errorMessage
-            }
-          } catch {
-            const errorObj = err as { message?: string }
-            errorMessage = errorObj.message || errorMessage
+          const errorObj = err as { message?: string }
+          if (errorObj.message) {
+            const parsed = JSON.parse(errorObj.message)
+            errorMessage = parsed.error || errorMessage
           }
-          toast({
-            title: errorMessage,
-            status: "error",
-          })
-          return null
+        } catch {
+          const errorObj = err as { message?: string }
+          errorMessage = errorObj.message || errorMessage
         }
+        toast({
+          title: errorMessage,
+          status: "error",
+        })
+        return null
       }
-
-      return currentChatId
     },
     [
       currentChatId,
-      messages.length,
       createNewChat,
-      input,
       selectedModel,
       projectId,
     ]
@@ -206,12 +212,18 @@ export function ProjectView({ projectId }: ProjectViewProps) {
   )
 
   const submit = useCallback(async () => {
+    console.log("=== Submit called ===")
     setIsSubmitting(true)
 
     if (!user?.id) {
+      console.error("No user ID found")
       setIsSubmitting(false)
       return
     }
+
+    console.log("User ID:", user.id)
+    console.log("Input:", input)
+    console.log("Files:", files.length)
 
     const optimisticId = `optimistic-${Date.now().toString()}`
     const optimisticAttachments =
@@ -231,8 +243,12 @@ export function ProjectView({ projectId }: ProjectViewProps) {
     setFiles([])
 
     try {
-      const currentChatId = await ensureChatExists(user.id)
+      console.log("Ensuring chat exists...")
+      const currentChatId = await ensureChatExists(user.id, input)
+      console.log("Chat ID:", currentChatId)
+      
       if (!currentChatId) {
+        console.error("Failed to get/create chat ID")
         setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
         cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
         return
@@ -248,43 +264,15 @@ export function ProjectView({ projectId }: ProjectViewProps) {
         return
       }
 
-      let attachments: Attachment[] | null = []
+      // Convert File[] to FileList if we have files
+      let fileList: FileList | undefined = undefined
       if (submittedFiles.length > 0) {
-        attachments = await handleFileUploads(user.id, currentChatId)
-        if (attachments === null) {
-          setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
-          cleanupOptimisticAttachments(optimisticAttachments)
-          return
-        }
+        const dataTransfer = new DataTransfer()
+        submittedFiles.forEach(file => dataTransfer.items.add(file))
+        fileList = dataTransfer.files
       }
 
-      // Build v5 parts: text + inline file parts (base64)
-      const parts: any[] = [{ type: "text", text: input }]
-      if (attachments && attachments.length > 0) {
-        const toBase64 = async (url: string) => {
-          const res = await fetch(url)
-          const blob = await res.blob()
-          const arrayBuffer = await blob.arrayBuffer()
-          let binary = ''
-          const bytes = new Uint8Array(arrayBuffer)
-          const chunkSize = 0x8000
-          for (let i = 0; i < bytes.length; i += chunkSize) {
-            const chunk = bytes.subarray(i, i + chunkSize)
-            binary += String.fromCharCode.apply(null, Array.from(chunk) as any)
-          }
-          return btoa(binary)
-        }
-        for (const att of attachments) {
-          try {
-            const data = await toBase64(att.url)
-            parts.push({ type: "file", data, mimeType: att.contentType })
-          } catch (e) {
-            console.warn("Failed to inline attachment, skipping:", att.url, e)
-          }
-        }
-      }
-
-      const options = {
+      const options: any = {
         body: {
           chatId: currentChatId,
           userId: user.id,
@@ -294,19 +282,45 @@ export function ProjectView({ projectId }: ProjectViewProps) {
           enableSearch,
         },
       }
-      await sendMessage({ role: "user", parts } as any, options as any)
+      
+      console.log("Removing optimistic message and sending...")
+      // Remove optimistic message before sending
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
+      
+      // Clear input immediately
+      setInput("")
+      
+      // Send message with files using the same pattern as normal chat
+      await sendMessage({ 
+        text: input,
+        files: fileList
+      } as any, options)
+      
+      console.log("Message sent successfully")
       cleanupOptimisticAttachments(optimisticAttachments)
-      cacheAndAddMessage(optimisticMessage)
 
       // Bump existing chats to top (non-blocking, after submit)
       if (messages.length > 0) {
         bumpChat(currentChatId)
       }
-    } catch {
+    } catch (error) {
+      console.error("Failed to send message:", error)
+      console.error("Error details:", {
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
+        errorStack: error instanceof Error ? error.stack : undefined,
+        currentChatId,
+        userId: user?.id,
+        selectedModel,
+        inputLength: input.length,
+        filesCount: submittedFiles.length,
+      })
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
       cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
-      toast({ title: "Failed to send message", status: "error" })
+      toast({ 
+        title: "Failed to send message", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        status: "error" 
+      })
     } finally {
       setIsSubmitting(false)
     }

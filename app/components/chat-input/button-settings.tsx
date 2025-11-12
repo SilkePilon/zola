@@ -43,7 +43,13 @@ export function ButtonSettings({ disabled = false }: ButtonSettingsProps) {
   }
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+    <DropdownMenu open={isOpen} onOpenChange={(open) => {
+      setIsOpen(open);
+      if (!open) {
+        setSubmenuOpen(false);
+        setMcpSubmenuOpen(false);
+      }
+    }}>
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
@@ -73,7 +79,7 @@ export function ButtonSettings({ disabled = false }: ButtonSettingsProps) {
         align="start"
         side="top"
         sideOffset={8}
-        className="w-[20rem] max-w-[calc(100vw-16px)] overflow-hidden"
+        className="w-[14rem] max-w-[calc(100vw-16px)] overflow-hidden"
       >
         <div className="flex flex-col relative">
           <AnimatePresence mode="wait" initial={false}>
