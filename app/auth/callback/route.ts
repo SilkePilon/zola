@@ -64,13 +64,21 @@ export async function GET(request: Request) {
     console.error("Unexpected user insert error:", err)
   }
 
-  // Respect proxy headers (Vercel) to ensure redirect goes back to the domain the flow started from
+  // Respect proxy headers to ensure redirect goes back to the domain the flow started from
+  // This supports wildcard domains and multi-domain deployments
   const hostHeader = request.headers.get("x-forwarded-host") ?? request.headers.get("host")
   const protoHeader = request.headers.get("x-forwarded-proto") ?? (hostHeader?.includes("localhost") ? "http" : "https")
 
   // Ensure next is a path, not a full URL (avoid open redirects)
-  const safeNext = next?.startsWith("/") ? next : "/"
+  let safeNext = next?.startsWith("/") ? next : "/"
+  
+  // Don't redirect back to auth pages after successful login
+  if (safeNext.startsWith("/auth")) {
+    safeNext = "/"
+  }
+  
   const redirectUrl = `${protoHeader}://${hostHeader}${safeNext}`
 
+  console.log(`[Auth Callback] Redirecting to: ${redirectUrl}`)
   return NextResponse.redirect(redirectUrl)
 }

@@ -23,7 +23,7 @@ export function PopoverContentStorage() {
           Storage not configured
         </p>
         <p className="text-muted-foreground text-sm">
-          To upload files and attachments, you need to configure a Supabase storage bucket in settings.
+          To upload files and attachments, set NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET in your environment variables and create the bucket in your Supabase project.
         </p>
       </div>
     </PopoverContent>

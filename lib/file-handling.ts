@@ -53,11 +53,12 @@ export async function validateFile(
 
 export async function uploadFile(
   supabase: SupabaseClient,
-  file: File,
-  bucketName: string = "chat-attachments"
+  file: File
 ): Promise<string> {
+  const bucketName = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET
+  
   if (!bucketName) {
-    throw new Error("Storage bucket not configured. Please configure it in Settings > Storage.")
+    throw new Error("Storage bucket not configured. Please set NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET in your environment variables.")
   }
 
   const fileExt = file.name.split(".").pop()
@@ -104,8 +105,7 @@ export function createAttachment(file: File, url: string): Attachment {
 export async function processFiles(
   files: File[],
   chatId: string,
-  userId: string,
-  bucketName?: string
+  userId: string
 ): Promise<Attachment[]> {
   const supabase = isSupabaseEnabled ? createClient() : null
   const attachments: Attachment[] = []
@@ -123,8 +123,8 @@ export async function processFiles(
     }
 
     try {
-      const url = supabase && bucketName
-        ? await uploadFile(supabase, file, bucketName)
+      const url = supabase
+        ? await uploadFile(supabase, file)
         : URL.createObjectURL(file)
 
       if (supabase) {

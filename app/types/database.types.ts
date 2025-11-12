@@ -402,7 +402,6 @@ export type Database = {
           prompt_suggestions: boolean | null
           show_conversation_previews: boolean | null
           show_tool_invocations: boolean | null
-          storage_bucket: string | null
           updated_at: string | null
           user_id: string
         }
@@ -414,7 +413,6 @@ export type Database = {
           prompt_suggestions?: boolean | null
           show_conversation_previews?: boolean | null
           show_tool_invocations?: boolean | null
-          storage_bucket?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -426,7 +424,6 @@ export type Database = {
           prompt_suggestions?: boolean | null
           show_conversation_previews?: boolean | null
           show_tool_invocations?: boolean | null
-          storage_bucket?: string | null
           updated_at?: string | null
           user_id?: string
         }

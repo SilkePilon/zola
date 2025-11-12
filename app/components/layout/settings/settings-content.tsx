@@ -30,14 +30,13 @@ import { SystemPromptSection } from "./general/system-prompt"
 import { UserProfile } from "./general/user-profile"
 import { ModelsSettings } from "./models/models-settings"
 import { MCPSettings } from "./mcp/mcp-settings"
-import { StorageSettings } from "./storage/storage-settings"
 
 type SettingsContentProps = {
   isDrawer?: boolean
   activeTab?: TabType
 }
 
-type TabType = "general" | "appearance" | "prompts" | "models" | "connections" | "mcp" | "storage"
+type TabType = "general" | "appearance" | "prompts" | "models" | "connections" | "mcp"
 
 export function SettingsContent({
   isDrawer = false,
@@ -129,13 +128,6 @@ export function SettingsContent({
                   <Server className="size-4" />
                   <span>MCP Servers</span>
                 </TabsTrigger>
-                <TabsTrigger
-                  value="storage"
-                  className="flex shrink-0 items-center gap-2"
-                >
-                  <Database className="size-4" />
-                  <span>Storage</span>
-                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -177,10 +169,6 @@ export function SettingsContent({
 
             <TabsContent value="mcp" className="space-y-6 px-6">
               <MCPSettings />
-            </TabsContent>
-
-            <TabsContent value="storage" className="space-y-6 px-6">
-              <StorageSettings />
             </TabsContent>
           </div>
         ) : (
@@ -255,16 +243,6 @@ export function SettingsContent({
                     <span>MCP Servers</span>
                   </div>
                 </TabsTrigger>
-
-                <TabsTrigger
-                  value="storage"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <Database className="size-4" />
-                    <span>Storage</span>
-                  </div>
-                </TabsTrigger>
               </div>
             </TabsList>
 
@@ -307,10 +285,6 @@ export function SettingsContent({
 
               <TabsContent value="mcp" className="mt-0 space-y-6">
                 <MCPSettings />
-              </TabsContent>
-
-              <TabsContent value="storage" className="mt-0 space-y-6">
-                <StorageSettings />
               </TabsContent>
             </div>
           </>

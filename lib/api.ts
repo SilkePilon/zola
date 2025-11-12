@@ -101,8 +101,13 @@ export async function updateChatModel(chatId: string, model: string) {
 
 /**
  * Signs in user with Google OAuth via Supabase
+ * @param supabase - Supabase client instance
+ * @param redirectPath - Optional path to redirect to after successful login (defaults to current path or /)
  */
-export async function signInWithGoogle(supabase: SupabaseClient) {
+export async function signInWithGoogle(
+  supabase: SupabaseClient,
+  redirectPath?: string
+) {
   try {
     // Prefer the actual origin we started from (works for dev custom ports and prod)
     const baseUrl = typeof window !== "undefined"
@@ -113,11 +118,20 @@ export async function signInWithGoogle(supabase: SupabaseClient) {
           ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
           : APP_DOMAIN
 
-    // Preserve where the user was when they clicked login (path + query)
-    const nextPath =
-      typeof window !== "undefined"
-        ? `${window.location.pathname}${window.location.search}` || "/"
-        : "/"
+    // Determine the path to redirect to after login
+    let nextPath = redirectPath
+    
+    if (!nextPath && typeof window !== "undefined") {
+      const currentPath = `${window.location.pathname}${window.location.search}`
+      // Don't redirect back to auth pages
+      if (currentPath.startsWith("/auth")) {
+        nextPath = "/"
+      } else {
+        nextPath = currentPath || "/"
+      }
+    }
+    
+    nextPath = nextPath || "/"
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",

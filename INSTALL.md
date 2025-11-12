@@ -60,6 +60,7 @@ Edit `.env.local` with your credentials:
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE=your_supabase_service_role_key
+NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET=chat-attachments
 ```
 
 #### Security (Required)
@@ -177,7 +178,6 @@ For production deployments (e.g., Vercel), you need to add your production domai
 4. Click **Save**
 
 5. In **Supabase Dashboard** > **Authentication** > **URL Configuration**:
-
    - Add `https://zola.silkepilon.dev` to **Redirect URLs**
    - Set **Site URL** to `https://zola.silkepilon.dev`
 
@@ -381,10 +381,20 @@ Zola uses Supabase Storage for file uploads (images, documents, PDFs).
 1. Go to **Supabase Dashboard** > **Storage**
 2. Click **New bucket**
 3. Create two buckets:
-   - **Name**: `chat-attachments` | **Public**: ✅ Yes
-   - **Name**: `avatars` | **Public**: ✅ Yes
+   - **Name**: `chat-attachments` | **Public**: ✅ Yes (used for file attachments in chats)
+   - **Name**: `avatars` | **Public**: ✅ Yes (used for user profile pictures)
 
-### Step 2: Configure Bucket Policies
+### Step 2: Configure Storage Bucket in Environment
+
+Add the storage bucket name to your `.env.local`:
+
+```bash
+NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET=chat-attachments
+```
+
+This tells Zola which bucket to use for chat file attachments. The bucket name must match the one you created in your Supabase project.
+
+### Step 3: Configure Bucket Policies
 
 The `supabase/schema.sql` file includes storage policies that:
 
@@ -694,7 +704,7 @@ DISABLE_OLLAMA=true
 
 ```bash
 # Clone the repository
-git clone https://github.com/ibelick/zola.git
+git clone https://github.com/SilkePilon/zola.git
 cd zola
 
 # Install dependencies
@@ -708,7 +718,7 @@ npm run dev
 
 ```bash
 # Clone the repository
-git clone https://github.com/ibelick/zola.git
+git clone https://github.com/SilkePilon/zola.git
 cd zola
 
 # Install dependencies

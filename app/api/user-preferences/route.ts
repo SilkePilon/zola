@@ -39,7 +39,6 @@ export async function GET() {
           show_conversation_previews: true,
           multi_model_enabled: false,
           hidden_models: [],
-          storage_bucket: "",
         })
       }
 
@@ -57,7 +56,6 @@ export async function GET() {
       show_conversation_previews: data.show_conversation_previews,
       multi_model_enabled: data.multi_model_enabled,
       hidden_models: data.hidden_models || [],
-      storage_bucket: data.storage_bucket || "",
     })
   } catch (error) {
     console.error("Error in user-preferences GET API:", error)
@@ -98,7 +96,6 @@ export async function PUT(request: NextRequest) {
       show_conversation_previews,
       multi_model_enabled,
       hidden_models,
-      storage_bucket,
     } = body
 
     // Validate the data types
@@ -128,7 +125,6 @@ export async function PUT(request: NextRequest) {
     if (multi_model_enabled !== undefined)
       updateData.multi_model_enabled = multi_model_enabled
     if (hidden_models !== undefined) updateData.hidden_models = hidden_models
-    if (storage_bucket !== undefined) updateData.storage_bucket = storage_bucket
 
     // Try to update first, then insert if doesn't exist
     const { data, error } = await supabase
@@ -161,7 +157,6 @@ export async function PUT(request: NextRequest) {
       show_conversation_previews: data.show_conversation_previews,
       multi_model_enabled: data.multi_model_enabled,
       hidden_models: data.hidden_models || [],
-      storage_bucket: data.storage_bucket || "",
     })
   } catch (error) {
     console.error("Error in user-preferences PUT API:", error)
