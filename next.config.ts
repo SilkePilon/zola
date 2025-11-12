@@ -14,7 +14,6 @@ const nextConfig: NextConfig = {
   output: "standalone",
   experimental: {
     optimizePackageImports: ["@phosphor-icons/react"],
-    nodeMiddleware: true,
   },
   serverExternalPackages: [
     "shiki",
