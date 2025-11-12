@@ -1,11 +1,19 @@
 import type { NextConfig } from "next"
 import type { Configuration } from "webpack"
+import withSerwistInit from "@serwist/next"
+
+const withSerwist = withSerwistInit({
+  swSrc: "app/sw.ts",
+  swDest: "public/sw.js",
+  cacheOnNavigation: true,
+  reloadOnOnline: true,
+  disable: process.env.NODE_ENV === "development",
+})
 
 const nextConfig: NextConfig = {
   output: "standalone",
   experimental: {
     optimizePackageImports: ["@phosphor-icons/react"],
-    nodeMiddleware: true,
   },
   serverExternalPackages: [
     "shiki",
@@ -50,4 +58,4 @@ const nextConfig: NextConfig = {
     : {}),
 }
 
-export default nextConfig
+export default withSerwist(nextConfig)
