@@ -118,7 +118,6 @@ create table if not exists public.user_preferences (
   prompt_suggestions boolean,
   show_tool_invocations boolean,
   show_conversation_previews boolean,
-  storage_bucket TEXT,
   multi_model_enabled boolean,
   hidden_models text[],
   created_at timestamptz default now(),

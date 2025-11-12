@@ -13,9 +13,9 @@ export function UserProfile() {
     <div>
       <h3 className="mb-3 text-sm font-medium">Profile</h3>
       <div className="flex items-center space-x-4">
-        <div className="bg-muted flex items-center justify-center overflow-hidden rounded-full">
+        <div className="bg-muted flex items-center justify-center overflow-hidden rounded-md">
           {user?.profile_image ? (
-            <Avatar className="size-12">
+            <Avatar className="size-12 rounded-md">
               <AvatarImage src={user.profile_image || undefined} className="object-cover" />
               <AvatarFallback>{user?.display_name?.charAt(0)}</AvatarFallback>
             </Avatar>

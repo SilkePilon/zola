@@ -39,7 +39,9 @@ export function DialogAuth({ open, setOpen }: DialogAuthProps) {
       setIsLoading(true)
       setError(null)
 
-      const data = await signInWithGoogle(supabase)
+      // Pass current path so user returns here after login
+      const currentPath = `${window.location.pathname}${window.location.search}`
+      const data = await signInWithGoogle(supabase, currentPath)
 
       // Redirect to the provider URL
       if (data?.url) {

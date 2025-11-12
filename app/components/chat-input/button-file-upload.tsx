@@ -22,7 +22,6 @@ import { FileArrowUp, Paperclip } from "@phosphor-icons/react"
 import React from "react"
 import { PopoverContentAuth } from "./popover-content-auth"
 import { PopoverContentStorage } from "./popover-content-storage"
-import { useUserPreferences } from "@/lib/user-preference-store/provider"
 
 type ButtonFileUploadProps = {
   onFileUpload: (files: File[]) => void
@@ -38,8 +37,7 @@ export function ButtonFileUpload({
   disabled = false,
 }: ButtonFileUploadProps) {
   const { models } = useModel()
-  const { preferences } = useUserPreferences()
-  const hasStorageBucket = Boolean(preferences.storageBucket)
+  const hasStorageBucket = Boolean(process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET)
   
   if (disabled) {
     return (

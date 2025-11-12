@@ -1,6 +1,5 @@
 "use client"
 
-import XIcon from "@/components/icons/x"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -15,14 +14,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useUser } from "@/lib/user-store/provider"
-import { GithubLogoIcon } from "@phosphor-icons/react"
+import { GithubLogoIcon, SignOut } from "@phosphor-icons/react"
 import { useState } from "react"
 import { AppInfoTrigger } from "./app-info/app-info-trigger"
 import { FeedbackTrigger } from "./feedback/feedback-trigger"
 import { SettingsTrigger } from "./settings/settings-trigger"
 
 export function UserMenu() {
-  const { user } = useUser()
+  const { user, signOut } = useUser()
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [isSettingsOpen, setSettingsOpen] = useState(false)
 
@@ -35,13 +34,22 @@ export function UserMenu() {
     }
   }
 
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      window.location.href = "/"
+    } catch (error) {
+      console.error("Failed to sign out:", error)
+    }
+  }
+
   return (
     // fix shadcn/ui / radix bug when dialog into dropdown menu
     <DropdownMenu open={isMenuOpen} onOpenChange={setMenuOpen} modal={false}>
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger>
-            <Avatar className="bg-background hover:bg-muted">
+            <Avatar className="bg-background hover:bg-muted size-9 rounded-md">
               <AvatarImage src={user?.profile_image || undefined} />
               <AvatarFallback>{user?.display_name?.charAt(0)}</AvatarFallback>
             </Avatar>
@@ -75,18 +83,7 @@ export function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <a
-            href="https://x.com/zoladotchat"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2"
-          >
-            <XIcon className="size-4 p-0.5" />
-            <span>@zoladotchat</span>
-          </a>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <a
-            href="https://github.com/ibelick/zola"
+            href="https://github.com/SilkePilon/zola"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2"
@@ -94,6 +91,14 @@ export function UserMenu() {
             <GithubLogoIcon className="size-4" />
             <span>GitHub</span>
           </a>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={handleSignOut}
+          className="flex items-center gap-2 cursor-pointer"
+        >
+          <SignOut className="size-4" />
+          <span>Sign out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -23,7 +23,8 @@ export default function LoginPage() {
       setIsLoading(true)
       setError(null)
 
-      const data = await signInWithGoogle(supabase)
+      // From login page, always redirect to home after auth
+      const data = await signInWithGoogle(supabase, "/")
 
       // Redirect to the provider URL
       if (data?.url) {
