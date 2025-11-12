@@ -189,13 +189,13 @@ export function BudgetSettings() {
   }
 
   // Delete budget for selected provider
-  const handleDeleteProvider = async () => {
-    if (!selectedProviderId) return
+  const handleDeleteProvider = async (providerId: string) => {
+    if (!providerId) return
 
     try {
       // Get all budgets except the one being deleted
       const remainingBudgets = Array.isArray(budgetLimits)
-        ? budgetLimits.filter((b) => b.provider_id !== selectedProviderId)
+        ? budgetLimits.filter((b) => b.provider_id !== providerId)
         : []
 
       if (remainingBudgets.length === 0) {
@@ -218,7 +218,7 @@ export function BudgetSettings() {
 
       toast({
         title: "Budget removed",
-        description: `Budget for ${providers.find((p) => p.id === selectedProviderId)?.name} has been removed.`,
+        description: `Budget for ${providers.find((p) => p.id === providerId)?.name} has been removed.`,
         status: "success",
       })
       
@@ -332,10 +332,7 @@ export function BudgetSettings() {
                         type="button"
                         className="text-muted-foreground hover:text-foreground rounded-md border p-1 transition-colors"
                         aria-label={`Delete budget for ${provider.name}`}
-                        onClick={async () => {
-                          setSelectedProviderId(provider.id)
-                          await handleDeleteProvider()
-                        }}
+                        onClick={() => handleDeleteProvider(provider.id)}
                         title="Delete budget"
                       >
                         <Trash2 className="size-4" />
@@ -463,7 +460,7 @@ export function BudgetSettings() {
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={handleDeleteProvider}
+                  onClick={() => selectedProviderId && handleDeleteProvider(selectedProviderId)}
                   disabled={isSaving}
                 >
                   <Trash2 className="mr-1 size-4" />

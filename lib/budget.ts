@@ -99,7 +99,19 @@ export async function checkBudgetBeforeChat(
 
   // Update if needed
   if (needsUpdate) {
-    await supabase.from("budget_limits").update(updates).eq("user_id", userId)
+    // Target specific budget record by user_id + provider_id (or id as fallback)
+    let query = supabase
+      .from("budget_limits")
+      .update(updates)
+      .eq("user_id", userId)
+    
+    if (budgetLimits.provider_id !== null && budgetLimits.provider_id !== undefined) {
+      query = query.eq("provider_id", budgetLimits.provider_id)
+    } else {
+      query = query.eq("id", budgetLimits.id)
+    }
+    
+    await query
   }
 
   // Check monthly budget (null/undefined = no limit, 0 = strict limit)

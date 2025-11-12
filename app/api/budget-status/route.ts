@@ -21,14 +21,13 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get budget limits
-    const { data: budgetLimits, error: budgetError } = await supabase
+    // Get all budget limits for this user
+    const { data: budgetLimitsArray, error: budgetError } = await supabase
       .from("budget_limits")
       .select("*")
       .eq("user_id", user.id)
-      .maybeSingle()
 
-    if (budgetError && budgetError.code !== "PGRST116") {
+    if (budgetError) {
       console.error("Error fetching budget limits:", budgetError)
       return NextResponse.json(
         { error: "Failed to fetch budget limits" },
@@ -37,77 +36,95 @@ export async function GET() {
     }
 
     // If no budget limits set, return empty status
-    if (!budgetLimits) {
+    if (!budgetLimitsArray || budgetLimitsArray.length === 0) {
       return NextResponse.json({
         hasBudget: false,
-        status: null,
+        budgetLimits: [],
+        status: [],
       })
     }
 
-    // Check if we need to reset daily/monthly counters
+    // Check if we need to reset daily/monthly counters for each budget limit
     const now = new Date()
-    let needsUpdate = false
-    let updates: any = {}
+    const updatedBudgetLimits = []
 
-    // Check daily reset
-    const dayReset = budgetLimits.day_reset
-      ? new Date(budgetLimits.day_reset)
-      : null
-    const isDayReset =
-      !dayReset ||
-      now.getUTCFullYear() !== dayReset.getUTCFullYear() ||
-      now.getUTCMonth() !== dayReset.getUTCMonth() ||
-      now.getUTCDate() !== dayReset.getUTCDate()
+    for (let budgetLimit of budgetLimitsArray) {
+      let needsUpdate = false
+      let updates: any = {}
 
-    if (isDayReset && (budgetLimits.current_day_spend ?? 0) > 0) {
-      needsUpdate = true
-      updates.current_day_spend = 0
-      updates.day_reset = now.toISOString()
-      budgetLimits.current_day_spend = 0
+      // Check daily reset
+      const dayReset = budgetLimit.day_reset
+        ? new Date(budgetLimit.day_reset)
+        : null
+      const isDayReset =
+        !dayReset ||
+        now.getUTCFullYear() !== dayReset.getUTCFullYear() ||
+        now.getUTCMonth() !== dayReset.getUTCMonth() ||
+        now.getUTCDate() !== dayReset.getUTCDate()
+
+      if (isDayReset && (budgetLimit.current_day_spend ?? 0) > 0) {
+        needsUpdate = true
+        updates.current_day_spend = 0
+        updates.day_reset = now.toISOString()
+      }
+
+      // Check monthly reset
+      const monthReset = budgetLimit.month_reset
+        ? new Date(budgetLimit.month_reset)
+        : null
+      const isMonthReset =
+        !monthReset ||
+        now.getUTCFullYear() !== monthReset.getUTCFullYear() ||
+        now.getUTCMonth() !== monthReset.getUTCMonth()
+
+      if (isMonthReset && (budgetLimit.current_month_spend ?? 0) > 0) {
+        needsUpdate = true
+        updates.current_month_spend = 0
+        updates.month_reset = now.toISOString()
+      }
+
+      // Update if needed and get the updated row
+      if (needsUpdate) {
+        const { data: updatedRow, error: updateError } = await supabase
+          .from("budget_limits")
+          .update(updates)
+          .eq("id", budgetLimit.id)
+          .select()
+          .single()
+
+        if (updateError) {
+          console.error("Error updating budget limit:", updateError)
+          // Continue with the non-updated row
+          updatedBudgetLimits.push(budgetLimit)
+        } else {
+          // Use the updated row with new timestamps
+          updatedBudgetLimits.push(updatedRow)
+        }
+      } else {
+        updatedBudgetLimits.push(budgetLimit)
+      }
     }
 
-    // Check monthly reset
-    const monthReset = budgetLimits.month_reset
-      ? new Date(budgetLimits.month_reset)
-      : null
-    const isMonthReset =
-      !monthReset ||
-      now.getUTCFullYear() !== monthReset.getUTCFullYear() ||
-      now.getUTCMonth() !== monthReset.getUTCMonth()
-
-    if (isMonthReset && (budgetLimits.current_month_spend ?? 0) > 0) {
-      needsUpdate = true
-      updates.current_month_spend = 0
-      updates.month_reset = now.toISOString()
-      budgetLimits.current_month_spend = 0
-    }
-
-    // Update if needed
-    if (needsUpdate) {
-      await supabase
-        .from("budget_limits")
-        .update(updates)
-        .eq("user_id", user.id)
-    }
-
-    // Calculate status for each budget type
-    const status = {
+    // Calculate status for each budget limit row
+    const statuses = updatedBudgetLimits.map((budgetLimit) => ({
+      id: budgetLimit.id,
+      provider_id: budgetLimit.provider_id,
       monthly: calculateBudgetStatus(
-        budgetLimits.current_month_spend || 0,
-        budgetLimits.monthly_budget_usd,
-        budgetLimits.warning_threshold_percent || 80
+        budgetLimit.current_month_spend || 0,
+        budgetLimit.monthly_budget_usd,
+        budgetLimit.warning_threshold_percent || 80
       ),
       daily: calculateBudgetStatus(
-        budgetLimits.current_day_spend || 0,
-        budgetLimits.daily_budget_usd,
-        budgetLimits.warning_threshold_percent || 80
+        budgetLimit.current_day_spend || 0,
+        budgetLimit.daily_budget_usd,
+        budgetLimit.warning_threshold_percent || 80
       ),
-    }
+    }))
 
     return NextResponse.json({
       hasBudget: true,
-      budgetLimits,
-      status,
+      budgetLimits: updatedBudgetLimits,
+      status: statuses,
     })
   } catch (err) {
     console.error("Error in budget-status GET:", err)

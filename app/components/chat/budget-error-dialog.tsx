@@ -62,7 +62,7 @@ export function BudgetErrorDialog({
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Amount Spent:</span>
-                <span className="font-medium text-foreground">${spent.toFixed(4)}</span>
+                <span className="font-medium text-foreground">${spent.toFixed(2)}</span>
               </div>
             </div>
 
