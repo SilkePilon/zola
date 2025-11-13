@@ -27,8 +27,9 @@
 > - [X] Usage tracking & cost monitoring
 > - [X] MCP (Model Context Protocol) servers
 > - [X] Models.dev API integration
+> - [x] Budget limits and warnings system
 > - [ ] Next.js 15 compatibility updates
-> - [X] Budget limits and warnings system
+> - [ ] Use Zola as OpenAi compatible server
 
 ---
 
