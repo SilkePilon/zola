@@ -224,13 +224,13 @@ export async function POST(req: Request) {
       const result = streamText(streamTextOptions)
 
       return result.toUIMessageStreamResponse({
-      sendReasoning: true,
-      sendSources: true,
-      messageMetadata: ({ part }) => {
-        if (part.type === "finish") {
-          return { totalUsage: part.totalUsage }
-        }
-      },
+        sendReasoning: true,
+        sendSources: true,
+        messageMetadata: ({ part }) => {
+          if (part.type === "finish") {
+            return { totalUsage: part.totalUsage }
+          }
+        },
         onError: (error: unknown) => {
           // Close MCP without blocking (fire and forget)
           safeCloseMcp().catch(e => console.error("Error closing MCP in onError:", e))

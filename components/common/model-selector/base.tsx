@@ -101,21 +101,21 @@ export function ModelSelector({
   const trigger = (
     <Button
       variant="outline"
-      className={cn(className, "dark:bg-secondary justify-between rounded-[8px]")}
+      className={cn(className, "dark:bg-secondary justify-between rounded-[8px] h-9 !pl-2.5 !pr-1.5 !gap-0.5")}
       disabled={isLoadingModels}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         {currentModel ? (
           <ProviderIcon
             providerId={currentModel.icon}
             logoUrl={currentModel.logoUrl}
-            className="size-5"
+            className="size-4"
             title={currentModel.provider}
           />
         ) : null}
-        <span>{currentModel?.name || "Select model"}</span>
+        <span className="text-sm">{currentModel?.name || "Select model"}</span>
       </div>
-      <CaretDownIcon className="size-4 opacity-50" />
+      <CaretDownIcon className="size-3.5 opacity-50" />
     </Button>
   )
 
