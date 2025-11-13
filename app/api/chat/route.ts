@@ -144,14 +144,13 @@ export async function POST(req: Request) {
     try {
       const modelInstance = await makeModel(apiKey, { enableSearch })
       
-      const result = streamText({
-      model: modelInstance,
-      system: effectiveSystemPrompt,
-      messages: modelMessages,
-      tools: mcpTools as ToolSet,
-      stopWhen: stepCountIs(10),
-
-      onFinish: async ({ response, usage }) => {
+      // Only pass tools if the model supports them
+      const streamTextOptions: any = {
+        model: modelInstance,
+        system: effectiveSystemPrompt,
+        messages: modelMessages,
+        stopWhen: stepCountIs(10),
+        onFinish: async ({ response, usage }) => {
         try {
           let savedMessageId: number | undefined
           
@@ -210,15 +209,21 @@ export async function POST(req: Request) {
         } finally {
           await safeCloseMcp()
         }
-      },
-
-      onError: async (error: unknown) => {
-        await safeCloseMcp()
-        throw error
+        },
+        onError: async (error: unknown) => {
+          await safeCloseMcp()
+          throw error
+        }
       }
-    })
+      
+      // Only add tools if model supports them and tools are available
+      if (modelConfig.tools && mcpTools && Object.keys(mcpTools).length > 0) {
+        streamTextOptions.tools = mcpTools as ToolSet
+      }
+      
+      const result = streamText(streamTextOptions)
 
-    return result.toUIMessageStreamResponse({
+      return result.toUIMessageStreamResponse({
       sendReasoning: true,
       sendSources: true,
       messageMetadata: ({ part }) => {
@@ -226,12 +231,12 @@ export async function POST(req: Request) {
           return { totalUsage: part.totalUsage }
         }
       },
-      onError: (error: unknown) => {
-        // Close MCP without blocking (fire and forget)
-        safeCloseMcp().catch(e => console.error("Error closing MCP in onError:", e))
-        return extractErrorMessage(error)
-      },
-    });
+        onError: (error: unknown) => {
+          // Close MCP without blocking (fire and forget)
+          safeCloseMcp().catch(e => console.error("Error closing MCP in onError:", e))
+          return extractErrorMessage(error)
+        },
+      })
     } catch (streamError) {
       await safeCloseMcp()
       throw streamError
