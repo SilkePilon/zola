@@ -145,7 +145,7 @@ export async function POST(req: Request) {
       const modelInstance = await makeModel(apiKey, { enableSearch })
       
       // Only pass tools if the model supports them
-      const streamTextOptions: any = {
+      const streamTextOptions: Parameters<typeof streamText>[0] = {
         model: modelInstance,
         system: effectiveSystemPrompt,
         messages: modelMessages,

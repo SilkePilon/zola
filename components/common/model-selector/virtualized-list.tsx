@@ -49,9 +49,7 @@ const RowComponent = ({
 }: RowComponentProps) => {
   const model = models[index]
   const isLocked = !model.accessible
-  const hasReasoning = Boolean(
-    (model as any).reasoning ?? model.reasoningText
-  )
+  const hasReasoning = Boolean(model.reasoning ?? model.reasoningText)
 
   // Round transform values to prevent sub-pixel blurriness
   const roundedStyle = {
