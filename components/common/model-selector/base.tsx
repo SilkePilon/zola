@@ -178,6 +178,7 @@ export function ModelSelector({
                   value={searchQuery}
                   onChange={handleSearchChange}
                   onClick={(e) => e.stopPropagation()}
+                  autoFocus={false}
                 />
               </div>
             </div>
