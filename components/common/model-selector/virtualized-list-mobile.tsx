@@ -3,8 +3,9 @@
 import { ModelConfig } from "@/lib/models/types"
 import { List } from "react-window"
 import ProviderIcon from "@/components/common/provider-icon"
+import { Badge } from "@/components/ui/badge"
+import { BrainIcon, ImageIcon, WrenchIcon, StarIcon } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
-import { StarIcon } from "@phosphor-icons/react"
 
 type VirtualizedModelListMobileProps = {
   models: ModelConfig[]
@@ -41,12 +42,13 @@ const RowComponent = ({
 }: RowComponentProps) => {
   const model = models[index]
   const isLocked = !model.accessible
+  const hasReasoning = Boolean(model.reasoning ?? model.reasoningText)
 
   return (
     <div
       style={style}
       className={cn(
-        "flex w-full items-center justify-between px-3 py-2 cursor-pointer hover:bg-accent overflow-hidden",
+        "flex w-full items-center justify-between px-4 py-2.5 cursor-pointer hover:bg-accent overflow-hidden transition-colors",
         selectedModelId === model.uniqueId && "bg-accent"
       )}
       onClick={() => {
@@ -57,23 +59,42 @@ const RowComponent = ({
         onSelectModel(model.uniqueId)
       }}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
         <ProviderIcon
           providerId={model.icon}
           logoUrl={model.logoUrl}
-          className="size-5"
+          className="size-5 shrink-0"
           title={model.provider}
         />
-        <div className="flex flex-col gap-0">
-          <span className="text-sm">{model.name}</span>
+        <div className="flex flex-col gap-0 min-w-0">
+          <span className="text-sm truncate">{model.name}</span>
         </div>
       </div>
-      {isLocked && (
-        <div className="border-input bg-accent text-muted-foreground flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium">
-          <StarIcon className="size-2" />
-          <span>Unavailable</span>
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Capability badges */}
+        <div className="flex items-center gap-1">
+          {model.vision && (
+            <Badge variant="outline" className="h-5 w-5 p-0 !border-green-300 !bg-green-100 !text-green-600 dark:!border-green-700 dark:!bg-green-900/50 dark:!text-green-300 [&>svg]:!size-3 [&>svg]:!text-green-600 dark:[&>svg]:!text-green-300">
+              <ImageIcon weight="fill" />
+            </Badge>
+          )}
+          {model.tools && (
+            <Badge variant="outline" className="h-5 w-5 p-0 !border-purple-300 !bg-purple-100 !text-purple-600 dark:!border-purple-700 dark:!bg-purple-900/50 dark:!text-purple-300 [&>svg]:!size-3 [&>svg]:!text-purple-600 dark:[&>svg]:!text-purple-300">
+              <WrenchIcon weight="fill" />
+            </Badge>
+          )}
+          {hasReasoning && (
+            <Badge variant="outline" className="h-5 w-5 p-0 !border-amber-300 !bg-amber-100 !text-amber-600 dark:!border-amber-700 dark:!bg-amber-900/50 dark:!text-amber-300 [&>svg]:!size-3 [&>svg]:!text-amber-600 dark:[&>svg]:!text-amber-300">
+              <BrainIcon weight="fill" />
+            </Badge>
+          )}
         </div>
-      )}
+        {isLocked && (
+          <div className="border-input bg-accent text-muted-foreground flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium">
+            <span>Unavailable</span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -85,7 +106,7 @@ export function VirtualizedModelListMobile({
   onProModelClick,
   height,
 }: VirtualizedModelListMobileProps) {
-  const ITEM_HEIGHT = 48 // Height of each model item in pixels for mobile
+  const ITEM_HEIGHT = 52 // Height of each model item in pixels for mobile
 
   const customRowProps: CustomRowProps = {
     models,
