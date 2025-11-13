@@ -13,9 +13,13 @@ export function filterAndSortModels(
         ? favoriteModels.includes(model.uniqueId) 
         : true
     )
-    .filter((model) =>
-      model.name.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    .filter((model) => {
+      const query = searchQuery.toLowerCase()
+      return (
+        model.name.toLowerCase().includes(query) ||
+        model.provider.toLowerCase().includes(query)
+      )
+    })
     .sort((a, b) => {
       if (favoriteModels && favoriteModels.length > 0) {
         return favoriteModels.indexOf(a.uniqueId) - favoriteModels.indexOf(b.uniqueId)

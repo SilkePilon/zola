@@ -1,6 +1,7 @@
 import { ModelConfig } from "@/lib/models/types"
 import { getProviderIcon } from "@/lib/providers"
 import ProviderIcon from "@/components/common/provider-icon"
+import { Badge } from "@/components/ui/badge"
 import { BrainIcon, GlobeIcon, ImageIcon, WrenchIcon } from "@phosphor-icons/react"
 
 type SubMenuProps = {
@@ -14,57 +15,57 @@ export function SubMenu({ hoveredModelData }: SubMenuProps) {
   )
 
   return (
-    <div className="bg-popover border-border w-[280px] rounded-md border p-3 shadow-md">
+    <div className="bg-popover border-border w-[260px] rounded-md border p-2.5 shadow-lg backdrop-blur-xl">
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 pb-2 border-b border-border">
           <ProviderIcon
             providerId={hoveredModelData.icon}
             logoUrl={hoveredModelData.logoUrl}
-            className="size-5"
+            className="size-4"
             title={hoveredModelData.provider}
           />
-          <h3 className="font-medium">{hoveredModelData.name}</h3>
+          <h3 className="font-medium text-sm">{hoveredModelData.name}</h3>
         </div>
 
         {/* API-only: omit description and long-form metadata */}
 
-        <div className="flex flex-col gap-1">
-          <div className="mt-1 flex flex-wrap gap-2">
+        {(hoveredModelData.vision || hoveredModelData.tools || hasReasoning || hoveredModelData.webSearch) && (
+          <div className="flex flex-wrap gap-1">
             {hoveredModelData.vision && (
-              <div className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700 dark:bg-green-800 dark:text-green-100">
-                <ImageIcon className="size-3" />
+              <Badge variant="outline" className="!border-green-300 !bg-green-100 !text-green-700 dark:!border-green-700 dark:!bg-green-900/50 dark:!text-green-300">
+                <ImageIcon weight="fill" size={10} className="!text-green-600 dark:!text-green-300" />
                 <span>Vision</span>
-              </div>
+              </Badge>
             )}
 
             {hoveredModelData.tools && (
-              <div className="flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-700 dark:bg-purple-800 dark:text-purple-100">
-                <WrenchIcon className="size-3" />
+              <Badge variant="outline" className="!border-purple-300 !bg-purple-100 !text-purple-700 dark:!border-purple-700 dark:!bg-purple-900/50 dark:!text-purple-300">
+                <WrenchIcon weight="fill" size={10} className="!text-purple-600 dark:!text-purple-300" />
                 <span>Tools</span>
-              </div>
+              </Badge>
             )}
 
             {hasReasoning && (
-              <div className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-800 dark:text-amber-100">
-                <BrainIcon className="size-3" />
+              <Badge variant="outline" className="!border-amber-300 !bg-amber-100 !text-amber-700 dark:!border-amber-700 dark:!bg-amber-900/50 dark:!text-amber-300">
+                <BrainIcon weight="fill" size={10} className="!text-amber-600 dark:!text-amber-300" />
                 <span>Reasoning</span>
-              </div>
+              </Badge>
             )}
 
             {hoveredModelData.webSearch && (
-              <div className="flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-800 dark:text-blue-100">
-                <GlobeIcon className="size-3" />
+              <Badge variant="outline" className="!border-blue-300 !bg-blue-100 !text-blue-700 dark:!border-blue-700 dark:!bg-blue-900/50 dark:!text-blue-300">
+                <GlobeIcon weight="fill" size={10} className="!text-blue-600 dark:!text-blue-300" />
                 <span>Web Search</span>
-              </div>
+              </Badge>
             )}
           </div>
-        </div>
+        )}
 
-        <div className="mt-4 flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
           {hoveredModelData.contextWindow != null && (
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="font-medium">Context</span>
-              <span>
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">Context</span>
+              <span className="font-mono text-xs">
                 {Intl.NumberFormat("fr-FR", {
                   style: "decimal",
                 }).format(hoveredModelData.contextWindow)}{" "}
@@ -73,42 +74,48 @@ export function SubMenu({ hoveredModelData }: SubMenuProps) {
             </div>
           )}
 
-          <div className="flex flex-col gap-2">
-            {hoveredModelData.inputCost != null && (
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <span className="font-medium">Input Pricing</span>
-                <span>
-                  {Intl.NumberFormat("ja-JP", {
-                    style: "currency",
-                    currency: "USD",
-                  }).format(hoveredModelData.inputCost)}{" "}
-                  / 1M tokens
-                </span>
+          {(hoveredModelData.inputCost != null || hoveredModelData.outputCost != null) && (
+            <>
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-muted-foreground">Input</span>
+                {hoveredModelData.inputCost != null && hoveredModelData.inputCost > 0 ? (
+                  <span className="font-mono text-xs">
+                    {Intl.NumberFormat("ja-JP", {
+                      style: "currency",
+                      currency: "USD",
+                    }).format(hoveredModelData.inputCost)}{" "}
+                    / 1M
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground italic">Price unknown</span>
+                )}
               </div>
-            )}
 
-            {hoveredModelData.outputCost != null && (
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <span className="font-medium">Output Pricing</span>
-                <span>
-                  {Intl.NumberFormat("ja-JP", {
-                    style: "currency",
-                    currency: "USD",
-                  }).format(hoveredModelData.outputCost)}{" "}
-                  / 1M tokens
-                </span>
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-muted-foreground">Output</span>
+                {hoveredModelData.outputCost != null && hoveredModelData.outputCost > 0 ? (
+                  <span className="font-mono text-xs">
+                    {Intl.NumberFormat("ja-JP", {
+                      style: "currency",
+                      currency: "USD",
+                    }).format(hoveredModelData.outputCost)}{" "}
+                    / 1M
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground italic">Price unknown</span>
+                )}
               </div>
-            )}
+            </>
+          )}
+
+          <div className="flex items-center justify-between gap-2 text-xs pt-1.5 border-t border-border">
+            <span className="text-muted-foreground">Provider</span>
+            <span className="text-xs">{hoveredModelData.provider}</span>
           </div>
 
-          <div className="flex items-center justify-between gap-2 text-sm">
-            <span className="font-medium">Provider</span>
-            <span>{hoveredModelData.provider}</span>
-          </div>
-
-          <div className="flex items-center justify-between gap-2 text-sm">
-            <span className="flex-1 font-medium">Id</span>
-            <span className="text-muted-foreground truncate text-xs">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-muted-foreground">ID</span>
+            <span className="text-muted-foreground truncate text-xs font-mono bg-accent/50 px-1.5 py-0.5 rounded">
               {String(hoveredModelData.id)}
             </span>
           </div>
