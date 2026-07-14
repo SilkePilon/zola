@@ -1,4 +1,4 @@
-import { LanguageModelV2 } from '@ai-sdk/provider'
+import { LanguageModelV4 } from '@ai-sdk/provider'
 
 type ModelConfig = {
   id: string // "gpt-4.1-nano" // same from AI SDKs
@@ -44,7 +44,7 @@ type ModelConfig = {
   apiSdk?: (
     apiKey?: string,
     opts?: { enableSearch?: boolean }
-  ) => Promise<LanguageModelV2>
+  ) => Promise<LanguageModelV4>
 
   accessible?: boolean // true if the model is accessible to the user
   isCustom?: boolean // true if the model is a user-created custom model

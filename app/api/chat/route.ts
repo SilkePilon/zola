@@ -120,7 +120,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const modelMessages = convertToModelMessages(messages)
+    const modelMessages = await convertToModelMessages(messages)
 
     // Load MCP tools from user's configured servers (or env vars as fallback)
     // Validate mcpServers is an array before filtering
