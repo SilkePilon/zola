@@ -2,7 +2,7 @@ import { updateSession } from "@/utils/supabase/middleware"
 import { NextResponse, type NextRequest } from "next/server"
 import { validateCsrfToken } from "./lib/csrf"
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const response = await updateSession(request)
 
   // CSRF protection for state-changing requests
@@ -35,5 +35,4 @@ export const config = {
   matcher: [
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
-  runtime: "nodejs",
 }
