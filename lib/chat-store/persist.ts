@@ -185,7 +185,7 @@ export async function readFromIndexedDB<T>(
     const allKeys = await keys(store)
     if (allKeys.length > 0) {
       const results = await getMany<T>(allKeys as string[], store)
-      return results.filter(Boolean)
+      return results.filter((item): item is T => Boolean(item))
     }
 
     return []
