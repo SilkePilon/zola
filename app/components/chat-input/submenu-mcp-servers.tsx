@@ -10,6 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { getCsrfHeader } from "@/lib/fetch";
 import { useMCP } from "@/lib/mcp-store/provider";
 import { useState, useEffect } from "react";
 
@@ -34,7 +35,7 @@ export function MCPServersSubmenu({ onBack, onClose }: MCPServersSubmenuProps) {
             
             const response = await fetch('/api/mcp/tools', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', ...getCsrfHeader() },
               body: JSON.stringify({ servers: [server] }),
               signal: controller.signal,
             });

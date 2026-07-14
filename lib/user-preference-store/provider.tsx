@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createContext, ReactNode, useContext } from "react"
+import { getCsrfHeader } from "@/lib/fetch"
 import {
   convertFromApiFormat,
   convertToApiFormat,
@@ -53,6 +54,7 @@ async function updateUserPreferences(
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
+      ...getCsrfHeader(),
     },
     body: JSON.stringify(convertToApiFormat(update)),
   })

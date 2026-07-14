@@ -1,6 +1,7 @@
 import { useChatDraft } from "@/app/hooks/use-chat-draft"
 import { toast } from "@/components/ui/toast"
 import { getOrCreateGuestUserId } from "@/lib/api"
+import { getCsrfHeader } from "@/lib/fetch"
 import { MESSAGE_MAX_LENGTH, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { Attachment } from "@/lib/file-handling"
 import { API_ROUTE_CHAT } from "@/lib/routes"
@@ -161,7 +162,10 @@ export function useChatCore({
       }
     },
     onError: handleError,
-    transport: new DefaultChatTransport({ api: API_ROUTE_CHAT })
+    transport: new DefaultChatTransport({
+      api: API_ROUTE_CHAT,
+      headers: getCsrfHeader,
+    })
   })
 
   // Handle search params on mount

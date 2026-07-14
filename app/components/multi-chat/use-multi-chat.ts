@@ -1,6 +1,7 @@
 // todo: fix this
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { toast } from "@/components/ui/toast"
+import { getCsrfHeader } from "@/lib/fetch"
 import { useMCP } from "@/lib/mcp-store"
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai"
@@ -49,7 +50,10 @@ export function useMultiChat(models: ModelConfig[]): ModelChat[] {
           completionTimes[index] = Date.now() - startTimes[index]
         }
       },
-      transport: new DefaultChatTransport({ api: "/api/chat" })
+      transport: new DefaultChatTransport({
+        api: "/api/chat",
+        headers: getCsrfHeader,
+      })
     })
   )
 

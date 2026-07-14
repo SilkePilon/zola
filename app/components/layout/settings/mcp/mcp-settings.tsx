@@ -31,6 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Textarea } from "@/components/ui/textarea"
+import { getCsrfHeader } from "@/lib/fetch"
 import { useMCP } from "@/lib/mcp-store/provider"
 import type { MCPServerConfig, MCPTransportType } from "@/lib/mcp-store/types"
 import { cn } from "@/lib/utils"
@@ -327,7 +328,7 @@ export function MCPSettings() {
       try {
         const response = await fetch("/api/mcp/test", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getCsrfHeader() },
           body: JSON.stringify(testConfig),
           signal: controller.signal,
         })
@@ -663,7 +664,7 @@ function ServerCard({
       
       const response = await fetch('/api/mcp/tools', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getCsrfHeader() },
         body: JSON.stringify({ servers: [server] }),
         signal: controller.signal,
       })

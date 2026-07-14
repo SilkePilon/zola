@@ -1,3 +1,4 @@
+import { getCsrfHeader } from '@/lib/fetch'
 import type { MCPServerConfig } from './types'
 
 /**
@@ -15,6 +16,7 @@ export async function getMCPTools(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getCsrfHeader(),
       },
       body: JSON.stringify({ servers }),
     })

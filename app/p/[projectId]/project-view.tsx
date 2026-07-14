@@ -12,6 +12,7 @@ import { useMessages } from "@/lib/chat-store/messages/provider"
 import { useChatSession } from "@/lib/chat-store/session/provider"
 import { MESSAGE_MAX_LENGTH, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { Attachment } from "@/lib/file-handling"
+import { getCsrfHeader } from "@/lib/fetch"
 import { API_ROUTE_CHAT } from "@/lib/routes"
 import { useUser } from "@/lib/user-store/provider"
 import { cn } from "@/lib/utils"
@@ -134,7 +135,10 @@ export function ProjectView({ projectId }: ProjectViewProps) {
       }
     },
     onError: handleError,
-    transport: new DefaultChatTransport({ api: API_ROUTE_CHAT })
+    transport: new DefaultChatTransport({
+      api: API_ROUTE_CHAT,
+      headers: getCsrfHeader,
+    })
   })
 
   // Sync messages from initialMessages when they're loaded (e.g., after page reload or chat navigation)
