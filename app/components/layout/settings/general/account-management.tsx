@@ -8,6 +8,10 @@ import { clearAllIndexedDBStores } from "@/lib/chat-store/persist"
 import { useUser } from "@/lib/user-store/provider"
 import { SignOut } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
+import { SettingsRow } from "../settings-row"
+import { SettingsSection } from "../settings-section"
+
+export const ACCOUNT_MANAGEMENT_ROW_ID = "settings-row-general-account"
 
 export function AccountManagement() {
   const { signOut } = useUser()
@@ -29,20 +33,22 @@ export function AccountManagement() {
   }
 
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <h3 className="text-sm font-medium">Account</h3>
-        <p className="text-muted-foreground text-xs">Log out on this device</p>
-      </div>
-      <Button
-        variant="default"
-        size="sm"
-        className="flex items-center gap-2"
-        onClick={handleSignOut}
+    <SettingsSection title="Account">
+      <SettingsRow
+        id={ACCOUNT_MANAGEMENT_ROW_ID}
+        title="Log out"
+        description="Sign out on this device."
       >
-        <SignOut className="size-4" />
-        <span>Sign out</span>
-      </Button>
-    </div>
+        <Button
+          variant="default"
+          size="sm"
+          className="flex items-center gap-2"
+          onClick={handleSignOut}
+        >
+          <SignOut className="size-4" />
+          <span>Sign out</span>
+        </Button>
+      </SettingsRow>
+    </SettingsSection>
   )
 }

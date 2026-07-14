@@ -8,6 +8,10 @@ import { useChatSession } from "@/lib/chat-store/session/provider"
 import { TrashSimple } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 import { useCallback, useState } from "react"
+import { SettingsRow } from "../settings-row"
+import { SettingsSection } from "../settings-section"
+
+export const HISTORY_MANAGEMENT_ROW_ID = "settings-row-general-history"
 
 export function HistoryManagement() {
   const { chats, deleteChat } = useChats()
@@ -50,23 +54,23 @@ export function HistoryManagement() {
   }, [isDeleting, chats, deleteChat, chatId, router])
 
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <h3 className="text-sm font-medium">History</h3>
-        <p className="text-muted-foreground text-xs">
-          Remove all non-pinned conversations from your history.
-        </p>
-      </div>
-      <Button
-        variant="destructive"
-        size="sm"
-        className="flex items-center gap-2"
-        onClick={handleDeleteAll}
-        disabled={isDeleting}
+    <SettingsSection title="History">
+      <SettingsRow
+        id={HISTORY_MANAGEMENT_ROW_ID}
+        title="Clear history"
+        description="Remove all non-pinned conversations from your history."
       >
-        <TrashSimple className="size-4" />
-        <span>{isDeleting ? "Deleting..." : "Delete All"}</span>
-      </Button>
-    </div>
+        <Button
+          variant="destructive"
+          size="sm"
+          className="flex items-center gap-2"
+          onClick={handleDeleteAll}
+          disabled={isDeleting}
+        >
+          <TrashSimple className="size-4" />
+          <span>{isDeleting ? "Deleting..." : "Delete All"}</span>
+        </Button>
+      </SettingsRow>
+    </SettingsSection>
   )
 }
