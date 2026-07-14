@@ -1,12 +1,15 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
 import { useUser } from "@/lib/user-store/provider"
 import { AnimatePresence, motion } from "motion/react"
 import { useState } from "react"
+import { SettingsRow } from "../settings-row"
+import { SettingsSection } from "../settings-section"
+
+export const SYSTEM_PROMPT_ROW_ID = "settings-row-prompts-system-prompt"
 
 export function SystemPromptSection() {
   const { user, updateUser } = useUser()
@@ -46,43 +49,44 @@ export function SystemPromptSection() {
   const hasChanges = effectivePrompt !== (user?.system_prompt || "")
 
   return (
-    <div>
-      <Label htmlFor="system-prompt" className="mb-3 text-sm font-medium">
-        Default system prompt
-      </Label>
-      <div className="relative">
-        <Textarea
-          id="system-prompt"
-          className="min-h-24 w-full"
-          placeholder="Enter a default system prompt for new conversations"
-          value={effectivePrompt}
-          onChange={handlePromptChange}
-        />
+    <SettingsSection title="Prompts">
+      <SettingsRow
+        id={SYSTEM_PROMPT_ROW_ID}
+        align="start"
+        title="Default system prompt"
+        description="This prompt will be used for new chats."
+      >
+        <div className="relative">
+          <Textarea
+            id="system-prompt"
+            className="min-h-24 w-full"
+            placeholder="Enter a default system prompt for new conversations"
+            value={effectivePrompt}
+            onChange={handlePromptChange}
+          />
 
-        <AnimatePresence>
-          {hasChanges && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="absolute right-3 bottom-3"
-            >
-              <Button
-                size="sm"
-                onClick={savePrompt}
-                className="shadow-sm"
-                disabled={isLoading}
+          <AnimatePresence>
+            {hasChanges && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute right-3 bottom-3"
               >
-                {isLoading ? "Saving..." : "Save prompt"}
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-      <p className="text-muted-foreground mt-2 text-xs">
-        This prompt will be used for new chats.
-      </p>
-    </div>
+                <Button
+                  size="sm"
+                  onClick={savePrompt}
+                  className="shadow-sm"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Saving..." : "Save prompt"}
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </SettingsRow>
+    </SettingsSection>
   )
 }
