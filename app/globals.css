@@ -199,6 +199,20 @@ code {
   stroke: currentColor !important;
 }
 
+/* Settings search result jump highlight */
+.settings-row-highlight {
+  animation: settings-row-flash 1.2s ease-out;
+}
+
+@keyframes settings-row-flash {
+  0% {
+    background-color: var(--alpha-2);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
 /* Custom scrollbar styling for all scrollable elements */
 * {
   scrollbar-width: thin;

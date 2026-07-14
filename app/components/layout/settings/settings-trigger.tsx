@@ -4,7 +4,7 @@ import { useBreakpoint } from "@/app/hooks/use-breakpoint"
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
@@ -13,9 +13,7 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { User } from "@phosphor-icons/react"
 import type React from "react"
 import { useEffect, useState } from "react"
-import { SettingsContent } from "./settings-content"
-
-type TabType = "general" | "appearance" | "prompts" | "models" | "connections" | "mcp" | "usage" | "budget"
+import { SettingsContent, type TabType } from "./settings-content"
 
 type SettingsTriggerProps = {
   onOpenChange: (open: boolean) => void
@@ -67,10 +65,11 @@ export function SettingsTrigger({ onOpenChange }: SettingsTriggerProps) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="flex h-[80%] min-h-[480px] w-full flex-col gap-0 p-0 sm:max-w-[768px]">
-        <DialogHeader className="border-border border-b px-6 py-5">
-          <DialogTitle>Settings</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="border-alpha-1 flex h-[80%] min-h-[480px] w-full flex-row gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[860px]">
+        <DialogTitle className="sr-only">Settings</DialogTitle>
+        <DialogDescription className="sr-only">
+          Manage your account, appearance, and connection settings.
+        </DialogDescription>
         <SettingsContent activeTab={activeTab} />
       </DialogContent>
     </Dialog>

@@ -2,21 +2,20 @@
 
 import { Button } from "@/components/ui/button"
 import { DrawerClose } from "@/components/ui/drawer"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
 import { isSupabaseEnabled } from "@/lib/supabase/config"
 import { cn, isDev } from "@/lib/utils"
 import {
   CubeIcon,
-  Database,
   GearSixIcon,
   KeyIcon,
+  NotePencilIcon,
   PaintBrushIcon,
   PlugsConnectedIcon,
-  NotePencilIcon,
   XIcon,
 } from "@phosphor-icons/react"
-import { Server, DollarSign } from "lucide-react"
-import { useEffect, useState } from "react"
+import { Server, Database, DollarSign } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 import { ByokSection } from "./apikeys/byok-section"
 import { InteractionPreferences } from "./appearance/interaction-preferences"
 import { LayoutSettings } from "./appearance/layout-settings"
@@ -32,330 +31,186 @@ import { ModelsSettings } from "./models/models-settings"
 import { MCPSettings } from "./mcp/mcp-settings"
 import { UsageSettings } from "./usage/usage-settings"
 import { BudgetSettings } from "./budget/budget-settings"
+import { SettingsSection } from "./settings-section"
+import { SettingsSidebarNav } from "./settings-sidebar-nav"
+import {
+  SECTION_IDS,
+  type SettingsSearchEntry,
+  type TabType,
+} from "./settings-search-index"
+
+export type { TabType }
 
 type SettingsContentProps = {
   isDrawer?: boolean
   activeTab?: TabType
 }
 
-type TabType = "general" | "appearance" | "prompts" | "models" | "connections" | "mcp" | "usage" | "budget"
+const MOBILE_TABS: { tab: TabType; label: string; icon: React.ReactNode }[] = [
+  { tab: "general", label: "General", icon: <GearSixIcon className="size-4" /> },
+  { tab: "appearance", label: "Appearance", icon: <PaintBrushIcon className="size-4" /> },
+  { tab: "prompts", label: "Prompts", icon: <NotePencilIcon className="size-4" /> },
+  { tab: "apikeys", label: "API Keys", icon: <KeyIcon className="size-4" /> },
+  { tab: "models", label: "Models", icon: <CubeIcon className="size-4" /> },
+  { tab: "connections", label: "Connections", icon: <PlugsConnectedIcon className="size-4" /> },
+  { tab: "mcp", label: "MCP Servers", icon: <Server className="size-4" /> },
+  { tab: "usage", label: "Usage & Cost", icon: <Database className="size-4" /> },
+  { tab: "budget", label: "Budget", icon: <DollarSign className="size-4" /> },
+]
+
+function TabContent({ activeTab }: { activeTab: TabType }) {
+  switch (activeTab) {
+    case "general":
+      return (
+        <>
+          <UserProfile />
+          {isSupabaseEnabled && (
+            <>
+              <AccountManagement />
+              <HistoryManagement />
+            </>
+          )}
+        </>
+      )
+    case "appearance":
+      return (
+        <>
+          <ThemeSelection />
+          <LayoutSettings />
+          <InteractionPreferences />
+        </>
+      )
+    case "prompts":
+      return <SystemPromptSection />
+    case "apikeys":
+      return (
+        <SettingsSection id={SECTION_IDS.apikeys} title="API Keys">
+          <ByokSection />
+        </SettingsSection>
+      )
+    case "models":
+      return (
+        <SettingsSection id={SECTION_IDS.models} title="Models">
+          <ModelsSettings />
+        </SettingsSection>
+      )
+    case "connections":
+      return (
+        <SettingsSection id={SECTION_IDS.connections} title="Connections">
+          {!isDev && <ConnectionsPlaceholder />}
+          {isDev && <OllamaSection />}
+          {isDev && <DeveloperTools />}
+        </SettingsSection>
+      )
+    case "mcp":
+      return (
+        <SettingsSection id={SECTION_IDS.mcp} title="MCP Servers">
+          <MCPSettings />
+        </SettingsSection>
+      )
+    case "usage":
+      return isSupabaseEnabled ? (
+        <SettingsSection id={SECTION_IDS.usage} title="Usage & Cost">
+          <UsageSettings />
+        </SettingsSection>
+      ) : null
+    case "budget":
+      return isSupabaseEnabled ? (
+        <SettingsSection id={SECTION_IDS.budget} title="Budget">
+          <BudgetSettings />
+        </SettingsSection>
+      ) : null
+    default:
+      return null
+  }
+}
 
 export function SettingsContent({
   isDrawer = false,
   activeTab: initialActiveTab = "general",
 }: SettingsContentProps) {
   const [activeTab, setActiveTab] = useState<TabType>(initialActiveTab)
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     setActiveTab(initialActiveTab)
   }, [initialActiveTab])
 
-  return (
-    <div
-      className={cn(
-        "flex w-full flex-col overflow-y-auto",
-        isDrawer ? "p-0 pb-16" : "py-0"
-      )}
-    >
-      {isDrawer && (
-        <div className="border-border mb-2 flex items-center justify-between border-b px-4 pb-2">
-          <h2 className="text-lg font-medium">Settings</h2>
+  const handleResultSelect = useCallback((entry: SettingsSearchEntry) => {
+    setActiveTab(entry.tab)
+    setSearchQuery("")
+    requestAnimationFrame(() => {
+      const el = document.getElementById(entry.rowId)
+      if (!el) return
+      el.scrollIntoView({ block: "center", behavior: "smooth" })
+      el.classList.add("settings-row-highlight")
+      window.setTimeout(() => el.classList.remove("settings-row-highlight"), 1200)
+    })
+  }, [])
+
+  if (isDrawer) {
+    return (
+      <div className="bg-surface-2 flex w-full flex-col pb-16">
+        <div className="border-alpha-1 flex items-center justify-between border-b px-4 pb-2">
+          <h2 className="text-fg-primary text-lg font-medium">Settings</h2>
           <DrawerClose asChild>
             <Button variant="ghost" size="icon">
               <XIcon className="size-4" />
             </Button>
           </DrawerClose>
         </div>
-      )}
 
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => setActiveTab(value as TabType)}
-        className={cn(
-          "flex w-full flex-row",
-          isDrawer ? "" : "flex min-h-[400px]"
-        )}
-      >
-        {isDrawer ? (
-          // Mobile version - tabs on top
-          <div className="w-full items-start justify-start overflow-hidden py-4">
-            <div>
-              <TabsList className="mb-4 flex w-full min-w-0 flex-nowrap items-center justify-start overflow-x-auto bg-transparent px-0">
-                <TabsTrigger
-                  value="general"
-                  className="ml-6 flex shrink-0 items-center gap-2"
-                >
-                  <GearSixIcon className="size-4" />
-                  <span>General</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="appearance"
-                  className="flex shrink-0 items-center gap-2"
-                >
-                  <PaintBrushIcon className="size-4" />
-                  <span>Appearance</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="prompts"
-                  className="flex shrink-0 items-center gap-2"
-                >
-                  <NotePencilIcon className="size-4" />
-                  <span>Prompts</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="apikeys"
-                  className="flex shrink-0 items-center gap-2"
-                >
-                  <KeyIcon className="size-4" />
-                  <span>API Keys</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="models"
-                  className="flex shrink-0 items-center gap-2"
-                >
-                  <CubeIcon className="size-4" />
-                  <span>Models</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="connections"
-                  className="flex shrink-0 items-center gap-2"
-                >
-                  <PlugsConnectedIcon className="size-4" />
-                  <span>Connections</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="mcp"
-                  className="flex shrink-0 items-center gap-2"
-                >
-                  <Server className="size-4" />
-                  <span>MCP Servers</span>
-                </TabsTrigger>
-                {isSupabaseEnabled && (
-                  <>
-                    <TabsTrigger
-                      value="usage"
-                      className="flex shrink-0 items-center gap-2"
-                    >
-                      <Database className="size-4" />
-                      <span>Usage & Cost</span>
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="budget"
-                      className="mr-6 flex shrink-0 items-center gap-2"
-                    >
-                      <DollarSign className="size-4" />
-                      <span>Budget</span>
-                    </TabsTrigger>
-                  </>
-                )}
-              </TabsList>
-            </div>
+        <div className="bg-fill-field mx-4 mt-3 flex h-9 items-center gap-2 rounded px-2">
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search settings"
+            aria-label="Search settings"
+            className="h-auto min-w-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none outline-none focus-visible:ring-0"
+          />
+        </div>
 
-            {/* Mobile tabs content */}
-            <TabsContent value="general" className="space-y-6 px-6">
-              <UserProfile />
-              {isSupabaseEnabled && (
-                <>
-                  <AccountManagement />
-                  <HistoryManagement />
-                </>
+        <div className="my-3 flex w-full min-w-0 flex-nowrap items-center gap-1 overflow-x-auto px-4">
+          {MOBILE_TABS.filter(
+            (t) => !["usage", "budget"].includes(t.tab) || isSupabaseEnabled
+          ).map((t) => (
+            <button
+              key={t.tab}
+              type="button"
+              onClick={() => setActiveTab(t.tab)}
+              className={cn(
+                "flex shrink-0 items-center gap-2 rounded px-3 py-1.5 text-sm",
+                t.tab === activeTab
+                  ? "bg-alpha-2 text-fg-primary font-medium"
+                  : "text-fg-secondary"
               )}
-            </TabsContent>
+            >
+              {t.icon}
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </div>
 
-            <TabsContent value="appearance" className="space-y-6 px-6">
-              <ThemeSelection />
-              <LayoutSettings />
-              <InteractionPreferences />
-            </TabsContent>
+        <div className="px-6">
+          <TabContent activeTab={activeTab} />
+        </div>
+      </div>
+    )
+  }
 
-            <TabsContent value="prompts" className="space-y-6 px-6">
-              <SystemPromptSection />
-            </TabsContent>
-
-            <TabsContent value="apikeys" className="px-6">
-              <ByokSection />
-            </TabsContent>
-
-            <TabsContent value="models" className="px-6">
-              <ModelsSettings />
-            </TabsContent>
-
-            <TabsContent value="connections" className="space-y-6 px-6">
-              {!isDev && <ConnectionsPlaceholder />}
-              {isDev && <OllamaSection />}
-              {isDev && <DeveloperTools />}
-            </TabsContent>
-
-            <TabsContent value="mcp" className="space-y-6 px-6">
-              <MCPSettings />
-            </TabsContent>
-
-            {isSupabaseEnabled && (
-              <>
-                <TabsContent value="usage" className="space-y-6 px-6">
-                  <UsageSettings />
-                </TabsContent>
-
-                <TabsContent value="budget" className="space-y-6 px-6">
-                  <BudgetSettings />
-                </TabsContent>
-              </>
-            )}
-          </div>
-        ) : (
-          // Desktop version - tabs on left
-          <>
-            <TabsList className="block w-48 rounded-none bg-transparent px-3 pt-4">
-              <div className="flex w-full flex-col gap-1">
-                <TabsTrigger
-                  value="general"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <GearSixIcon className="size-4" />
-                    <span>General</span>
-                  </div>
-                </TabsTrigger>
-
-                <TabsTrigger
-                  value="appearance"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <PaintBrushIcon className="size-4" />
-                    <span>Appearance</span>
-                  </div>
-                </TabsTrigger>
-
-                <TabsTrigger
-                  value="prompts"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <NotePencilIcon className="size-4" />
-                    <span>Prompts</span>
-                  </div>
-                </TabsTrigger>
-
-                <TabsTrigger
-                  value="apikeys"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <KeyIcon className="size-4" />
-                    <span>API Keys</span>
-                  </div>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="models"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <CubeIcon className="size-4" />
-                    <span>Models</span>
-                  </div>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="connections"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <PlugsConnectedIcon className="size-4" />
-                    <span>Connections</span>
-                  </div>
-                </TabsTrigger>
-
-                <TabsTrigger
-                  value="mcp"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <Server className="size-4" />
-                    <span>MCP Servers</span>
-                  </div>
-                </TabsTrigger>
-
-                {isSupabaseEnabled && (
-                  <>
-                    <TabsTrigger
-                      value="usage"
-                      className="w-full justify-start rounded-md px-3 py-2 text-left"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Database className="size-4" />
-                        <span>Usage & Cost</span>
-                      </div>
-                    </TabsTrigger>
-
-                    <TabsTrigger
-                      value="budget"
-                      className="w-full justify-start rounded-md px-3 py-2 text-left"
-                    >
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="size-4" />
-                        <span>Budget</span>
-                      </div>
-                    </TabsTrigger>
-                  </>
-                )}
-              </div>
-            </TabsList>
-
-            {/* Desktop tabs content */}
-            <div className="flex-1 overflow-auto px-6 pt-4">
-              <TabsContent value="general" className="mt-0 space-y-6">
-                <UserProfile />
-                {isSupabaseEnabled && (
-                  <>
-                    <AccountManagement />
-                    <HistoryManagement />
-                  </>
-                )}
-              </TabsContent>
-
-              <TabsContent value="appearance" className="mt-0 space-y-6">
-                <ThemeSelection />
-                <LayoutSettings />
-                <InteractionPreferences />
-              </TabsContent>
-
-              <TabsContent value="prompts" className="mt-0 space-y-6">
-                <SystemPromptSection />
-              </TabsContent>
-
-              <TabsContent value="apikeys" className="mt-0 space-y-6">
-                <ByokSection />
-              </TabsContent>
-
-              <TabsContent value="models" className="mt-0 space-y-6">
-                <ModelsSettings />
-              </TabsContent>
-
-              <TabsContent value="connections" className="mt-0 space-y-6">
-                {!isDev && <ConnectionsPlaceholder />}
-                {isDev && <OllamaSection />}
-                {isDev && <DeveloperTools />}
-              </TabsContent>
-
-              <TabsContent value="mcp" className="mt-0 space-y-6">
-                <MCPSettings />
-              </TabsContent>
-
-              {isSupabaseEnabled && (
-                <>
-                  <TabsContent value="usage" className="mt-0 space-y-6">
-                    <UsageSettings />
-                  </TabsContent>
-
-                  <TabsContent value="budget" className="mt-0 space-y-6">
-                    <BudgetSettings />
-                  </TabsContent>
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </Tabs>
+  return (
+    <div className="bg-surface-2 flex min-h-0 w-full flex-1 flex-row">
+      <SettingsSidebarNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        onResultSelect={handleResultSelect}
+        supabaseEnabled={isSupabaseEnabled}
+      />
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-8 py-6">
+        <TabContent activeTab={activeTab} />
+      </div>
     </div>
   )
 }
