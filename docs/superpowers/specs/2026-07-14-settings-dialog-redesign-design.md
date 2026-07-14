@@ -45,7 +45,11 @@ Design tokens referenced by the target layout (`surface-1`, `surface-2`,
   - `segmented-control.tsx` (in `components/ui/` or
     `components/common/`, matching existing conventions) — replaces the
     hand-rolled theme-picker button grid; used for Appearance (System/Light/
-    Dark) and Motion (System/Reduced).
+    Dark). The reference layout also shows a Motion (System/Reduced) control,
+    but Zola has no reduced-motion preference anywhere in the codebase today
+    — per the "no new settings" scope rule below, this is not added; the
+    component is written generically so a future Motion preference could
+    reuse it.
   - `settings-search-index.ts` — flat static array of
     `{ tab: TabType, rowId: string, label: string, description?: string }`,
     one entry per searchable row across all tabs, hand-maintained alongside
