@@ -5,6 +5,8 @@ import {
 import { cn } from "@/lib/utils"
 import * as React from "react"
 import type { SVGProps } from "react"
+import { SettingsRow } from "../settings-row"
+import { SettingsSection } from "../settings-section"
 
 const LayoutSidebar = (props: SVGProps<SVGSVGElement>) => {
   return (
@@ -236,6 +238,8 @@ const LayoutFullscreen = (props: SVGProps<SVGSVGElement>) => {
   )
 }
 
+export const LAYOUT_SETTINGS_ROW_ID = "settings-row-appearance-layout"
+
 export function LayoutSettings() {
   const { preferences, setLayout } = useUserPreferences()
 
@@ -244,35 +248,41 @@ export function LayoutSettings() {
   }
 
   return (
-    <div>
-      <h3 className="mb-3 text-sm font-medium">Layout</h3>
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={() => handleLayoutChange("sidebar")}
-          className={cn(
-            "rounded-lg border p-3 text-left transition-colors",
-            preferences.layout === "sidebar"
-              ? "border-primary ring-primary/30 ring-2"
-              : "border-border hover:bg-muted/50"
-          )}
-        >
-          <LayoutSidebar className="h-full w-full" />
-        </button>
+    <SettingsSection title="Layout">
+      <SettingsRow
+        id={LAYOUT_SETTINGS_ROW_ID}
+        align="start"
+        title="Sidebar layout"
+        description="Choose how the app sidebar is displayed."
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => handleLayoutChange("sidebar")}
+            className={cn(
+              "rounded-lg border p-3 text-left transition-colors",
+              preferences.layout === "sidebar"
+                ? "border-primary ring-primary/30 ring-2"
+                : "border-alpha-1 hover:bg-fill-ghost-hover"
+            )}
+          >
+            <LayoutSidebar className="h-full w-full" />
+          </button>
 
-        <button
-          type="button"
-          onClick={() => handleLayoutChange("fullscreen")}
-          className={cn(
-            "rounded-lg border p-3 text-left transition-colors",
-            preferences.layout === "fullscreen"
-              ? "border-primary ring-primary/30 ring-2"
-              : "border-border hover:bg-muted/50"
-          )}
-        >
-          <LayoutFullscreen className="h-full w-full" />
-        </button>
-      </div>
-    </div>
+          <button
+            type="button"
+            onClick={() => handleLayoutChange("fullscreen")}
+            className={cn(
+              "rounded-lg border p-3 text-left transition-colors",
+              preferences.layout === "fullscreen"
+                ? "border-primary ring-primary/30 ring-2"
+                : "border-alpha-1 hover:bg-fill-ghost-hover"
+            )}
+          >
+            <LayoutFullscreen className="h-full w-full" />
+          </button>
+        </div>
+      </SettingsRow>
+    </SettingsSection>
   )
 }
