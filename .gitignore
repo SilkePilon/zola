@@ -52,3 +52,5 @@ bun.lockb
 bun.lock
 
 /.cursor
+
+.worktrees/
