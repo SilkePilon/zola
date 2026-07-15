@@ -97,52 +97,89 @@ Add your own AI models to the interface through the settings panel. Use any Open
 
 ## Quick Start
 
-### Option 1: Cloud Models (OpenAI, Anthropic, etc.)
+Zola needs Postgres (data + auth) and MinIO (file uploads). Docker Compose brings up all three services, applies the database migrations, and starts the app — it's the fastest way in and the recommended setup.
+
+### Docker (recommended)
+
+**Prerequisites:** [Docker](https://docs.docker.com/get-docker/) with Compose v2 (`docker compose version`).
 
 ```bash
-# Clone the repository
+# 1. Clone
 git clone https://github.com/SilkePilon/zola.git
 cd zola
 
-# Install dependencies
-npm install
+# 2. Create your env file
+cp .env.example .env.local
 
-# Start the development server
-npm run dev
+# 3. Generate the three required secrets and append them
+{
+  echo "ENCRYPTION_KEY=$(openssl rand -base64 32)"
+  echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)"
+  echo "CSRF_SECRET=$(openssl rand -hex 32)"
+} >> .env.local
+
+# 4. Start everything
+docker compose up -d
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser, then add your API keys through the Settings interface. Navigate to Settings > API Keys and securely add keys for the providers you want to use. All keys are encrypted before storage.
+Open [http://localhost:3000](http://localhost:3000), create an account with email and password, then add your AI provider keys under **Settings > API Keys** (encrypted at rest with AES-256).
 
-### Option 2: Local AI with Ollama (Recommended)
+That's the whole setup. Postgres, MinIO, and database migrations are all handled for you.
+
+> [!NOTE]
+> `.env.local` has duplicate keys after step 3 (the empty ones from `.env.example` and the generated ones appended). The last value wins, so this works — edit the file by hand if you'd rather keep it tidy.
+
+**Useful commands:**
 
 ```bash
-# Install Ollama
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# Pull a model (e.g., LLaMA 3.2)
-ollama pull llama3.2
-
-# Clone and run Zola
-git clone https://github.com/SilkePilon/zola.git
-cd zola
-npm install
-npm run dev
+docker compose logs -f zola    # tail app logs
+docker compose down            # stop
+docker compose down -v         # stop and delete all data
+docker compose up -d --build   # rebuild after changing code
 ```
 
-Zola will automatically detect all your Ollama models. No configuration needed - just start chatting with your local models completely free and private.
+### Docker with Ollama
+
+Adds a local Ollama container for free local models with no API keys. `docker-compose.ollama.yml` is an *override*, so pass both files (base first) — it reuses the Postgres, MinIO, and migration setup from the main compose file:
+
+```bash
+# After the same clone + .env.local steps as above
+docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d
+
+# Pull a model
+docker compose -f docker-compose.yml -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
+```
+
+Zola detects your Ollama models automatically — no configuration needed.
 
 > [!TIP]
-> Using Ollama is completely free and runs entirely on your machine. Perfect for privacy-conscious users or those who want to avoid API costs!
+> Ollama is completely free and runs entirely on your machine. Ideal if you're privacy-conscious or want to avoid API costs.
 
-### Option 3: Docker with Ollama
+### Local development
+
+Only needed if you're changing Zola's code. `npm run dev` does **not** start Postgres or MinIO, so bring those up with Docker first:
 
 ```bash
 git clone https://github.com/SilkePilon/zola.git
 cd zola
-docker-compose -f docker-compose.ollama.yml up
+npm install
+
+cp .env.example .env.local
+{
+  echo "ENCRYPTION_KEY=$(openssl rand -base64 32)"
+  echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)"
+  echo "CSRF_SECRET=$(openssl rand -hex 32)"
+} >> .env.local
+
+# Start just the dependencies
+docker compose up -d postgres minio
+
+# Create the schema, then run the dev server
+npm run db:migrate
+npm run dev
 ```
 
-Access Zola at [http://localhost:3000](http://localhost:3000). Add API keys for cloud providers through Settings, or use the pre-configured Ollama models immediately.
+The default `.env.example` values already point at those containers on `localhost`.
 
 ---
 
@@ -150,80 +187,83 @@ Access Zola at [http://localhost:3000](http://localhost:3000). Add API keys for 
 
 ### Full Installation Guide
 
-For complete setup instructions including database configuration (self-hosted Postgres + Drizzle), authentication setup (Google OAuth, guest mode via Better Auth), file upload configuration (MinIO), and environment variables, see the [INSTALL.md](./INSTALL.md) guide.
+[INSTALL.md](./INSTALL.md) covers everything: environment variables, authentication (email/password plus optional Google and GitHub OAuth via Better Auth, with guest sessions), database configuration (self-hosted Postgres + Drizzle), file uploads (MinIO), Ollama, production deployment, and troubleshooting.
 
 > [!NOTE]
-> Zola requires a self-hosted Postgres database (via Docker Compose) for authentication and data storage — see [INSTALL.md](./INSTALL.md) for setup.
+> Zola needs Postgres and MinIO to run — `docker compose up -d` provides both, along with the app. There's no reduced-functionality mode without them.
 
 ### Adding Custom Models
 
-Zola supports adding custom AI models in two ways:
+Zola supports adding custom AI models in two ways.
 
-#### Method 1: Add Custom Models via UI
+#### Method 1: Add a Custom Model via the UI
 
-1. Log in to your Zola instance
-2. Open Settings and navigate to Models
-3. Click "Add Custom Model"
+1. Sign in to your Zola instance
+2. Open **Settings** > **Models**
+3. Click **Add Custom Model**
 4. Fill in the model details:
-   - Model Name: Display name (e.g., "My Custom GPT-4")
-   - Model ID: The actual model identifier (e.g., `gpt-4-custom`)
-   - Provider: Select from available providers or use "Custom"
-   - Base URL (if Custom): Your API endpoint (e.g., `https://api.example.com/v1`)
-   - Context Window: Maximum tokens (e.g., `128000`)
-   - Pricing: Input/output cost per 1M tokens
-   - Capabilities: Enable vision, tools, reasoning, audio, video support
-5. Click "Add Model"
+   - **Model Name** — display name (e.g. "My Custom GPT-4")
+   - **Model ID** — the actual model identifier (e.g. `gpt-4-custom`)
+   - **Provider** — pick an existing provider, or "Custom"
+   - **Base URL** (if Custom) — your API endpoint (e.g. `https://api.example.com/v1`)
+   - **Context Window** — maximum tokens (e.g. `128000`)
+   - **Pricing** — input/output cost per 1M tokens
+   - **Capabilities** — vision, tools, reasoning, audio, video
+5. Click **Add Model**
 
-Your custom model will now appear in the model selector. 2. **Fork the [models.dev repository](https://github.com/modelcontextprotocol/models.dev)** 3. **Add your provider/model** to `api.json`:
+The model appears in your model selector immediately. Custom models are stored per-user.
 
 #### Method 2: Contribute to models.dev
 
-To make your model available to all Zola users and the broader AI community:
+To make a model available to every Zola user — and to the wider ecosystem:
 
-1. Visit [models.dev](https://models.dev)
-2. Fork the [models.dev repository](https://github.com/modelcontextprotocol/models.dev)
-3. Add your provider/model to `api.json`:
+1. Fork the [models.dev repository](https://github.com/modelcontextprotocol/models.dev)
+2. Add your provider/model to `api.json`:
 
-```
+```json
 {
-    "api": "https://api.yourprovider.com/v1",
-    "env": ["YOUR_PROVIDER_API_KEY_ENV_VAR"],
-    "models": {
-        "your-model-id": {
-            "id": "your-model-id",
-            "name": "Your Model Name",
-            "tool_call": true,
-            "attachment": true,
-            "cost": {
-                "input": 0.5,
-                "output": 1.5
-            },
-            "limit": {
-                "context": 128000,
-                "output": 4096
-            },
-            "modalities": {
-                "input": ["text", "image"],
-                "output": ["text"]
-4. **Submit a Pull Request**
-5. Once merged, your model will be available in Zola (and other tools using models.dev)!
+  "api": "https://api.yourprovider.com/v1",
+  "env": ["YOUR_PROVIDER_API_KEY_ENV_VAR"],
+  "models": {
+    "your-model-id": {
+      "id": "your-model-id",
+      "name": "Your Model Name",
+      "tool_call": true,
+      "attachment": true,
+      "cost": { "input": 0.5, "output": 1.5 },
+      "limit": { "context": 128000, "output": 4096 },
+      "modalities": { "input": ["text", "image"], "output": ["text"] }
+    }
+  }
+}
+```
+
+3. Submit a pull request
+
+Once merged, the model is available in Zola automatically — no change to this repository is needed, since the catalog is fetched from the models.dev API at runtime.
 
 > [!TIP]
-> Contributing to models.dev makes your model available not just in Zola, but across the entire ecosystem of tools that use the models.dev API!
-
-#### OpenAI-Compatible APIs
-```
-
-4. **Submit a Pull Request**
-5. Once merged, your model will be available in Zola (and other tools using models.dev)!
+> Contributing to models.dev makes your model available not just in Zola, but across the entire ecosystem of tools that use the models.dev API.
 
 #### OpenAI-Compatible APIs
 
 Zola works with any OpenAI-compatible API. Popular options include:
 
-- OpenRouter - Access 100+ models through one API
-- Together AI - Fast inference for open-source models
-- Replicate - Run models with auto-scaling
-- LocalAI - Self-hosted OpenAI alternative
-- LM Studio - Desktop app with API server
-- Text Generation WebUI - Popular UI with OpenAI API extension
+- **OpenRouter** - Access 100+ models through one API
+- **Together AI** - Fast inference for open-source models
+- **Replicate** - Run models with auto-scaling
+- **LocalAI** - Self-hosted OpenAI alternative
+- **LM Studio** - Desktop app with API server
+- **Text Generation WebUI** - Popular UI with OpenAI API extension
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome — see [GitHub Issues](https://github.com/SilkePilon/zola/issues).
+
+To add support for a new model or provider, contribute to [models.dev](https://models.dev) rather than this repo (see above).
+
+## License
+
+Zola is open-source software licensed under the [Apache License 2.0](LICENSE).

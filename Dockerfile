@@ -24,6 +24,26 @@ COPY . .
 # Set Next.js telemetry to disabled
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Build-time placeholders. `next build` collects page data, which imports
+# modules that throw when these are unset (lib/encryption.ts, lib/csrf.ts,
+# lib/auth.ts, lib/db/client.ts) — the build fails without them.
+#
+# These are NOT secrets and are never used at runtime: this is the `builder`
+# stage, and the `runner` stage below starts from a clean base, so none of them
+# reach the final image. Real values are injected by docker-compose at runtime.
+# None are NEXT_PUBLIC_*, so nothing here is inlined into the client bundle.
+ENV DATABASE_URL=postgres://build:build@localhost:5432/build
+ENV ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+ENV CSRF_SECRET=build-time-placeholder
+ENV BETTER_AUTH_SECRET=build-time-placeholder
+ENV MINIO_ENDPOINT=localhost
+ENV MINIO_PORT=9000
+ENV MINIO_USE_SSL=false
+ENV MINIO_ACCESS_KEY=build
+ENV MINIO_SECRET_KEY=build-time-placeholder
+ENV MINIO_BUCKET=chat-attachments
+ENV MINIO_PUBLIC_URL=http://localhost:9000
+
 # Build the application
 RUN npm run build
 
@@ -33,6 +53,17 @@ RUN ls -la .next/ && \
       echo "ERROR: .next/standalone directory not found. Make sure output: 'standalone' is set in next.config.ts"; \
       exit 1; \
     fi
+
+# One-shot migration runner, used by the `migrate` service in docker-compose.
+# Kept separate from `runner` so the app image stays free of drizzle-kit and the
+# migration SQL. Needs node_modules (drizzle-kit is a devDependency), the config,
+# and lib/db (schema + migrations).
+FROM base AS migrator
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json drizzle.config.ts ./
+COPY lib/db ./lib/db
+CMD ["npx", "drizzle-kit", "migrate"]
 
 # Production image, copy all the files and run next
 FROM base AS runner
