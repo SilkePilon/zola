@@ -1,34 +1,8 @@
 import { APP_DOMAIN } from "@/lib/config"
+import { authClient } from "@/lib/auth-client"
 import type { UserProfile } from "@/lib/user/types"
-import { SupabaseClient } from "@supabase/supabase-js"
 import { fetchClient } from "./fetch"
-import { API_ROUTE_CREATE_GUEST, API_ROUTE_UPDATE_CHAT_MODEL } from "./routes"
-import { createClient } from "./supabase/client"
-
-/**
- * Creates a guest user record on the server
- */
-export async function createGuestUser(guestId: string) {
-  try {
-    const res = await fetchClient(API_ROUTE_CREATE_GUEST, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: guestId }),
-    })
-    const responseData = await res.json()
-    if (!res.ok) {
-      throw new Error(
-        responseData.error ||
-          `Failed to create guest user: ${res.status} ${res.statusText}`
-      )
-    }
-
-    return responseData
-  } catch (err) {
-    console.error("Error creating guest user:", err)
-    throw err
-  }
-}
+import { API_ROUTE_UPDATE_CHAT_MODEL } from "./routes"
 
 export class UsageLimitError extends Error {
   code: string
@@ -100,58 +74,37 @@ export async function updateChatModel(chatId: string, model: string) {
 }
 
 /**
- * Signs in user with Google OAuth via Supabase
- * @param supabase - Supabase client instance
+ * Signs in user with Google OAuth via Better Auth
  * @param redirectPath - Optional path to redirect to after successful login (defaults to current path or /)
  */
-export async function signInWithGoogle(
-  supabase: SupabaseClient,
-  redirectPath?: string
-) {
+export async function signInWithGoogle(redirectPath?: string) {
   try {
-    // Prefer the actual origin we started from (works for dev custom ports and prod)
-    const baseUrl = typeof window !== "undefined"
-      ? window.location.origin
-      : process.env.NEXT_PUBLIC_SITE_URL
-        ? process.env.NEXT_PUBLIC_SITE_URL
-        : process.env.NEXT_PUBLIC_VERCEL_URL
-          ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-          : APP_DOMAIN
+    const baseUrl =
+      typeof window !== "undefined"
+        ? window.location.origin
+        : process.env.NEXT_PUBLIC_SITE_URL
+          ? process.env.NEXT_PUBLIC_SITE_URL
+          : process.env.NEXT_PUBLIC_VERCEL_URL
+            ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+            : APP_DOMAIN
 
-    // Determine the path to redirect to after login
     let nextPath = redirectPath
-    
+
     if (!nextPath && typeof window !== "undefined") {
       const currentPath = `${window.location.pathname}${window.location.search}`
-      // Don't redirect back to auth pages
-      if (currentPath.startsWith("/auth")) {
-        nextPath = "/"
-      } else {
-        nextPath = currentPath || "/"
-      }
+      nextPath = currentPath.startsWith("/auth") ? "/" : currentPath || "/"
     }
-    
+
     nextPath = nextPath || "/"
 
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await authClient.signIn.social({
       provider: "google",
-      options: {
-        redirectTo: `${baseUrl}/auth/callback?next=${encodeURIComponent(
-          nextPath
-        )}`,
-        queryParams: {
-          access_type: "offline",
-          prompt: "consent",
-        },
-      },
+      callbackURL: `${baseUrl}${nextPath}`,
     })
 
     if (error) {
-      throw error
+      throw new Error(error.message)
     }
-
-    // Return the provider URL
-    return data
   } catch (err) {
     console.error("Error signing in with Google:", err)
     throw err
@@ -163,60 +116,21 @@ export const getOrCreateGuestUserId = async (
 ): Promise<string | null> => {
   if (user?.id) return user.id
 
-  const supabase = createClient()
-
-  if (!supabase) {
-    console.warn("Supabase is not available in this deployment.")
-    return null
-  }
-
-  const existingGuestSessionUser = await supabase.auth.getUser()
-  if (
-    existingGuestSessionUser.data?.user &&
-    existingGuestSessionUser.data.user.is_anonymous
-  ) {
-    const anonUserId = existingGuestSessionUser.data.user.id
-
-    const profileCreationAttempted = localStorage.getItem(
-      `guestProfileAttempted_${anonUserId}`
-    )
-
-    if (!profileCreationAttempted) {
-      try {
-        await createGuestUser(anonUserId)
-        localStorage.setItem(`guestProfileAttempted_${anonUserId}`, "true")
-      } catch (error) {
-        console.error(
-          "Failed to ensure guest user profile exists for existing anonymous auth user:",
-          error
-        )
-        return null
-      }
-    }
-    return anonUserId
-  }
+  const { data: session } = await authClient.getSession()
+  if (session?.user?.id) return session.user.id
 
   try {
-    const { data: anonAuthData, error: anonAuthError } =
-      await supabase.auth.signInAnonymously()
+    const { data, error } = await authClient.signIn.anonymous()
 
-    if (anonAuthError) {
-      console.error("Error during anonymous sign-in:", anonAuthError)
+    if (error || !data?.user) {
+      console.error("Error during anonymous sign-in:", error)
       return null
     }
 
-    if (!anonAuthData || !anonAuthData.user) {
-      console.error("Anonymous sign-in did not return a user.")
-      return null
-    }
-
-    const guestIdFromAuth = anonAuthData.user.id
-    await createGuestUser(guestIdFromAuth)
-    localStorage.setItem(`guestProfileAttempted_${guestIdFromAuth}`, "true")
-    return guestIdFromAuth
+    return data.user.id
   } catch (error) {
     console.error(
-      "Error in getOrCreateGuestUserId during anonymous sign-in or profile creation:",
+      "Error in getOrCreateGuestUserId during anonymous sign-in:",
       error
     )
     return null

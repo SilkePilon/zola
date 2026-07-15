@@ -1,19 +1,14 @@
 import { ChatContainer } from "@/app/components/chat/chat-container"
 import { LayoutApp } from "@/app/components/layout/layout-app"
+import { auth } from "@/lib/auth"
 import { MessagesProvider } from "@/lib/chat-store/messages/provider"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
-import { createClient } from "@/lib/supabase/server"
+import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
 export default async function Page() {
-  if (isSupabaseEnabled) {
-    const supabase = await createClient()
-    if (supabase) {
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-      if (userError || !userData?.user) {
-        redirect("/")
-      }
-    }
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) {
+    redirect("/")
   }
 
   return (

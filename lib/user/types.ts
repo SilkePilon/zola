@@ -1,8 +1,6 @@
-import type { Tables } from "@/app/types/database.types"
+import type { mapUserRow } from "@/lib/db/mappers"
 import type { UserPreferences } from "../user-preference-store/utils"
 
-export type UserProfile = {
-  profile_image: string
-  display_name: string
+export type UserProfile = ReturnType<typeof mapUserRow> & {
   preferences?: UserPreferences
-} & Tables<"users">
+}
