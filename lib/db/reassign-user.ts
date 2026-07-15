@@ -15,7 +15,7 @@ import {
   userPreferences,
   users,
 } from "@/lib/db/schema"
-import { and, eq } from "drizzle-orm"
+import { and, eq, isNull } from "drizzle-orm"
 
 export async function reassignUserData(
   fromUserId: string,
@@ -108,21 +108,23 @@ export async function reassignUserData(
       .set({ userId: toUserId })
       .where(eq(modelUsage.userId, fromUserId))
     // budget_limits has a unique index on (user_id, provider_id). Postgres
-    // treats NULL provider_id as distinct across rows, so only non-null
-    // provider_id values can actually collide, but handle both the same way.
+    // treats NULL provider_id as distinct across rows at the *index* level,
+    // but at the application level a null provider_id means "global budget
+    // for this user" and there should still only be one such row per user —
+    // so the null case needs an explicit IS NULL collision check here too,
+    // not just the non-null provider_id values.
     const fromBudgetLimits = await tx.query.budgetLimits.findMany({
       where: eq(budgetLimits.userId, fromUserId),
     })
     for (const limit of fromBudgetLimits) {
-      const existingTargetLimit =
-        limit.providerId === null
-          ? undefined
-          : await tx.query.budgetLimits.findFirst({
-              where: and(
-                eq(budgetLimits.userId, toUserId),
-                eq(budgetLimits.providerId, limit.providerId)
-              ),
-            })
+      const existingTargetLimit = await tx.query.budgetLimits.findFirst({
+        where: and(
+          eq(budgetLimits.userId, toUserId),
+          limit.providerId === null
+            ? isNull(budgetLimits.providerId)
+            : eq(budgetLimits.providerId, limit.providerId)
+        ),
+      })
       if (existingTargetLimit) {
         await tx.delete(budgetLimits).where(eq(budgetLimits.id, limit.id))
       } else {
