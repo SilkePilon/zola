@@ -1,4 +1,9 @@
-import { createClient } from "@/lib/supabase/server"
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db/client"
+import { mapProjectRow } from "@/lib/db/mappers"
+import { projects } from "@/lib/db/schema"
+import { and, eq } from "drizzle-orm"
+import { headers } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(
@@ -7,43 +12,31 @@ export async function GET(
 ) {
   try {
     const { projectId } = await params
-    const supabase = await createClient()
-
-    if (!supabase) {
-      return new Response(
-        JSON.stringify({ error: "Supabase not available in this deployment." }),
-        { status: 200 }
-      )
-    }
-
-    const { data: authData } = await supabase.auth.getUser()
-
-    if (!authData?.user?.id) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data, error } = await supabase
-      .from("projects")
-      .select("*")
-      .eq("id", projectId)
-      .eq("user_id", authData.user.id)
-      .single()
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const [data] = await db
+      .select()
+      .from(projects)
+      .where(
+        and(eq(projects.id, projectId), eq(projects.userId, session.user.id))
+      )
+      .limit(1)
 
     if (!data) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 })
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      )
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json(mapProjectRow(data))
   } catch (err: unknown) {
     console.error("Error in project endpoint:", err)
-    return new Response(
-      JSON.stringify({
-        error: (err as Error).message || "Internal server error",
-      }),
+    return NextResponse.json(
+      { error: (err as Error).message || "Internal server error" },
       { status: 500 }
     )
   }
@@ -64,44 +57,31 @@ export async function PUT(
       )
     }
 
-    const supabase = await createClient()
-
-    if (!supabase) {
-      return new Response(
-        JSON.stringify({ error: "Supabase not available in this deployment." }),
-        { status: 200 }
-      )
-    }
-
-    const { data: authData } = await supabase.auth.getUser()
-
-    if (!authData?.user?.id) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data, error } = await supabase
-      .from("projects")
-      .update({ name: name.trim() })
-      .eq("id", projectId)
-      .eq("user_id", authData.user.id)
-      .select()
-      .single()
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const [data] = await db
+      .update(projects)
+      .set({ name: name.trim() })
+      .where(
+        and(eq(projects.id, projectId), eq(projects.userId, session.user.id))
+      )
+      .returning()
 
     if (!data) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 })
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      )
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json(mapProjectRow(data))
   } catch (err: unknown) {
     console.error("Error updating project:", err)
-    return new Response(
-      JSON.stringify({
-        error: (err as Error).message || "Internal server error",
-      }),
+    return NextResponse.json(
+      { error: (err as Error).message || "Internal server error" },
       { status: 500 }
     )
   }
@@ -113,51 +93,30 @@ export async function DELETE(
 ) {
   try {
     const { projectId } = await params
-    const supabase = await createClient()
-
-    if (!supabase) {
-      return new Response(
-        JSON.stringify({ error: "Supabase not available in this deployment." }),
-        { status: 200 }
-      )
-    }
-
-    const { data: authData } = await supabase.auth.getUser()
-
-    if (!authData?.user?.id) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // First verify the project exists and belongs to the user
-    const { data: project, error: fetchError } = await supabase
-      .from("projects")
-      .select("id")
-      .eq("id", projectId)
-      .eq("user_id", authData.user.id)
-      .single()
+    const result = await db
+      .delete(projects)
+      .where(
+        and(eq(projects.id, projectId), eq(projects.userId, session.user.id))
+      )
+      .returning({ id: projects.id })
 
-    if (fetchError || !project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 })
-    }
-
-    // Delete the project (this will cascade delete related chats due to FK constraint)
-    const { error } = await supabase
-      .from("projects")
-      .delete()
-      .eq("id", projectId)
-      .eq("user_id", authData.user.id)
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (result.length === 0) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      )
     }
 
     return NextResponse.json({ success: true })
   } catch (err: unknown) {
     console.error("Error deleting project:", err)
-    return new Response(
-      JSON.stringify({
-        error: (err as Error).message || "Internal server error",
-      }),
+    return NextResponse.json(
+      { error: (err as Error).message || "Internal server error" },
       { status: 500 }
     )
   }

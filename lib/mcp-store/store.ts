@@ -15,7 +15,7 @@ import {
   updateMCPServerInSupabase,
   deleteMCPServerFromSupabase,
   clearAllMCPServersInSupabase,
-} from "./supabase"
+} from "./api"
 
 export type MCPStore = {
   servers: MCPServerConfig[]

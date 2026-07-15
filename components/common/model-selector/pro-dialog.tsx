@@ -16,7 +16,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { APP_NAME } from "@/lib/config"
-import { createClient } from "@/lib/supabase/client"
+import { fetchClient } from "@/lib/fetch"
 import { useUser } from "@/lib/user-store/provider"
 import { useMutation } from "@tanstack/react-query"
 import Image from "next/image"
@@ -38,14 +38,17 @@ export function ProModelDialog({
     mutationFn: async () => {
       if (!user?.id) throw new Error("Missing user")
 
-      const supabase = await createClient()
-      if (!supabase) throw new Error("Missing supabase")
-      const { error } = await supabase.from("feedback").insert({
-        message: `I want access to ${currentModel}`,
-        user_id: user.id,
+      const res = await fetchClient("/api/feedback", {
+        method: "POST",
+        body: JSON.stringify({
+          message: `I want access to ${currentModel}`,
+        }),
       })
 
-      if (error) throw new Error(error.message)
+      if (!res.ok) {
+        const { error } = await res.json()
+        throw new Error(error || "Failed to submit feedback")
+      }
     },
   })
 

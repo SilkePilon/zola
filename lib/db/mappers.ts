@@ -3,11 +3,14 @@ import type {
   BudgetLimit,
   Chat,
   CustomModel,
+  McpServer,
   Message,
   NewUser,
+  Project,
   User,
   UserPreference,
 } from "@/lib/db/schema"
+import type { MCPServerConfig } from "@/lib/mcp-store/types"
 
 export function mapUserRow(row: User) {
   return {
@@ -165,5 +168,32 @@ export function mapCustomModelRow(row: CustomModel) {
     video: row.video ?? false,
     created_at: row.createdAt ? row.createdAt.toISOString() : null,
     updated_at: row.updatedAt ? row.updatedAt.toISOString() : null,
+  }
+}
+
+export function mapMcpServerRow(row: McpServer): MCPServerConfig {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description || undefined,
+    enabled: row.enabled ?? false,
+    transportType: row.transportType as "http" | "sse",
+    url: row.url || undefined,
+    headers: (row.headers as Record<string, string>) || undefined,
+    createdAt: row.createdAt
+      ? row.createdAt.toISOString()
+      : new Date().toISOString(),
+    updatedAt: row.updatedAt
+      ? row.updatedAt.toISOString()
+      : new Date().toISOString(),
+  }
+}
+
+export function mapProjectRow(row: Project) {
+  return {
+    id: row.id,
+    name: row.name,
+    user_id: row.userId,
+    created_at: row.createdAt ? row.createdAt.toISOString() : null,
   }
 }
