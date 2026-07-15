@@ -1,4 +1,4 @@
-import type { NewUser, User } from "@/lib/db/schema"
+import type { NewUser, User, UserPreference } from "@/lib/db/schema"
 
 export function mapUserRow(row: User) {
   return {
@@ -23,6 +23,24 @@ export function mapUserRow(row: User) {
 }
 
 export type UserProfileRow = ReturnType<typeof mapUserRow>
+
+/**
+ * Maps a Drizzle `userPreferences` row (camelCase JS property names, e.g.
+ * `promptSuggestions`) to the snake_case shape `convertFromApiFormat`
+ * (`@/lib/user-preference-store/utils`) expects. Without this, the field
+ * names don't line up and every preference silently falls back to its
+ * default value on every profile fetch.
+ */
+export function mapUserPreferencesRow(row: UserPreference) {
+  return {
+    layout: row.layout,
+    prompt_suggestions: row.promptSuggestions,
+    show_tool_invocations: row.showToolInvocations,
+    show_conversation_previews: row.showConversationPreviews,
+    multi_model_enabled: row.multiModelEnabled,
+    hidden_models: row.hiddenModels,
+  }
+}
 
 export function mapUserProfileUpdates(
   updates: Partial<{

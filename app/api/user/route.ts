@@ -1,6 +1,10 @@
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db/client"
-import { mapUserProfileUpdates, mapUserRow } from "@/lib/db/mappers"
+import {
+  mapUserPreferencesRow,
+  mapUserProfileUpdates,
+  mapUserRow,
+} from "@/lib/db/mappers"
 import { userPreferences, users } from "@/lib/db/schema"
 import { convertFromApiFormat } from "@/lib/user-preference-store/utils"
 import { eq } from "drizzle-orm"
@@ -33,7 +37,7 @@ export async function GET() {
     user: {
       ...mapUserRow(profile),
       preferences: preferences
-        ? convertFromApiFormat(preferences)
+        ? convertFromApiFormat(mapUserPreferencesRow(preferences))
         : undefined,
     },
   })

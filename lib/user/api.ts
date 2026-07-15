@@ -1,6 +1,6 @@
 import "server-only"
 import { auth } from "@/lib/auth"
-import { mapUserRow } from "@/lib/db/mappers"
+import { mapUserPreferencesRow, mapUserRow } from "@/lib/db/mappers"
 import { db } from "@/lib/db/client"
 import { userPreferences, users } from "@/lib/db/schema"
 import { convertFromApiFormat } from "@/lib/user-preference-store/utils"
@@ -34,6 +34,8 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 
   return {
     ...mapUserRow(profile),
-    preferences: preferences ? convertFromApiFormat(preferences) : undefined,
+    preferences: preferences
+      ? convertFromApiFormat(mapUserPreferencesRow(preferences))
+      : undefined,
   }
 }
