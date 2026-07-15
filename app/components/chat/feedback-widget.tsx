@@ -7,7 +7,6 @@ import {
   MorphingPopoverContent,
   MorphingPopoverTrigger,
 } from "@/components/motion-primitives/morphing-popover"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
 import { QuestionMark } from "@phosphor-icons/react"
 import { motion, type Transition } from "motion/react"
 import { useState } from "react"
@@ -25,10 +24,6 @@ type FeedbackWidgetProps = {
 export function FeedbackWidget({ authUserId }: FeedbackWidgetProps) {
   const [isOpen, setIsOpen] = useState(false)
   const isMobileOrTablet = useBreakpoint(896)
-
-  if (!isSupabaseEnabled) {
-    return null
-  }
 
   const closeMenu = () => {
     setIsOpen(false)

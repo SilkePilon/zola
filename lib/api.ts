@@ -17,7 +17,6 @@ export class UsageLimitError extends Error {
  * Resets the daily counter if a new day (UTC) is detected.
  * Uses the `anonymous` flag from the user record to decide which daily limit applies.
  *
- * @param supabase - Your Supabase client.
  * @param userId - The ID of the user.
  * @returns The remaining daily limit.
  */

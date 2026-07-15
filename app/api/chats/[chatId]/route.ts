@@ -14,19 +14,26 @@ export async function PUT(request: Request, { params }: Params) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { title } = (await request.json()) as { title: string }
+  const { title, public: isPublic } = (await request.json()) as {
+    title?: string
+    public?: boolean
+  }
+
+  const updates: Partial<typeof chats.$inferInsert> = { updatedAt: new Date() }
+  if (title !== undefined) updates.title = title
+  if (isPublic !== undefined) updates.public = isPublic
 
   const result = await db
     .update(chats)
-    .set({ title, updatedAt: new Date() })
+    .set(updates)
     .where(and(eq(chats.id, chatId), eq(chats.userId, session.user.id)))
-    .returning({ id: chats.id })
+    .returning({ id: chats.id, public: chats.public })
 
   if (result.length === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, chat: result[0] })
 }
 
 export async function DELETE(_request: Request, { params }: Params) {

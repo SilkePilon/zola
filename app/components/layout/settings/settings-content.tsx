@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button"
 import { DrawerClose } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
 import { cn, isDev } from "@/lib/utils"
 import {
   CubeIcon,
@@ -64,12 +63,8 @@ function TabContent({ activeTab }: { activeTab: TabType }) {
       return (
         <>
           <UserProfile />
-          {isSupabaseEnabled && (
-            <>
-              <AccountManagement />
-              <HistoryManagement />
-            </>
-          )}
+          <AccountManagement />
+          <HistoryManagement />
         </>
       )
     case "appearance":
@@ -109,17 +104,17 @@ function TabContent({ activeTab }: { activeTab: TabType }) {
         </SettingsSection>
       )
     case "usage":
-      return isSupabaseEnabled ? (
+      return (
         <SettingsSection id={SECTION_IDS.usage} title="Usage & Cost">
           <UsageSettings />
         </SettingsSection>
-      ) : null
+      )
     case "budget":
-      return isSupabaseEnabled ? (
+      return (
         <SettingsSection id={SECTION_IDS.budget} title="Budget">
           <BudgetSettings />
         </SettingsSection>
-      ) : null
+      )
     default:
       return null
   }
@@ -171,9 +166,7 @@ export function SettingsContent({
         </div>
 
         <div className="my-3 flex w-full min-w-0 flex-nowrap items-center gap-1 overflow-x-auto px-4">
-          {MOBILE_TABS.filter(
-            (t) => !["usage", "budget"].includes(t.tab) || isSupabaseEnabled
-          ).map((t) => (
+          {MOBILE_TABS.map((t) => (
             <button
               key={t.tab}
               type="button"
@@ -206,7 +199,6 @@ export function SettingsContent({
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
         onResultSelect={handleResultSelect}
-        supabaseEnabled={isSupabaseEnabled}
       />
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-8 py-6">
         <TabContent activeTab={activeTab} />

@@ -36,7 +36,6 @@ export type SettingsSearchEntry = {
   rowId: string
   label: string
   description?: string
-  supabaseOnly?: boolean
 }
 
 export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
@@ -54,18 +53,14 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   { tab: "models", rowId: SECTION_IDS.models, label: "Models", description: "Favorites, visibility, custom models" },
   { tab: "connections", rowId: SECTION_IDS.connections, label: "Connections", description: "Ollama and developer tools" },
   { tab: "mcp", rowId: SECTION_IDS.mcp, label: "MCP Servers" },
-  { tab: "usage", rowId: SECTION_IDS.usage, label: "Usage & Cost", supabaseOnly: true },
-  { tab: "budget", rowId: SECTION_IDS.budget, label: "Budget", supabaseOnly: true },
+  { tab: "usage", rowId: SECTION_IDS.usage, label: "Usage & Cost" },
+  { tab: "budget", rowId: SECTION_IDS.budget, label: "Budget" },
 ]
 
-export function searchSettingsIndex(
-  query: string,
-  supabaseEnabled: boolean
-): SettingsSearchEntry[] {
+export function searchSettingsIndex(query: string): SettingsSearchEntry[] {
   const q = query.trim().toLowerCase()
   if (!q) return []
   return SETTINGS_SEARCH_INDEX.filter((entry) => {
-    if (entry.supabaseOnly && !supabaseEnabled) return false
     const haystack = `${entry.label} ${entry.description ?? ""} ${entry.tab}`.toLowerCase()
     return haystack.includes(q)
   })
