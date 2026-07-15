@@ -1,15 +1,15 @@
 import { getSources } from "@/app/components/chat/get-sources"
 import { SourcesList } from "@/app/components/chat/sources-list"
-import type { Tables } from "@/app/types/database.types"
 import { Message, MessageContent } from "@/components/prompt-kit/message"
 import { Button } from "@/components/ui/button"
+import type { Message as MessageRow } from "@/lib/chat-store/types"
 import { cn } from "@/lib/utils"
 import type { UIMessage } from "ai"
 import { ArrowUpRight } from "@phosphor-icons/react/dist/ssr"
 import Link from "next/link"
 import { Header } from "./header"
 
-type MessageType = Tables<"messages">
+type MessageType = MessageRow
 
 type ArticleProps = {
   date: string

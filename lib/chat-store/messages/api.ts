@@ -1,6 +1,5 @@
-import { createClient } from "@/lib/supabase/client"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
 import type { UIMessage as MessageAISDK } from "ai"
+import { fetchClient } from "../../fetch"
 import { readFromIndexedDB, writeToIndexedDB } from "../persist"
 
 type ChatMessage = MessageAISDK & {
@@ -10,134 +9,70 @@ type ChatMessage = MessageAISDK & {
   model?: string | null
 }
 
+type MessageRow = {
+  id: string
+  content: string | null
+  role: string
+  created_at: string | null
+  parts: unknown
+  message_group_id: string | null
+  model: string | null
+}
+
 export async function getMessagesFromDb(
   chatId: string
 ): Promise<ChatMessage[]> {
-  // fallback to local cache only
-  if (!isSupabaseEnabled) {
-    const cached = await getCachedMessages(chatId)
-    return cached
+  const res = await fetchClient(`/api/chats/${chatId}/messages`)
+  if (!res.ok) {
+    return await getCachedMessages(chatId)
   }
 
-  const supabase = createClient()
-  if (!supabase) return []
+  const { messages } = (await res.json()) as { messages: MessageRow[] }
 
-  const { data, error } = await supabase
-    .from("messages")
-    .select(
-      "id, content, role, created_at, parts, message_group_id, model"
-    )
-    .eq("chat_id", chatId)
-    .order("created_at", { ascending: true })
-
-  if (!data || error) {
-    console.error("Failed to fetch messages:", error)
-    return []
-  }
-
-  return data.map((message) => {
-    // Ensure parts is properly parsed if it comes as a JSON string
-    let parsedParts = (message as any)?.parts
-    if (typeof parsedParts === 'string') {
-      try {
-        parsedParts = JSON.parse(parsedParts)
-      } catch (e) {
-        console.error('Failed to parse parts:', e)
-        parsedParts = undefined
-      }
-    }
-    
-    return {
-      id: String(message.id),
-      role: message.role as ChatMessage["role"],
-      // Keep legacy content for fallbacks in UI during migration
-      content: (message as any).content ?? "",
-      // Prefer parts (v5); ensure correct typing
-      parts: parsedParts as ChatMessage["parts"],
-      // Extra fields we persist alongside
-      createdAt: new Date(message.created_at || ""),
-      message_group_id: (message as any).message_group_id ?? null,
-      model: (message as any).model ?? null,
-    }
-  })
-}
-
-async function insertMessageToDb(chatId: string, message: ChatMessage) {
-  const supabase = createClient()
-  if (!supabase) return
-
-  await supabase.from("messages").insert({
-    chat_id: chatId,
-    role: message.role,
-    // Store both legacy content and new parts during transition
-    content: (message as any).content,
-    parts: message.parts as any,
-    created_at: message.createdAt?.toISOString() || new Date().toISOString(),
-    message_group_id: (message as any).message_group_id || null,
-    model: (message as any).model || null,
-  })
-}
-
-async function insertMessagesToDb(chatId: string, messages: ChatMessage[]) {
-  const supabase = createClient()
-  if (!supabase) return
-
-  const payload = messages.map((message) => ({
-    chat_id: chatId,
-    role: message.role,
-    content: (message as any).content,
-    parts: message.parts as any,
-    created_at: message.createdAt?.toISOString() || new Date().toISOString(),
-    message_group_id: (message as any).message_group_id || null,
-    model: (message as any).model || null,
+  return messages.map((message) => ({
+    id: message.id,
+    role: message.role as ChatMessage["role"],
+    content: message.content ?? "",
+    parts: message.parts as ChatMessage["parts"],
+    createdAt: new Date(message.created_at || ""),
+    message_group_id: message.message_group_id,
+    model: message.model,
   }))
+}
 
-  await supabase.from("messages").insert(payload)
+async function postMessagesToDb(chatId: string, messages: ChatMessage[]) {
+  await fetchClient(`/api/chats/${chatId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({
+      messages: messages.map((message) => ({
+        role: message.role,
+        content: (message as { content?: string }).content,
+        parts: message.parts,
+        created_at:
+          message.createdAt?.toISOString() || new Date().toISOString(),
+        message_group_id: message.message_group_id || null,
+        model: message.model || null,
+      })),
+    }),
+  })
 }
 
 async function deleteMessagesFromDb(chatId: string) {
-  const supabase = createClient()
-  if (!supabase) return
-
-  const { error } = await supabase
-    .from("messages")
-    .delete()
-    .eq("chat_id", chatId)
-
-  if (error) {
-    console.error("Failed to clear messages from database:", error)
+  const res = await fetchClient(`/api/chats/${chatId}/messages`, {
+    method: "DELETE",
+  })
+  if (!res.ok) {
+    console.error("Failed to clear messages from database:", await res.text())
   }
 }
 
 async function deleteMessagesFromId(chatId: string, messageId: string) {
-  const supabase = createClient()
-  if (!supabase) return
-
-  // Get all messages for this chat
-  const { data: allMessages, error: fetchError } = await supabase
-    .from("messages")
-    .select("id, created_at")
-    .eq("chat_id", chatId)
-    .order("created_at", { ascending: true })
-
-  if (fetchError || !allMessages) {
-    console.error("Failed to fetch messages:", fetchError)
-    return
-  }
-
-  // Find the target message and get its timestamp
-  const targetMessage = allMessages.find((m) => String(m.id) === messageId)
-  if (!targetMessage) return
-
-  // Delete all messages with created_at >= target message's created_at
-  const { error: deleteError } = await supabase
-    .from("messages")
-    .delete()
-    .eq("chat_id", chatId)
-    .gte("created_at", targetMessage.created_at)
-
-  if (deleteError) {
-    console.error("Failed to delete messages:", deleteError)
+  const res = await fetchClient(
+    `/api/chats/${chatId}/messages/from/${messageId}`,
+    { method: "DELETE" }
+  )
+  if (!res.ok) {
+    console.error("Failed to delete messages:", await res.text())
   }
 }
 
@@ -169,7 +104,7 @@ export async function addMessage(
   chatId: string,
   message: ChatMessage
 ): Promise<void> {
-  await insertMessageToDb(chatId, message)
+  await postMessagesToDb(chatId, [message])
   const current = await getCachedMessages(chatId)
   const updated = [...current, message]
 
@@ -180,7 +115,7 @@ export async function setMessages(
   chatId: string,
   messages: ChatMessage[]
 ): Promise<void> {
-  await insertMessagesToDb(chatId, messages)
+  await postMessagesToDb(chatId, messages)
   await writeToIndexedDB("messages", { id: chatId, messages })
 }
 
@@ -199,5 +134,8 @@ export async function deleteMessagesFromIdForChat(
   remainingMessages: ChatMessage[]
 ): Promise<void> {
   await deleteMessagesFromId(chatId, messageId)
-  await writeToIndexedDB("messages", { id: chatId, messages: remainingMessages })
+  await writeToIndexedDB("messages", {
+    id: chatId,
+    messages: remainingMessages,
+  })
 }

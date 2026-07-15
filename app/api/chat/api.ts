@@ -3,11 +3,11 @@ import type {
   ChatApiParams,
   LogUserMessageParams,
   StoreAssistantMessageParams,
-  SupabaseClientType,
 } from "@/app/types/api.types"
+import { db } from "@/lib/db/client"
+import { messages } from "@/lib/db/schema"
 import { getAllModels } from "@/lib/models"
 import { sanitizeUserInput } from "@/lib/sanitize"
-import type { Json } from "@/app/types/database.types"
 import { validateUserIdentity } from "@/lib/server/api"
 import { checkUsageByModel, incrementUsage } from "@/lib/usage"
 import { getUserKey, type ProviderWithoutOllama } from "@/lib/user-keys"
@@ -16,9 +16,8 @@ export async function validateAndTrackUsage({
   userId,
   model,
   isAuthenticated,
-}: ChatApiParams): Promise<SupabaseClientType | null> {
-  const supabase = await validateUserIdentity(userId, isAuthenticated)
-  if (!supabase) return null
+}: ChatApiParams): Promise<boolean> {
+  await validateUserIdentity(userId, isAuthenticated)
 
   if (!isAuthenticated) {
     throw new Error(
@@ -28,7 +27,7 @@ export async function validateAndTrackUsage({
     const { getCustomModels } = await import("@/lib/models/custom")
     const customModels = await getCustomModels()
     const allModels = await getAllModels(customModels)
-    
+
     const modelConfig = allModels.find((m) => m.uniqueId === model)
 
     if (!modelConfig) {
@@ -42,7 +41,7 @@ export async function validateAndTrackUsage({
         userId,
         provider as ProviderWithoutOllama
       )
-      
+
       if (!userApiKey) {
         throw new Error(
           `This model requires an API key for ${provider}. Please add your API key in settings.`
@@ -51,96 +50,81 @@ export async function validateAndTrackUsage({
     }
   }
 
-  await checkUsageByModel(supabase, userId, model, isAuthenticated)
+  await checkUsageByModel(userId, model, isAuthenticated)
 
-  // Check budget limits before allowing chat
-  // Extract provider from model string (format: "provider:model-name")
   const providerId = model.includes(":") ? model.split(":")[0] : model
-  
+
   try {
     const { checkBudgetBeforeChat } = await import("@/lib/budget")
-    await checkBudgetBeforeChat(supabase, userId, providerId)
+    await checkBudgetBeforeChat(userId, providerId)
   } catch (err: any) {
-    // If it's a budget exceeded error, re-throw it with enhanced message
     if (err.name === "BudgetExceededError") {
-      // Enhance the error message with detailed info for client parsing
       const providerText = err.provider ? ` for ${err.provider}` : ""
       err.message = `${err.message}${providerText}. You've spent $${err.spent.toFixed(4)} of your $${err.limit} ${err.budgetType} budget limit.`
-      throw err // Re-throw the BudgetExceededError, not a generic Error
+      throw err
     }
-    // For other errors, just log and continue
     console.error("Error checking budget:", err)
   }
 
-  return supabase
+  return true
 }
 
 export async function incrementMessageCount({
-  supabase,
   userId,
 }: {
-  supabase: SupabaseClientType
   userId: string
 }): Promise<void> {
-  if (!supabase) return
-
   try {
-    await incrementUsage(supabase, userId)
+    await incrementUsage(userId)
   } catch (err) {
     console.error("Failed to increment message count:", err)
-    // Don't throw error as this shouldn't block the chat
   }
 }
 
 export async function logUserMessage({
-  supabase,
   userId,
   chatId,
   parts,
-  model,
-  isAuthenticated,
   message_group_id,
 }: LogUserMessageParams): Promise<void> {
-  if (!supabase) return
-
-  // Derive legacy content for fallback display by concatenating text parts
   const text = Array.isArray(parts)
     ? parts
-        .filter((p: any) => p?.type === "text" && typeof (p as any).text === "string")
-        .map((p: any) => (p as any).text as string)
+        .filter(
+          (p: any) => p?.type === "text" && typeof p.text === "string"
+        )
+        .map((p: any) => p.text as string)
         .join("\n\n")
     : ""
-  const { error } = await supabase.from("messages").insert({
-    chat_id: chatId,
-    role: "user",
-    content: sanitizeUserInput(text),
-    parts: parts as unknown as Json,
-    user_id: userId,
-    message_group_id,
-  });
 
-  if (error) {
+  try {
+    await db.insert(messages).values({
+      chatId,
+      role: "user",
+      content: sanitizeUserInput(text),
+      parts: parts as unknown,
+      userId,
+      messageGroupId: message_group_id,
+    })
+  } catch (error) {
     console.error("Error saving user message:", error)
   }
 }
 
 export async function storeAssistantMessage({
-  supabase,
   chatId,
-  messages,
+  messages: messageList,
   message_group_id,
   model,
-}: StoreAssistantMessageParams): Promise<void> {
-  if (!supabase) return
+}: StoreAssistantMessageParams): Promise<number | undefined> {
   try {
-    await saveFinalAssistantMessage(
-      supabase,
+    return await saveFinalAssistantMessage(
       chatId,
-      messages,
+      messageList,
       message_group_id,
       model
     )
   } catch (err) {
     console.error("Failed to save assistant messages:", err)
+    return undefined
   }
 }

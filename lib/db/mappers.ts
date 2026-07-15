@@ -1,4 +1,10 @@
-import type { NewUser, User, UserPreference } from "@/lib/db/schema"
+import type {
+  Chat,
+  Message,
+  NewUser,
+  User,
+  UserPreference,
+} from "@/lib/db/schema"
 
 export function mapUserRow(row: User) {
   return {
@@ -58,4 +64,34 @@ export function mapUserProfileUpdates(
   if ("system_prompt" in updates) row.systemPrompt = updates.system_prompt
   if ("premium" in updates) row.premium = updates.premium
   return row
+}
+
+export function mapChatRow(row: Chat) {
+  return {
+    id: row.id,
+    user_id: row.userId,
+    project_id: row.projectId,
+    model: row.model,
+    title: row.title,
+    public: row.public ?? false,
+    pinned: row.pinned ?? false,
+    pinned_at: row.pinnedAt ? row.pinnedAt.toISOString() : null,
+    created_at: row.createdAt ? row.createdAt.toISOString() : null,
+    updated_at: row.updatedAt ? row.updatedAt.toISOString() : null,
+  }
+}
+
+export function mapMessageRow(row: Message) {
+  return {
+    id: String(row.id),
+    chat_id: row.chatId,
+    user_id: row.userId,
+    role: row.role,
+    content: row.content,
+    parts: row.parts,
+    model: row.model,
+    message_group_id: row.messageGroupId,
+    experimental_attachments: row.experimentalAttachments,
+    created_at: row.createdAt ? row.createdAt.toISOString() : null,
+  }
 }
