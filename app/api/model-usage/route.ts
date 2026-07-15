@@ -1,88 +1,69 @@
-import { createClient } from "@/lib/supabase/server"
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db/client"
+import { chats, modelUsage } from "@/lib/db/schema"
+import { count, desc, eq, sum } from "drizzle-orm"
+import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
   try {
-    const supabase = await createClient()
-
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Database connection not available" },
-        { status: 503 }
-      )
-    }
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Parse query parameters for filtering and pagination
     const { searchParams } = new URL(req.url)
     const limit = parseInt(searchParams.get("limit") || "50")
     const offset = parseInt(searchParams.get("offset") || "0")
 
-    // Fetch usage data for the user
-    // Use left join to include rows where chat_id is NULL (deleted chats)
-    const { data: usageData, error: usageError } = await supabase
-      .from("model_usage")
-      .select(
-        `
-        id,
-        model_id,
-        provider_id,
-        input_tokens,
-        output_tokens,
-        total_tokens,
-        input_cost_usd,
-        output_cost_usd,
-        total_cost_usd,
-        created_at,
-        chat_id,
-        chats(title)
-      `
-      )
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1)
+    const rows = await db
+      .select({
+        id: modelUsage.id,
+        model_id: modelUsage.modelId,
+        provider_id: modelUsage.providerId,
+        input_tokens: modelUsage.inputTokens,
+        output_tokens: modelUsage.outputTokens,
+        total_tokens: modelUsage.totalTokens,
+        input_cost_usd: modelUsage.inputCostUsd,
+        output_cost_usd: modelUsage.outputCostUsd,
+        total_cost_usd: modelUsage.totalCostUsd,
+        created_at: modelUsage.createdAt,
+        chat_id: modelUsage.chatId,
+        chats: { title: chats.title },
+      })
+      .from(modelUsage)
+      .leftJoin(chats, eq(modelUsage.chatId, chats.id))
+      .where(eq(modelUsage.userId, session.user.id))
+      .orderBy(desc(modelUsage.createdAt))
+      .limit(limit)
+      .offset(offset)
 
-    if (usageError) {
-      console.error("Error fetching usage data:", usageError)
-      return NextResponse.json(
-        { error: "Failed to fetch usage data" },
-        { status: 500 }
-      )
-    }
+    const usage = rows.map((row) => ({
+      ...row,
+      chats: row.chat_id ? { title: row.chats?.title ?? null } : null,
+      input_cost_usd:
+        row.input_cost_usd !== null ? Number(row.input_cost_usd) : null,
+      output_cost_usd:
+        row.output_cost_usd !== null ? Number(row.output_cost_usd) : null,
+      total_cost_usd:
+        row.total_cost_usd !== null ? Number(row.total_cost_usd) : null,
+      created_at: row.created_at ? row.created_at.toISOString() : null,
+    }))
 
-    // Get total count for pagination
-    const { count, error: countError } = await supabase
-      .from("model_usage")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
+    const [totalRow] = await db
+      .select({ value: count() })
+      .from(modelUsage)
+      .where(eq(modelUsage.userId, session.user.id))
 
-    if (countError) {
-      console.error("Error counting usage data:", countError)
-    }
-
-    // Calculate total costs using Postgres aggregation
-    const { data: totals, error: totalsError } = await supabase
-      .from("model_usage")
-      .select("total:total_cost_usd.sum()")
-      .eq("user_id", user.id)
-      .single()
-
-    let totalCost = 0
-    if (!totalsError && totals) {
-      totalCost = (totals as any).total || 0
-    }
+    const [sumRow] = await db
+      .select({ value: sum(modelUsage.totalCostUsd) })
+      .from(modelUsage)
+      .where(eq(modelUsage.userId, session.user.id))
 
     return NextResponse.json({
-      usage: usageData || [],
-      total: count || 0,
-      totalCost,
+      usage,
+      total: totalRow?.value ?? 0,
+      totalCost: sumRow?.value ? Number(sumRow.value) : 0,
     })
   } catch (err: unknown) {
     console.error("Error in model-usage API:", err)

@@ -1,50 +1,26 @@
-import { createClient } from "@/lib/supabase/server"
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db/client"
+import { mapBudgetLimitRow } from "@/lib/db/mappers"
+import { budgetLimits } from "@/lib/db/schema"
+import { and, asc, eq, isNull } from "drizzle-orm"
+import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 
 export async function GET() {
   try {
-    const supabase = await createClient()
-
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Database connection failed" },
-        { status: 500 }
-      )
-    }
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get all budget limits for the user (global + per-provider)
-    const { data, error } = await supabase
-      .from("budget_limits")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("provider_id", { ascending: true, nullsFirst: true })
-
-    if (error && error.code !== "PGRST116") {
-      console.error("Error fetching budget limits:", error)
-      return NextResponse.json(
-        { error: "Failed to fetch budget limits" },
-        { status: 500 }
-      )
-    }
-
-    // Return empty array if no budget limits set
-    if (!data || data.length === 0) {
-      return NextResponse.json({
-        budgetLimits: [],
-      })
-    }
+    const data = await db
+      .select()
+      .from(budgetLimits)
+      .where(eq(budgetLimits.userId, session.user.id))
+      .orderBy(asc(budgetLimits.providerId))
 
     return NextResponse.json({
-      budgetLimits: data,
+      budgetLimits: data.map(mapBudgetLimitRow),
     })
   } catch (err) {
     console.error("Error in budget-limits GET:", err)
@@ -57,27 +33,12 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient()
-
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Database connection failed" },
-        { status: 500 }
-      )
-    }
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const body = await req.json()
-
-    // Validate input - now accepts an array of budgets
     const { budgets } = body
 
     if (!Array.isArray(budgets) || budgets.length === 0) {
@@ -97,66 +58,56 @@ export async function POST(req: Request) {
         per_chat_budget_usd,
         warning_threshold_percent,
         email_notifications,
-        in_app_notifications,
         enforce_limits,
       } = budget
 
-      // Check if budget limits already exist for this provider
-      const { data: existing } = await supabase
-        .from("budget_limits")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("provider_id", provider_id || null)
-        .maybeSingle()
+      const providerCondition = provider_id
+        ? eq(budgetLimits.providerId, provider_id)
+        : isNull(budgetLimits.providerId)
+
+      const [existing] = await db
+        .select({ id: budgetLimits.id })
+        .from(budgetLimits)
+        .where(and(eq(budgetLimits.userId, session.user.id), providerCondition))
+        .limit(1)
+
+      const values = {
+        monthlyBudgetUsd:
+          monthly_budget_usd !== undefined && monthly_budget_usd !== null
+            ? String(monthly_budget_usd)
+            : null,
+        dailyBudgetUsd:
+          daily_budget_usd !== undefined && daily_budget_usd !== null
+            ? String(daily_budget_usd)
+            : null,
+        perChatBudgetUsd:
+          per_chat_budget_usd !== undefined && per_chat_budget_usd !== null
+            ? String(per_chat_budget_usd)
+            : null,
+        warningThresholdPercent: warning_threshold_percent,
+        emailNotifications: email_notifications,
+        enforceLimits: enforce_limits,
+      }
 
       if (existing) {
-        // Update existing
-        const { data, error } = await supabase
-          .from("budget_limits")
-          .update({
-            monthly_budget_usd,
-            daily_budget_usd,
-            per_chat_budget_usd,
-            warning_threshold_percent,
-            email_notifications,
-            in_app_notifications,
-            enforce_limits,
-            user_id: user.id,
-          })
-          .eq("id", existing.id)
-          .select()
-          .single()
+        const [data] = await db
+          .update(budgetLimits)
+          .set({ ...values, updatedAt: new Date() })
+          .where(eq(budgetLimits.id, existing.id))
+          .returning()
 
-        if (error) {
-          console.error("Error updating budget limits:", error)
-          continue
-        }
-
-        results.push(data)
+        results.push(mapBudgetLimitRow(data))
       } else {
-        // Create new
-        const { data, error } = await supabase
-          .from("budget_limits")
-          .insert({
-            user_id: user.id,
-            provider_id: provider_id || null,
-            monthly_budget_usd,
-            daily_budget_usd,
-            per_chat_budget_usd,
-            warning_threshold_percent,
-            email_notifications,
-            in_app_notifications,
-            enforce_limits,
+        const [data] = await db
+          .insert(budgetLimits)
+          .values({
+            userId: session.user.id,
+            providerId: provider_id || null,
+            ...values,
           })
-          .select()
-          .single()
+          .returning()
 
-        if (error) {
-          console.error("Error creating budget limits:", error)
-          continue
-        }
-
-        results.push(data)
+        results.push(mapBudgetLimitRow(data))
       }
     }
 
@@ -174,36 +125,14 @@ export async function POST(req: Request) {
 
 export async function DELETE() {
   try {
-    const supabase = await createClient()
-
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Database connection failed" },
-        { status: 500 }
-      )
-    }
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { error } = await supabase
-      .from("budget_limits")
-      .delete()
-      .eq("user_id", user.id)
-
-    if (error) {
-      console.error("Error deleting budget limits:", error)
-      return NextResponse.json(
-        { error: "Failed to delete budget limits" },
-        { status: 500 }
-      )
-    }
+    await db
+      .delete(budgetLimits)
+      .where(eq(budgetLimits.userId, session.user.id))
 
     return NextResponse.json({ success: true })
   } catch (err) {

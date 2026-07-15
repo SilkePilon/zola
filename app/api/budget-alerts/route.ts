@@ -1,23 +1,15 @@
-import { createClient } from "@/lib/supabase/server"
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db/client"
+import { mapBudgetAlertRow } from "@/lib/db/mappers"
+import { budgetAlerts } from "@/lib/db/schema"
+import { and, count, desc, eq, inArray } from "drizzle-orm"
+import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
   try {
-    const supabase = await createClient()
-
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Database connection failed" },
-        { status: 500 }
-      )
-    }
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -26,30 +18,26 @@ export async function GET(req: Request) {
     const offset = parseInt(searchParams.get("offset") || "0")
     const unacknowledgedOnly = searchParams.get("unacknowledged") === "true"
 
-    // Build query
-    let query = supabase
-      .from("budget_alerts")
-      .select("*", { count: "exact" })
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-
+    const conditions = [eq(budgetAlerts.userId, session.user.id)]
     if (unacknowledgedOnly) {
-      query = query.eq("acknowledged", false)
+      conditions.push(eq(budgetAlerts.acknowledged, false))
     }
+    const where = and(...conditions)
 
-    const { data, error, count } = await query.range(offset, offset + limit - 1)
-
-    if (error) {
-      console.error("Error fetching budget alerts:", error)
-      return NextResponse.json(
-        { error: "Failed to fetch budget alerts" },
-        { status: 500 }
-      )
-    }
+    const [data, totalRows] = await Promise.all([
+      db
+        .select()
+        .from(budgetAlerts)
+        .where(where)
+        .orderBy(desc(budgetAlerts.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ value: count() }).from(budgetAlerts).where(where),
+    ])
 
     return NextResponse.json({
-      alerts: data || [],
-      total: count || 0,
+      alerts: data.map(mapBudgetAlertRow),
+      total: totalRows[0]?.value ?? 0,
     })
   } catch (err) {
     console.error("Error in budget-alerts GET:", err)
@@ -62,21 +50,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient()
-
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Database connection failed" },
-        { status: 500 }
-      )
-    }
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -90,20 +65,15 @@ export async function POST(req: Request) {
       )
     }
 
-    // Acknowledge alerts
-    const { error } = await supabase
-      .from("budget_alerts")
-      .update({ acknowledged: true })
-      .eq("user_id", user.id)
-      .in("id", alertIds)
-
-    if (error) {
-      console.error("Error acknowledging alerts:", error)
-      return NextResponse.json(
-        { error: "Failed to acknowledge alerts" },
-        { status: 500 }
+    await db
+      .update(budgetAlerts)
+      .set({ acknowledged: true })
+      .where(
+        and(
+          eq(budgetAlerts.userId, session.user.id),
+          inArray(budgetAlerts.id, alertIds)
+        )
       )
-    }
 
     return NextResponse.json({ success: true })
   } catch (err) {

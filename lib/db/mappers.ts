@@ -1,5 +1,8 @@
 import type {
+  BudgetAlert,
+  BudgetLimit,
   Chat,
+  CustomModel,
   Message,
   NewUser,
   User,
@@ -93,5 +96,74 @@ export function mapMessageRow(row: Message) {
     message_group_id: row.messageGroupId,
     experimental_attachments: row.experimentalAttachments,
     created_at: row.createdAt ? row.createdAt.toISOString() : null,
+  }
+}
+
+export function mapBudgetLimitRow(row: BudgetLimit) {
+  return {
+    id: row.id,
+    user_id: row.userId,
+    provider_id: row.providerId,
+    monthly_budget_usd:
+      row.monthlyBudgetUsd !== null ? Number(row.monthlyBudgetUsd) : null,
+    daily_budget_usd:
+      row.dailyBudgetUsd !== null ? Number(row.dailyBudgetUsd) : null,
+    per_chat_budget_usd:
+      row.perChatBudgetUsd !== null ? Number(row.perChatBudgetUsd) : null,
+    current_month_spend: Number(row.currentMonthSpend ?? 0),
+    current_day_spend: Number(row.currentDaySpend ?? 0),
+    month_reset: row.monthReset ? row.monthReset.toISOString() : null,
+    day_reset: row.dayReset ? row.dayReset.toISOString() : null,
+    warning_threshold_percent: row.warningThresholdPercent ?? 80,
+    email_notifications: row.emailNotifications ?? true,
+    enforce_limits: row.enforceLimits ?? true,
+    created_at: row.createdAt ? row.createdAt.toISOString() : null,
+    updated_at: row.updatedAt ? row.updatedAt.toISOString() : null,
+  }
+}
+
+export function mapBudgetAlertRow(row: BudgetAlert) {
+  return {
+    id: row.id,
+    user_id: row.userId,
+    alert_type: row.alertType,
+    budget_type: row.budgetType,
+    threshold_percent: row.thresholdPercent,
+    amount_spent: row.amountSpent !== null ? Number(row.amountSpent) : null,
+    budget_limit: row.budgetLimit !== null ? Number(row.budgetLimit) : null,
+    message: row.message,
+    acknowledged: row.acknowledged ?? false,
+    created_at: row.createdAt ? row.createdAt.toISOString() : null,
+  }
+}
+
+/**
+ * Maps a Drizzle `customModels` row (camelCase, decimal columns as strings)
+ * to the snake_case shape `app/components/layout/settings/models/
+ * models-settings.tsx`'s `CustomModel` type and `add-custom-model-dialog.tsx`
+ * expect (`model_id`, `provider_id`, `input_cost` as number, `created_at` as
+ * ISO string, etc). Not in Task 6's brief — found while checking whether the
+ * brief's raw-row `NextResponse.json({ customModels: data })` response would
+ * break this consumer; without this mapper every custom model row silently
+ * mismatches field names in the settings UI.
+ */
+export function mapCustomModelRow(row: CustomModel) {
+  return {
+    id: row.id,
+    user_id: row.userId,
+    name: row.name,
+    model_id: row.modelId,
+    provider_id: row.providerId,
+    base_url: row.baseUrl,
+    context_window: row.contextWindow,
+    input_cost: row.inputCost !== null ? Number(row.inputCost) : null,
+    output_cost: row.outputCost !== null ? Number(row.outputCost) : null,
+    vision: row.vision ?? false,
+    tools: row.tools ?? false,
+    reasoning: row.reasoning ?? false,
+    audio: row.audio ?? false,
+    video: row.video ?? false,
+    created_at: row.createdAt ? row.createdAt.toISOString() : null,
+    updated_at: row.updatedAt ? row.updatedAt.toISOString() : null,
   }
 }

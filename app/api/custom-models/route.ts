@@ -1,56 +1,31 @@
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db/client"
+import { mapCustomModelRow } from "@/lib/db/mappers"
+import { customModels } from "@/lib/db/schema"
+import { and, desc, eq } from "drizzle-orm"
+import { headers } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
 
 export const dynamic = "force-dynamic"
 
-// GET: Fetch user's custom models
 export async function GET() {
-  const supabase = await createClient()
-
-  if (!supabase) {
-    return NextResponse.json(
-      { error: "Database connection failed" },
-      { status: 500 }
-    )
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { data, error } = await supabase
-    .from("custom_models")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
+  const data = await db
+    .select()
+    .from(customModels)
+    .where(eq(customModels.userId, session.user.id))
+    .orderBy(desc(customModels.createdAt))
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ customModels: data })
+  return NextResponse.json({ customModels: data.map(mapCustomModelRow) })
 }
 
-// POST: Create a new custom model
 export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-
-  if (!supabase) {
-    return NextResponse.json(
-      { error: "Database connection failed" },
-      { status: 500 }
-    )
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -77,55 +52,44 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { data, error } = await supabase
-    .from("custom_models")
-    .insert({
-      user_id: user.id,
-      name,
-      model_id: modelId,
-      provider_id: providerId,
-      base_url: baseUrl,
-      context_window: contextWindow,
-      input_cost: inputCost,
-      output_cost: outputCost,
-      vision: vision || false,
-      tools: tools || false,
-      reasoning: reasoning || false,
-      audio: audio || false,
-      video: video || false,
-    })
-    .select()
-    .single()
+  try {
+    const [data] = await db
+      .insert(customModels)
+      .values({
+        userId: session.user.id,
+        name,
+        modelId,
+        providerId,
+        baseUrl,
+        contextWindow,
+        inputCost: inputCost !== undefined ? String(inputCost) : undefined,
+        outputCost: outputCost !== undefined ? String(outputCost) : undefined,
+        vision: vision || false,
+        tools: tools || false,
+        reasoning: reasoning || false,
+        audio: audio || false,
+        video: video || false,
+      })
+      .returning()
 
-  if (error) {
-    if (error.code === "23505") {
+    return NextResponse.json({ customModel: mapCustomModelRow(data) })
+  } catch (error) {
+    if ((error as { code?: string }).code === "23505") {
       return NextResponse.json(
         { error: "A custom model with this ID already exists" },
         { status: 400 }
       )
     }
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ customModel: data })
-}
-
-// PUT: Update an existing custom model
-export async function PUT(request: NextRequest) {
-  const supabase = await createClient()
-
-  if (!supabase) {
     return NextResponse.json(
-      { error: "Database connection failed" },
+      { error: (error as Error).message },
       { status: 500 }
     )
   }
+}
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+export async function PUT(request: NextRequest) {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -159,55 +123,38 @@ export async function PUT(request: NextRequest) {
     )
   }
 
-  const { data, error } = await supabase
-    .from("custom_models")
-    .update({
+  const [data] = await db
+    .update(customModels)
+    .set({
       name,
-      model_id: modelId,
-      provider_id: providerId,
-      base_url: baseUrl,
-      context_window: contextWindow,
-      input_cost: inputCost,
-      output_cost: outputCost,
+      modelId,
+      providerId,
+      baseUrl,
+      contextWindow,
+      inputCost: inputCost !== undefined ? String(inputCost) : undefined,
+      outputCost: outputCost !== undefined ? String(outputCost) : undefined,
       vision: vision || false,
       tools: tools || false,
       reasoning: reasoning || false,
       audio: audio || false,
       video: video || false,
-      // updated_at is automatically set by DB trigger (trg_custom_models_updated_at)
+      updatedAt: new Date(),
     })
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .select()
-    .single()
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+    .where(
+      and(eq(customModels.id, id), eq(customModels.userId, session.user.id))
+    )
+    .returning()
 
   if (!data) {
     return NextResponse.json({ error: "Model not found" }, { status: 404 })
   }
 
-  return NextResponse.json({ customModel: data })
+  return NextResponse.json({ customModel: mapCustomModelRow(data) })
 }
 
-// DELETE: Remove a custom model
 export async function DELETE(request: NextRequest) {
-  const supabase = await createClient()
-
-  if (!supabase) {
-    return NextResponse.json(
-      { error: "Database connection failed" },
-      { status: 500 }
-    )
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -218,15 +165,11 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Missing model ID" }, { status: 400 })
   }
 
-  const { error } = await supabase
-    .from("custom_models")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", user.id)
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  await db
+    .delete(customModels)
+    .where(
+      and(eq(customModels.id, id), eq(customModels.userId, session.user.id))
+    )
 
   return NextResponse.json({ success: true })
 }

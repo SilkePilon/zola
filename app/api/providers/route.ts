@@ -1,8 +1,9 @@
-import { createClient } from "@/lib/supabase/server"
+import { auth } from "@/lib/auth"
 import { getEffectiveApiKey, ProviderWithoutOllama } from "@/lib/user-keys"
 import { NextRequest, NextResponse } from "next/server"
 import { getAllModels } from "@/lib/models"
 import { ensureProviderLogosCached } from "@/lib/server/provider-logos"
+import { headers } from "next/headers"
 
 export async function GET() {
   try {
@@ -29,7 +30,6 @@ export async function GET() {
 
     const providers = Array.from(map.values()).sort((a, b) => b.count - a.count)
 
-    // Ensure provider logos are cached locally for same-origin serving
     await ensureProviderLogosCached(providers.map((p) => p.id))
     return NextResponse.json({ providers })
   } catch (error) {
@@ -45,22 +45,11 @@ export async function POST(request: NextRequest) {
   try {
     const { provider, userId } = await request.json()
 
-    const supabase = await createClient()
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Database not available" },
-        { status: 500 }
-      )
-    }
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user || user.id !== userId) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user || session.user.id !== userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Skip Ollama since it doesn't use API keys
     if (provider === "ollama") {
       return NextResponse.json({
         hasUserKey: false,
@@ -73,7 +62,6 @@ export async function POST(request: NextRequest) {
       provider as ProviderWithoutOllama
     )
 
-    // Only check if user has their own API key (no env variables)
     return NextResponse.json({
       hasUserKey: !!apiKey,
       provider,
