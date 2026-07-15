@@ -58,8 +58,14 @@ Edit `.env.local` with your credentials:
 DATABASE_URL=postgres://zola:zola@localhost:5432/zola
 BETTER_AUTH_SECRET=your_32_character_random_string
 BETTER_AUTH_URL=http://localhost:3000
+
+# Social sign-in is optional — see "Authentication Setup" below. Email/password
+# sign-in and sign-up works with none of these set.
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
 GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+GITHUB_CLIENT_ID=your_github_oauth_client_id
+GITHUB_CLIENT_SECRET=your_github_oauth_client_secret
+
 MINIO_ENDPOINT=localhost
 MINIO_PORT=9000
 MINIO_USE_SSL=false
@@ -144,9 +150,19 @@ python -c "import base64, secrets; print(base64.b64encode(secrets.token_bytes(32
 
 ## Authentication Setup
 
-Zola uses [Better Auth](https://www.better-auth.com) for authentication: Google OAuth for real accounts, and an automatic anonymous/guest session for users who haven't signed in — no dashboard toggle needed for guest mode, it's on by default.
+Zola uses [Better Auth](https://www.better-auth.com) for authentication. Three ways in:
 
-### Google OAuth Setup
+- **Email and password** — always enabled, no configuration required
+- **Google OAuth** — optional, enabled by setting `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`
+- **GitHub OAuth** — optional, enabled by setting `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET`
+
+Plus an automatic anonymous/guest session for users who haven't signed in — no dashboard toggle needed for guest mode, it's on by default. When a guest later signs in or signs up, their existing chats are reassigned to the new account.
+
+Each social provider is only registered when **both** of its variables are set, and the sign-in UI hides providers that aren't configured. Set neither and users get an email/password form only — a valid setup, and the fastest way to run Zola locally.
+
+Email verification is **off**: Zola ships no transactional email sender, so requiring verification would lock every new account out. If you add a mail provider, turn it on via `emailAndPassword.requireEmailVerification` in `lib/auth.ts`.
+
+### Google OAuth Setup (optional)
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com)
 2. Create a new project or select an existing one
@@ -161,6 +177,21 @@ Zola uses [Better Auth](https://www.better-auth.com) for authentication: Google 
    ```
 8. Click **Create** and copy the **Client ID** and **Client Secret** into `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` in `.env.local`
 9. Set `BETTER_AUTH_URL` to your app's base URL (`http://localhost:3000` locally, your real domain in production) — Better Auth uses this to build the OAuth callback URL
+
+### GitHub OAuth Setup (optional)
+
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Click **OAuth Apps** > **New OAuth App**
+3. Set **Homepage URL** to your app's base URL (`http://localhost:3000` locally)
+4. Set **Authorization callback URL**:
+   ```
+   http://localhost:3000/api/auth/callback/github
+   ```
+   A GitHub OAuth app accepts only one callback URL, so register separate apps for local development and production.
+5. Click **Register application**, then **Generate a new client secret**
+6. Copy the **Client ID** and **Client Secret** into `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` in `.env.local`
+
+> **Note:** `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` are for sign-in and are unrelated to the optional `GITHUB_TOKEN` used by developer tools.
 
 ---
 

@@ -1,16 +1,14 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { signInWithGoogle } from "@/lib/api"
-import { useState } from "react"
+import { AuthForm } from "../auth/auth-form"
+import { useAuthProviders } from "../auth/use-auth-providers"
 
 type DialogAuthProps = {
   open: boolean
@@ -18,25 +16,7 @@ type DialogAuthProps = {
 }
 
 export function DialogAuth({ open, setOpen }: DialogAuthProps) {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const handleSignInWithGoogle = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-
-      // Pass current path so user returns here after login
-      const currentPath = `${window.location.pathname}${window.location.search}`
-      await signInWithGoogle(currentPath)
-    } catch (err: unknown) {
-      setError(
-        (err as Error).message ||
-          "An unexpected error occurred. Please try again."
-      )
-      setIsLoading(false)
-    }
-  }
+  const { providers } = useAuthProviders()
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -49,29 +29,8 @@ export function DialogAuth({ open, setOpen }: DialogAuthProps) {
             Sign in below to increase your message limits.
           </DialogDescription>
         </DialogHeader>
-        {error && (
-          <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
-            {error}
-          </div>
-        )}
-        <DialogFooter className="mt-6 sm:justify-center">
-          <Button
-            variant="secondary"
-            className="w-full text-base"
-            size="lg"
-            onClick={handleSignInWithGoogle}
-            disabled={isLoading}
-          >
-            <img
-              src="https://www.google.com/favicon.ico"
-              alt="Google logo"
-              width={20}
-              height={20}
-              className="mr-2 size-4"
-            />
-            <span>{isLoading ? "Connecting..." : "Continue with Google"}</span>
-          </Button>
-        </DialogFooter>
+        {/* Omitting redirectPath returns the user to the page they were on. */}
+        <AuthForm providers={providers} className="mt-2" />
       </DialogContent>
     </Dialog>
   )
