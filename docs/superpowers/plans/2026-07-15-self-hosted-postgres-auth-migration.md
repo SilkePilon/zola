@@ -73,6 +73,7 @@ services:
       - MINIO_ACCESS_KEY=zola
       - MINIO_SECRET_KEY=zola-minio-secret
       - MINIO_BUCKET=chat-attachments
+      - MINIO_PUBLIC_URL=http://localhost:9000
     depends_on:
       postgres:
         condition: service_healthy
@@ -148,12 +149,18 @@ GOOGLE_CLIENT_ID=your_google_oauth_client_id
 GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
 
 # Storage (self-hosted MinIO, S3-compatible)
+# MINIO_ENDPOINT/MINIO_PORT are used server-side (Docker-internal hostname
+# in docker-compose, e.g. "minio"). MINIO_PUBLIC_URL is the browser-reachable
+# base URL for uploaded file links — override it to your real domain in
+# production (e.g. https://storage.example.com); localhost:9000 only works
+# when the app and browser are on the same machine.
 MINIO_ENDPOINT=localhost
 MINIO_PORT=9000
 MINIO_USE_SSL=false
 MINIO_ACCESS_KEY=zola
 MINIO_SECRET_KEY=zola-minio-secret
 MINIO_BUCKET=chat-attachments
+MINIO_PUBLIC_URL=http://localhost:9000
 ```
 
 with the rest of the file (CSRF, AI model keys, Ollama, developer tools, production/dev config) unchanged below it.
@@ -162,9 +169,9 @@ Expected: `.env.example` has no remaining `SUPABASE`-prefixed vars.
 
 - [ ] **Step 6: Create local .env.local values for development**
 
-Append the same six new vars (Step 5's block, with real local values — `DATABASE_URL=postgres://zola:zola@localhost:5432/zola`, a real `BETTER_AUTH_SECRET` generated via `openssl rand -base64 32`, real Google OAuth credentials from the Google Cloud Console, and the MinIO values matching Step 3's compose config) to `.env.local`. Remove the old `NEXT_PUBLIC_SUPABASE_*`/`SUPABASE_SERVICE_ROLE` lines if present.
+Append the same new vars (Step 5's block, with real local values — `DATABASE_URL=postgres://zola:zola@localhost:5432/zola`, a real `BETTER_AUTH_SECRET` generated via `openssl rand -base64 32`, real Google OAuth credentials from the Google Cloud Console, and the MinIO values matching Step 3's compose config) to `.env.local`. Remove the old `NEXT_PUBLIC_SUPABASE_*`/`SUPABASE_SERVICE_ROLE` lines if present.
 
-Expected: `.env.local` (gitignored, not committed) has `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`.
+Expected: `.env.local` (gitignored, not committed) has `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`, `MINIO_PUBLIC_URL`.
 
 - [ ] **Step 7: Start Postgres and MinIO locally**
 
@@ -1933,11 +1940,9 @@ The dead `createChat`/`createChatInDb` pair inside `lib/chat-store/chats/api.ts`
 
 - [ ] **Step 1: Extend the DB mappers with chat and message row mappers**
 
-Append to `lib/db/mappers.ts` (after the existing `mapUserRow`/`mapUserProfileUpdates` code):
+Append to `lib/db/mappers.ts` (after the existing `mapUserRow`/`mapUserProfileUpdates` code — do not add a second `import` statement, the next instruction below handles that):
 
 ```ts
-import type { Chat, Message } from "@/lib/db/schema"
-
 export function mapChatRow(row: Chat) {
   return {
     id: row.id,
@@ -6045,6 +6050,822 @@ Expected: no errors from any file touched in Tasks 5, 6, or 7. Remaining errors,
 ```bash
 git add lib/db/mappers.ts lib/user-keys.ts app/api/user-keys app/api/user-key-status app/api/user-preferences app/api/projects app/api/toggle-chat-pin app/api/update-chat-model app/api/mcp-servers lib/mcp-store app/api/feedback components/common/feedback-form.tsx components/common/model-selector/pro-dialog.tsx
 git commit -m "feat: migrate projects, user-keys, preferences, feedback, and MCP servers to Drizzle"
+```
+
+---
+
+### Task 8: MinIO storage swap
+
+**Design note:** `lib/file-handling.ts`'s `uploadFile`/`processFiles`/`checkFileUploadLimit` currently run in the browser against Supabase Storage directly (anon-key client, gated by the RLS policies in `supabase/schema.sql`). MinIO credentials must never reach the browser, so file upload becomes a real server round-trip: a new `app/api/upload/route.ts` accepts `multipart/form-data`, re-validates the file server-side (never trust a client-only check), uploads to MinIO via `@aws-sdk/client-s3`, and inserts the `chat_attachments` row — all in one request. `checkFileUploadLimit` keeps its existing exported signature in `lib/file-handling.ts` (still called separately, before upload, by `app/components/chat/use-file-upload.ts` — that call site is untouched) but now hits a small new `/api/file-upload-limit` route instead of querying Supabase directly; `/api/upload` independently re-checks the same limit server-side since a client-only check is not real enforcement.
+
+`MINIO_ENDPOINT` (used server-side, e.g. Docker-internal hostname `minio`) is not the same as the URL the *browser* needs to fetch an uploaded image from — that's `MINIO_PUBLIC_URL`, added to `docker-compose.yml`/`.env.example` in Task 1. Since MinIO has no SQL migration file (unlike `supabase/schema.sql`'s `insert into storage.buckets`), the bucket and its public-read policy are created lazily on first upload via `ensureBucketExists()`.
+
+Since storage is now always available in a self-hosted deployment (MinIO is a required docker-compose service, same as Postgres per Task 1's "DB required" decision), the `isSupabaseEnabled`/`hasStorageBucket` gates in `button-file-upload.tsx` and the `PopoverContentStorage` "storage not configured" fallback UI are dead weight and are removed.
+
+**Files:**
+- Create: `lib/storage/client.ts`
+- Create: `app/api/upload/route.ts`
+- Create: `app/api/file-upload-limit/route.ts`
+- Modify: `lib/file-handling.ts`
+- Modify: `app/components/chat-input/button-file-upload.tsx`
+- Delete: `app/components/chat-input/popover-content-storage.tsx`
+
+**Interfaces:**
+- Consumes: `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`, `MINIO_PUBLIC_URL` env vars (Task 1); `auth`, `db`, `chats`, `chatAttachments` from earlier tasks.
+- Produces: `s3Client`, `STORAGE_BUCKET`, `ensureBucketExists()` (`@/lib/storage/client`). `validateFile`, `createAttachment`, `processFiles`, `checkFileUploadLimit`, `FileUploadLimitError`, `Attachment` (`@/lib/file-handling`) — same names/signatures `app/components/chat/use-file-upload.ts` already imports, so that file needs no changes.
+
+- [ ] **Step 1: Write the MinIO S3 client**
+
+Create `lib/storage/client.ts`:
+
+```ts
+import "server-only"
+import {
+  CreateBucketCommand,
+  HeadBucketCommand,
+  PutBucketPolicyCommand,
+  S3Client,
+} from "@aws-sdk/client-s3"
+
+if (!process.env.MINIO_ENDPOINT) {
+  throw new Error("MINIO_ENDPOINT environment variable is required")
+}
+if (!process.env.MINIO_ACCESS_KEY || !process.env.MINIO_SECRET_KEY) {
+  throw new Error(
+    "MINIO_ACCESS_KEY and MINIO_SECRET_KEY environment variables are required"
+  )
+}
+if (!process.env.MINIO_PUBLIC_URL) {
+  throw new Error("MINIO_PUBLIC_URL environment variable is required")
+}
+
+const useSSL = process.env.MINIO_USE_SSL === "true"
+const port = process.env.MINIO_PORT || "9000"
+
+export const s3Client = new S3Client({
+  endpoint: `${useSSL ? "https" : "http"}://${process.env.MINIO_ENDPOINT}:${port}`,
+  region: "us-east-1",
+  credentials: {
+    accessKeyId: process.env.MINIO_ACCESS_KEY,
+    secretAccessKey: process.env.MINIO_SECRET_KEY,
+  },
+  forcePathStyle: true,
+})
+
+export const STORAGE_BUCKET = process.env.MINIO_BUCKET || "chat-attachments"
+export const STORAGE_PUBLIC_URL = process.env.MINIO_PUBLIC_URL
+
+let bucketReady: Promise<void> | null = null
+
+/**
+ * Creates the storage bucket and a public-read policy on first use.
+ * supabase/schema.sql did this via SQL migration; MinIO has no
+ * equivalent migration file, so it's bootstrapped lazily instead.
+ */
+export function ensureBucketExists(): Promise<void> {
+  if (!bucketReady) {
+    bucketReady = (async () => {
+      try {
+        await s3Client.send(new HeadBucketCommand({ Bucket: STORAGE_BUCKET }))
+      } catch {
+        await s3Client.send(
+          new CreateBucketCommand({ Bucket: STORAGE_BUCKET })
+        )
+        await s3Client.send(
+          new PutBucketPolicyCommand({
+            Bucket: STORAGE_BUCKET,
+            Policy: JSON.stringify({
+              Version: "2012-10-17",
+              Statement: [
+                {
+                  Effect: "Allow",
+                  Principal: "*",
+                  Action: ["s3:GetObject"],
+                  Resource: [`arn:aws:s3:::${STORAGE_BUCKET}/*`],
+                },
+              ],
+            }),
+          })
+        )
+      }
+    })()
+  }
+  return bucketReady
+}
+```
+
+- [ ] **Step 2: Create the file-upload-limit check route**
+
+Create `app/api/file-upload-limit/route.ts`:
+
+```ts
+import { auth } from "@/lib/auth"
+import { DAILY_FILE_UPLOAD_LIMIT } from "@/lib/config"
+import { db } from "@/lib/db/client"
+import { chatAttachments } from "@/lib/db/schema"
+import { and, count, eq, gte } from "drizzle-orm"
+import { headers } from "next/headers"
+import { NextResponse } from "next/server"
+
+export async function GET() {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const now = new Date()
+  const startOfToday = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  )
+
+  const [{ value: uploadedToday }] = await db
+    .select({ value: count() })
+    .from(chatAttachments)
+    .where(
+      and(
+        eq(chatAttachments.userId, session.user.id),
+        gte(chatAttachments.createdAt, startOfToday)
+      )
+    )
+
+  if (uploadedToday >= DAILY_FILE_UPLOAD_LIMIT) {
+    return NextResponse.json(
+      {
+        error: "Daily file upload limit reached.",
+        code: "DAILY_FILE_LIMIT_REACHED",
+      },
+      { status: 403 }
+    )
+  }
+
+  return NextResponse.json({ count: uploadedToday })
+}
+```
+
+- [ ] **Step 3: Create the upload route**
+
+Create `app/api/upload/route.ts`:
+
+```ts
+import { auth } from "@/lib/auth"
+import { DAILY_FILE_UPLOAD_LIMIT } from "@/lib/config"
+import { db } from "@/lib/db/client"
+import { chatAttachments, chats } from "@/lib/db/schema"
+import {
+  ensureBucketExists,
+  s3Client,
+  STORAGE_BUCKET,
+  STORAGE_PUBLIC_URL,
+} from "@/lib/storage/client"
+import { PutObjectCommand } from "@aws-sdk/client-s3"
+import { and, count, eq, gte } from "drizzle-orm"
+import * as fileType from "file-type"
+import { headers } from "next/headers"
+import { NextResponse } from "next/server"
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
+const ALLOWED_FILE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "application/json",
+  "text/csv",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+]
+
+export async function POST(request: Request) {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const formData = await request.formData()
+  const file = formData.get("file")
+  const chatId = formData.get("chatId")
+
+  if (!(file instanceof File) || typeof chatId !== "string") {
+    return NextResponse.json(
+      { error: "Missing file or chatId" },
+      { status: 400 }
+    )
+  }
+
+  const [chat] = await db
+    .select({ userId: chats.userId })
+    .from(chats)
+    .where(eq(chats.id, chatId))
+    .limit(1)
+
+  if (!chat || chat.userId !== session.user.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
+  const now = new Date()
+  const startOfToday = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  )
+
+  const [{ value: uploadedToday }] = await db
+    .select({ value: count() })
+    .from(chatAttachments)
+    .where(
+      and(
+        eq(chatAttachments.userId, session.user.id),
+        gte(chatAttachments.createdAt, startOfToday)
+      )
+    )
+
+  if (uploadedToday >= DAILY_FILE_UPLOAD_LIMIT) {
+    return NextResponse.json(
+      {
+        error: "Daily file upload limit reached.",
+        code: "DAILY_FILE_LIMIT_REACHED",
+      },
+      { status: 403 }
+    )
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    return NextResponse.json(
+      { error: `File size exceeds ${MAX_FILE_SIZE / (1024 * 1024)}MB limit` },
+      { status: 400 }
+    )
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const detectedType = await fileType.fileTypeFromBuffer(
+    buffer.subarray(0, 4100)
+  )
+
+  if (!detectedType || !ALLOWED_FILE_TYPES.includes(detectedType.mime)) {
+    return NextResponse.json(
+      { error: "File type not supported or doesn't match its extension" },
+      { status: 400 }
+    )
+  }
+
+  try {
+    await ensureBucketExists()
+
+    const fileExt = file.name.split(".").pop()
+    const key = `uploads/${Math.random().toString(36).substring(2)}.${fileExt}`
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: STORAGE_BUCKET,
+        Key: key,
+        Body: buffer,
+        ContentType: file.type,
+      })
+    )
+
+    const publicUrl = `${STORAGE_PUBLIC_URL}/${STORAGE_BUCKET}/${key}`
+
+    await db.insert(chatAttachments).values({
+      chatId,
+      userId: session.user.id,
+      fileUrl: publicUrl,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+    })
+
+    return NextResponse.json({
+      name: file.name,
+      contentType: file.type,
+      url: publicUrl,
+    })
+  } catch (error) {
+    console.error("Error uploading file:", error)
+    return NextResponse.json(
+      { error: `Error uploading file: ${(error as Error).message}` },
+      { status: 500 }
+    )
+  }
+}
+```
+
+- [ ] **Step 4: Rewrite lib/file-handling.ts**
+
+Replace the full file:
+
+```ts
+import { toast } from "@/components/ui/toast"
+import * as fileType from "file-type"
+import { fetchClient } from "./fetch"
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
+const ALLOWED_FILE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "application/json",
+  "text/csv",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+]
+
+export type Attachment = {
+  name: string
+  contentType: string
+  url: string
+}
+
+export async function validateFile(
+  file: File
+): Promise<{ isValid: boolean; error?: string }> {
+  if (file.size > MAX_FILE_SIZE) {
+    return {
+      isValid: false,
+      error: `File size exceeds ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`,
+    }
+  }
+
+  const buffer = await file.arrayBuffer()
+  const type = await fileType.fileTypeFromBuffer(
+    Buffer.from(buffer.slice(0, 4100))
+  )
+
+  if (!type || !ALLOWED_FILE_TYPES.includes(type.mime)) {
+    return {
+      isValid: false,
+      error: "File type not supported or doesn't match its extension",
+    }
+  }
+
+  return { isValid: true }
+}
+
+export function createAttachment(file: File, url: string): Attachment {
+  return {
+    name: file.name,
+    contentType: file.type,
+    url,
+  }
+}
+
+export class FileUploadLimitError extends Error {
+  code: string
+  constructor(message: string) {
+    super(message)
+    this.code = "DAILY_FILE_LIMIT_REACHED"
+  }
+}
+
+async function uploadFile(file: File, chatId: string): Promise<Attachment> {
+  const formData = new FormData()
+  formData.append("file", file)
+  formData.append("chatId", chatId)
+
+  const res = await fetch("/api/upload", {
+    method: "POST",
+    headers: {
+      "x-csrf-token":
+        document.cookie
+          .split("; ")
+          .find((c) => c.startsWith("csrf_token="))
+          ?.split("=")[1] || "",
+    },
+    body: formData,
+  })
+
+  const data = await res.json()
+
+  if (!res.ok) {
+    if (data.code === "DAILY_FILE_LIMIT_REACHED") {
+      throw new FileUploadLimitError(data.error)
+    }
+    throw new Error(data.error || "Error uploading file")
+  }
+
+  return data as Attachment
+}
+
+export async function processFiles(
+  files: File[],
+  chatId: string,
+  _userId: string
+): Promise<Attachment[]> {
+  const attachments: Attachment[] = []
+
+  for (const file of files) {
+    const validation = await validateFile(file)
+    if (!validation.isValid) {
+      console.warn(`File ${file.name} validation failed:`, validation.error)
+      toast({
+        title: "File validation failed",
+        description: validation.error,
+        status: "error",
+      })
+      continue
+    }
+
+    try {
+      const attachment = await uploadFile(file, chatId)
+      attachments.push(attachment)
+    } catch (error) {
+      console.error(`Error processing file ${file.name}:`, error)
+      if (error instanceof FileUploadLimitError) {
+        throw error
+      }
+    }
+  }
+
+  return attachments
+}
+
+export async function checkFileUploadLimit(_userId: string) {
+  const res = await fetchClient("/api/file-upload-limit")
+  const data = await res.json()
+
+  if (!res.ok) {
+    if (data.code === "DAILY_FILE_LIMIT_REACHED") {
+      throw new FileUploadLimitError(data.error)
+    }
+    throw new Error(data.error || "Failed to check upload limit")
+  }
+
+  return data.count
+}
+```
+
+(`uploadFile` uses raw `fetch` with a manual `x-csrf-token` header, not `fetchClient`, because `fetchClient` — Task 1's `lib/fetch.ts` — unconditionally sets `Content-Type: application/json`, which breaks `multipart/form-data` file uploads; the browser must set that header itself so it can include the multipart boundary. `checkFileUploadLimit` is a plain GET with no body, so it uses `fetchClient` normally.)
+
+- [ ] **Step 5: Drop the dead storage-not-configured gate in button-file-upload.tsx**
+
+In `app/components/chat-input/button-file-upload.tsx`:
+
+Remove the import:
+```ts
+import { isSupabaseEnabled } from "@/lib/supabase/config"
+```
+
+Remove this line:
+```ts
+  const hasStorageBucket = Boolean(process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET)
+```
+
+Remove this block:
+```ts
+  if (!isSupabaseEnabled) {
+    return null
+  }
+```
+
+Remove the `PopoverContentStorage` import:
+```ts
+import { PopoverContentStorage } from "./popover-content-storage"
+```
+
+Remove this entire block (the "Show storage configuration prompt if bucket is not configured" branch):
+```ts
+  // Show storage configuration prompt if bucket is not configured
+  if (!hasStorageBucket) {
+    return (
+      <Popover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="border-border dark:bg-secondary size-9 rounded-[8px] border bg-transparent"
+                type="button"
+                aria-label="Add files"
+              >
+                <Paperclip className="size-4" />
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Add files</TooltipContent>
+        </Tooltip>
+        <PopoverContentStorage />
+      </Popover>
+    )
+  }
+```
+
+Everything else in the file (the unauthenticated-user popover, the model-capability-based `accept` filtering, the final `FileUpload` render) is unchanged.
+
+- [ ] **Step 6: Delete the now-unused storage popover**
+
+Run: `rm app/components/chat-input/popover-content-storage.tsx`
+Expected: file removed; `grep -rn "PopoverContentStorage" --include="*.tsx" .` (excluding `node_modules`) returns nothing.
+
+- [ ] **Step 7: Type-check**
+
+Run: `npm run type-check`
+Expected: no errors from any file touched in this task.
+
+- [ ] **Step 8: Manual verification**
+
+Run: `docker compose up -d` (full stack), then in a browser, logged in:
+1. Start a chat, attach an image file via the paperclip button.
+2. Confirm the file uploads (no error toast) and renders inline in the chat.
+3. Run `docker compose exec minio mc ls local/chat-attachments/uploads/` (or open the MinIO console at `http://localhost:9001`) and confirm the uploaded object exists.
+4. Upload a disallowed file type (e.g. a `.exe` renamed to `.png`) and confirm it's rejected with a validation error.
+
+Expected: all four steps behave as described, no server errors in the `npm run dev`/`docker compose logs zola` output.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add lib/storage/client.ts app/api/upload app/api/file-upload-limit lib/file-handling.ts app/components/chat-input/button-file-upload.tsx
+git rm app/components/chat-input/popover-content-storage.tsx
+git commit -m "feat: migrate file attachment storage from Supabase Storage to MinIO"
+```
+
+---
+
+### Task 9: Cleanup and final verification
+
+**Design note:** By the end of Task 8, nothing in the codebase should still import `@supabase/*`, `lib/supabase/*`, or `app/types/database.types.ts` — this task deletes those now-dead files, removes the transitive `@supabase/supabase-js` dependency, updates the two project docs (`CLAUDE.md`, `INSTALL.md`) that describe the old Supabase-based architecture, and runs the full verification pass the spec's Testing section calls for.
+
+**Files:**
+- Delete: `lib/supabase/client.ts`, `lib/supabase/server.ts`, `lib/supabase/server-guest.ts`, `lib/supabase/config.ts`
+- Delete: `app/types/database.types.ts`
+- Delete: `supabase/schema.sql` (and the now-empty `supabase/` directory)
+- Modify: `package.json` / `package-lock.json` (via `npm install`, prune transitive `@supabase/supabase-js`)
+- Modify: `CLAUDE.md`
+- Modify: `INSTALL.md`
+
+**Interfaces:**
+- Consumes: nothing new — this task only removes dead code and updates docs.
+- Produces: nothing — terminal task.
+
+- [ ] **Step 1: Confirm nothing still references Supabase**
+
+Run:
+```bash
+grep -rn "@supabase/\|lib/supabase\|isSupabaseEnabled\|database\.types" \
+  --include="*.ts" --include="*.tsx" \
+  app lib components utils 2>/dev/null | grep -v node_modules
+```
+Expected: no output. If anything is listed, it's a file this plan missed — fix it before continuing (re-check it against the pattern used for its sibling files in Tasks 4-8; it almost certainly needs the same `auth.api.getSession()` + `db` swap).
+
+- [ ] **Step 2: Delete the Supabase client files**
+
+Run:
+```bash
+rm lib/supabase/client.ts lib/supabase/server.ts lib/supabase/server-guest.ts lib/supabase/config.ts
+rmdir lib/supabase
+rm app/types/database.types.ts
+rm supabase/schema.sql
+rmdir supabase
+```
+Expected: all files removed; both directories gone (they only ever held the deleted files, so `rmdir` succeeds — if either `rmdir` fails with "Directory not empty", something in Step 1's grep was missed).
+
+- [ ] **Step 3: Prune the transitive Supabase dependency**
+
+Run: `npm install`
+Expected: `package-lock.json` updates; `npm ls @supabase/supabase-js` reports nothing found (it was only ever pulled in transitively for types, and the last file importing those types was deleted in Step 2).
+
+- [ ] **Step 4: Update CLAUDE.md's architecture section**
+
+In `CLAUDE.md`, replace this sentence in the `## Project` section:
+
+```
+Supports 100+ models via the models.dev API, BYOK (bring-your-own-key) with AES-256-GCM encrypted storage, local Ollama models, MCP servers, and Supabase for auth/persistence.
+```
+
+with:
+
+```
+Supports 100+ models via the models.dev API, BYOK (bring-your-own-key) with AES-256-GCM encrypted storage, local Ollama models, MCP servers, and a self-hosted Postgres + Better Auth stack for auth/persistence.
+```
+
+Replace the entire `### Supabase` section with:
+
+```markdown
+### Database & Auth (Postgres + Drizzle + Better Auth)
+
+The app runs against a self-hosted Postgres instance — no managed backend. `lib/db/schema.ts` defines the 13 app tables (chats, messages, projects, user_keys, etc.) via Drizzle ORM; `lib/db/auth-schema.ts` defines Better Auth's own tables (`user`, `session`, `account`, `verification`), sharing the same database. `lib/db/client.ts` exports the single `db` Drizzle instance every server-side module imports — there is no per-request or browser-side database client. Schema changes: edit `lib/db/schema.ts`/`lib/db/auth-schema.ts`, then `npm run db:generate` (drizzle-kit generates a migration under `lib/db/migrations/`) and `npm run db:migrate` to apply it.
+
+Auth is Better Auth (`lib/auth.ts` server instance, `lib/auth-client.ts` browser client), configured with Google OAuth and the `anonymous()` plugin for guest sessions. `app/api/auth/[...all]/route.ts` is Better Auth's catch-all route handler. A `databaseHooks.user.create.after` hook keeps the app's own `users` profile table in sync whenever Better Auth creates a user (OAuth sign-in or anonymous guest); `onLinkAccount` reassigns a guest's data (`lib/db/reassign-user.ts`) when they later sign in with Google. Session reads use `auth.api.getSession({ headers })` server-side and `authClient`/`useSession()` client-side — there is no `isSupabaseEnabled`-style graceful degradation; Postgres and Better Auth are hard requirements for this app to run.
+
+Authorization is enforced entirely at the application layer: every query filters explicitly by the authenticated user's id (`eq(table.userId, session.user.id)`), matching the pattern in every `app/api/*/route.ts` handler. There is no Postgres RLS.
+
+File attachments are stored in MinIO (S3-compatible, `lib/storage/client.ts`), not Postgres — uploads go through `app/api/upload/route.ts`; the browser never talks to storage directly.
+
+Self-hosting: `docker-compose.yml` provisions `postgres` and `minio` alongside the app. See `INSTALL.md` for full setup (env vars, Google OAuth app configuration, running migrations).
+```
+
+Replace the `### API keys (BYOK)` section's second sentence:
+
+```
+scoped per userId+provider in the user_keys Supabase table
+```
+
+with:
+
+```
+scoped per userId+provider in the user_keys table (Drizzle, `lib/db/schema.ts`)
+```
+
+In the `### Local-first chat persistence` section, replace:
+
+```
+Chats/messages are cached client-side in IndexedDB (`lib/chat-store/persist.ts`, db name `zola-db`) and synced to Supabase — this is a local-first cache, not just a fetch cache.
+```
+
+with:
+
+```
+Chats/messages are cached client-side in IndexedDB (`lib/chat-store/persist.ts`, db name `zola-db`) and synced to the self-hosted Postgres backend through Next.js API routes (`app/api/chats/*`) — this is a local-first cache, not just a fetch cache; there is no browser-to-database client.
+```
+
+- [ ] **Step 5: Update INSTALL.md's Supabase-specific sections**
+
+In `INSTALL.md`, replace the Prerequisites bullet:
+
+```
+- Supabase Account - For authentication and database (optional for basic use)
+```
+
+with:
+
+```
+- Docker and Docker Compose - For self-hosted Postgres, MinIO, and (optionally) the app itself
+```
+
+and delete the line: `Note: You can run Zola without Supabase for basic functionality, but you'll lose authentication, file uploads, and user preferences.` (Postgres/Better Auth/MinIO are now hard requirements — there is no reduced-functionality mode).
+
+Replace the `#### Database (Required for full features)` code block:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE=your_supabase_service_role_key
+NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET=chat-attachments
+```
+
+with:
+
+```bash
+DATABASE_URL=postgres://zola:zola@localhost:5432/zola
+BETTER_AUTH_SECRET=your_32_character_random_string
+BETTER_AUTH_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=your_google_oauth_client_id
+GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+MINIO_ENDPOINT=localhost
+MINIO_PORT=9000
+MINIO_USE_SSL=false
+MINIO_ACCESS_KEY=zola
+MINIO_SECRET_KEY=zola-minio-secret
+MINIO_BUCKET=chat-attachments
+MINIO_PUBLIC_URL=http://localhost:9000
+```
+
+Replace the `## Authentication Setup` section's opening and its "Step 1/2/3" Google OAuth walkthrough with:
+
+```markdown
+## Authentication Setup
+
+Zola uses [Better Auth](https://www.better-auth.com) for authentication: Google OAuth for real accounts, and an automatic anonymous/guest session for users who haven't signed in — no dashboard toggle needed for guest mode, it's on by default.
+
+### Google OAuth Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create a new project or select an existing one
+3. Navigate to **APIs & Services** > **Credentials**
+4. Click **Create Credentials** > **OAuth Client ID**
+5. Configure the OAuth consent screen if prompted
+6. Select application type: **Web application**
+7. Add **Authorized redirect URIs**:
+   ```
+   http://localhost:3000/api/auth/callback/google
+   https://your-production-domain.com/api/auth/callback/google
+   ```
+8. Click **Create** and copy the **Client ID** and **Client Secret** into `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` in `.env.local`
+9. Set `BETTER_AUTH_URL` to your app's base URL (`http://localhost:3000` locally, your real domain in production) — Better Auth uses this to build the OAuth callback URL
+```
+
+removing the old "Step 2: Configure in Supabase" and "Guest Mode Setup" subsections entirely (both were Supabase-dashboard-specific and have no equivalent step — guest mode just works).
+
+Replace the `## Database Configuration` section's "Quick Setup" / "Method 1" / "Method 2" content with:
+
+```markdown
+## Database Configuration
+
+Zola's schema is defined in `lib/db/schema.ts` (app tables) and `lib/db/auth-schema.ts` (Better Auth's tables), managed by [Drizzle ORM](https://orm.drizzle.team).
+
+### Quick Setup
+
+1. Start Postgres: `docker compose up -d postgres` (or point `DATABASE_URL` at any Postgres 13+ instance you already run)
+2. Apply the schema: `npm run db:migrate`
+
+That's it — both the app tables and Better Auth's tables are created by this one command. To change the schema, edit `lib/db/schema.ts`, run `npm run db:generate` to create a new migration file under `lib/db/migrations/`, then `npm run db:migrate` again.
+```
+
+removing the old "Email Authentication" / "Additional Providers" / "Row Level Security (RLS)" subsections under Database Configuration (RLS doesn't apply — authorization is enforced in application code, not Postgres policies).
+
+Replace the `## Storage Configuration` section with:
+
+```markdown
+## Storage Configuration
+
+Zola stores file attachments (images, documents, PDFs) in MinIO, an S3-compatible object store, provisioned as the `minio` service in `docker-compose.yml`.
+
+### Quick Setup
+
+1. Start MinIO: `docker compose up -d minio`
+2. Set the MinIO env vars in `.env.local` (see the Environment Setup section above) — `MINIO_ENDPOINT`/`MINIO_PORT` for server-side access, and `MINIO_PUBLIC_URL` for the browser-reachable base URL used in uploaded file links (override this to your real domain in production; `localhost:9000` only works when the app and browser are on the same machine)
+
+The `chat-attachments` bucket and its public-read policy are created automatically on first upload — no manual bucket creation step, unlike the old Supabase Storage setup.
+
+### File Upload Limits
+
+Configure in `lib/config.ts`:
+
+```typescript
+export const DAILY_FILE_UPLOAD_LIMIT = 5 // Uploads per day for non-premium users
+```
+```
+
+Update the two Troubleshooting entries that reference Supabase. Replace the `<summary><strong>Supabase connection fails</strong></summary>` entry's body with:
+
+```markdown
+Symptoms: "Database connection failed" errors
+
+**Solutions**:
+1. Verify `DATABASE_URL` in `.env.local` points at a reachable Postgres instance
+2. Check the Postgres container is healthy: `docker compose ps postgres`
+3. Confirm migrations have been applied: `npm run db:migrate`
+4. Check Postgres logs: `docker compose logs postgres`
+```
+
+and update its `<summary>` to `<strong>Database connection fails</strong>`.
+
+In the `<strong>File uploads not working</strong>` entry, replace:
+
+```
+1. Verify Supabase Storage buckets exist: `chat-attachments` and `avatars`
+2. Check bucket policies allow uploads (see Storage Configuration section)
+3. Ensure user is authenticated
+4. Check file size limits (default: 10MB per file)
+5. Verify `SUPABASE_SERVICE_ROLE` key has admin access
+```
+
+with:
+
+```
+1. Verify the `minio` container is running and healthy: `docker compose ps minio`
+2. Check `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` in `.env.local` match `docker-compose.yml`'s `minio` service credentials
+3. Ensure user is authenticated (uploads require a session)
+4. Check file size limits (default: 10MB per file) and allowed file types (`lib/file-handling.ts`)
+5. Check the MinIO console at `http://localhost:9001` to confirm the `chat-attachments` bucket exists and has objects
+```
+
+In the `<strong>Docker container exits immediately</strong>` entry, replace the last bullet `5. Try running without Supabase first (minimal config)` with `5. Confirm \`DATABASE_URL\`, \`BETTER_AUTH_SECRET\`, and MinIO env vars are all set — the app throws on startup if any are missing (Postgres/Better Auth/MinIO are hard requirements, there's no reduced-functionality mode to fall back to)`.
+
+Leave every other section of `INSTALL.md` (Ollama Setup, Local Development, Docker Deployment, Vercel/production deployment, remaining Troubleshooting entries, Configuration Options) unchanged — none of them reference Supabase.
+
+- [ ] **Step 6: Type-check and build**
+
+Run: `npm run type-check`
+Expected: zero errors (this is the first point in the plan where zero errors is expected — every earlier task explicitly allowed errors from not-yet-migrated files).
+
+Run: `npm run lint`
+Expected: no new lint errors introduced by this migration (pre-existing lint warnings in untouched files are not this plan's concern).
+
+Run: `npm run build`
+Expected: production build succeeds.
+
+- [ ] **Step 7: Full manual walkthrough**
+
+Run: `docker compose up -d` (builds and starts `zola`, `postgres`, `minio` together), then `npm run db:migrate` if this is the first run against a fresh Postgres volume. Open `http://localhost:3000` in a browser and walk through:
+
+1. **Guest flow**: Load the app with no prior session. Send a chat message without signing in. Confirm a response streams back and the message persists (reload the page — the chat should still be there).
+2. **Google sign-in**: Click "Continue with Google" from the guest chat. Complete the OAuth flow. Confirm you land back in the same chat, now signed in (check the user menu shows your Google account). Confirm the guest chat's messages are still visible — `onLinkAccount` (Task 3) should have reassigned them to the new account.
+3. **Sign out / sign back in**: Sign out (redirects to `/auth/login`). Sign back in with the same Google account. Confirm your chat history is still there.
+4. **Chat CRUD**: Create a new chat, rename it, pin it, delete it. Confirm each action persists across a page reload.
+5. **Projects**: Create a project, add a chat to it, rename the project, delete it (confirm its chats are *not* deleted, just unlinked — per Task 7's FK behavior note).
+6. **File upload**: Attach an image to a chat message. Confirm it uploads and renders. Check `docker compose logs minio` or the MinIO console for the stored object.
+7. **BYOK**: Add a personal API key for a provider in Settings. Confirm the key status endpoint reflects it, and a chat using that provider succeeds.
+8. **Budget limits**: Set a $0 daily budget for a provider in Settings. Attempt a chat with that provider. Confirm it's blocked with a budget-exceeded message.
+9. **Feedback**: Submit feedback via the feedback form. Confirm no error toast (verify the row landed in the `feedback` table via `docker compose exec postgres psql -U zola -d zola -c 'select * from feedback;'`).
+10. **Per-user isolation**: Sign in as a second Google account (or open an incognito window for a second guest session). Confirm this second user cannot see the first user's chats, projects, or custom models.
+
+Expected: all ten steps succeed with no unhandled errors in the browser console or `docker compose logs zola`.
+
+- [ ] **Step 8: Final commit**
+
+```bash
+git add -A
+git status
+```
+Review the output to confirm only expected files are staged (deleted Supabase files, updated docs, no accidental `.env.local` or other secrets), then:
+```bash
+git commit -m "chore: remove Supabase client code and update docs for self-hosted Postgres/Better Auth/MinIO stack"
 ```
 
 ---
