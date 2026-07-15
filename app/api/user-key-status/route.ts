@@ -1,44 +1,31 @@
-import { createClient } from "@/lib/supabase/server"
-import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db/client"
+import { userKeys } from "@/lib/db/schema"
 import { getAllModels } from "@/lib/models"
+import { eq } from "drizzle-orm"
+import { headers } from "next/headers"
+import { NextResponse } from "next/server"
 
 export async function GET() {
   try {
-    const supabase = await createClient()
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Supabase not available" },
-        { status: 500 }
-      )
-    }
-
-    const { data: authData } = await supabase.auth.getUser()
-
-    if (!authData?.user?.id) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data, error } = await supabase
-      .from("user_keys")
-      .select("provider")
-      .eq("user_id", authData.user.id)
+    const rows = await db
+      .select({ provider: userKeys.provider })
+      .from(userKeys)
+      .where(eq(userKeys.userId, session.user.id))
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    // Build dynamic list of providers from models
     const models = await getAllModels()
-    const dynamicProviders = new Set<string>(
-      models.map((m) => m.providerId)
-    )
+    const dynamicProviders = new Set<string>(models.map((m) => m.providerId))
 
-    const userProviders = new Set<string>((data || []).map((k) => k.provider))
+    const userProviders = new Set<string>(rows.map((k) => k.provider))
     const providerStatus: Record<string, boolean> = {}
     for (const id of dynamicProviders) {
       providerStatus[id] = userProviders.has(id)
     }
-    // Also include any stray providers that exist only in user_keys
     for (const id of userProviders) {
       providerStatus[id] = true
     }

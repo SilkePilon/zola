@@ -1,9 +1,6 @@
 import { toast } from "@/components/ui/toast"
-import { SupabaseClient } from "@supabase/supabase-js"
 import * as fileType from "file-type"
-import { DAILY_FILE_UPLOAD_LIMIT } from "./config"
-import { createClient } from "./supabase/client"
-import { isSupabaseEnabled } from "./supabase/config"
+import { fetchClient, getCsrfHeader } from "./fetch"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
@@ -51,49 +48,6 @@ export async function validateFile(
   return { isValid: true }
 }
 
-export async function uploadFile(
-  supabase: SupabaseClient,
-  file: File
-): Promise<string> {
-  const bucketName = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET
-  
-  if (!bucketName) {
-    throw new Error("Storage bucket not configured. Please set NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET in your environment variables.")
-  }
-
-  const fileExt = file.name.split(".").pop()
-  const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`
-  const filePath = `uploads/${fileName}`
-
-  const { error } = await supabase.storage
-    .from(bucketName)
-    .upload(filePath, file)
-
-  if (error) {
-    // Check for RLS policy violations
-    if (error.message.includes("row-level security") || error.message.includes("policy")) {
-      throw new Error(
-        "Storage bucket security policies not configured. Please run the storage setup migration or configure RLS policies in your Supabase project."
-      )
-    }
-    
-    // Check if bucket doesn't exist
-    if (error.message.includes("not found") || error.message.includes("does not exist")) {
-      throw new Error(
-        `Storage bucket "${bucketName}" not found. Please create it in your Supabase project dashboard under Storage.`
-      )
-    }
-    
-    throw new Error(`Error uploading file: ${error.message}`)
-  }
-
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from(bucketName).getPublicUrl(filePath)
-
-  return publicUrl
-}
-
 export function createAttachment(file: File, url: string): Attachment {
   return {
     name: file.name,
@@ -102,12 +56,42 @@ export function createAttachment(file: File, url: string): Attachment {
   }
 }
 
+export class FileUploadLimitError extends Error {
+  code: string
+  constructor(message: string) {
+    super(message)
+    this.code = "DAILY_FILE_LIMIT_REACHED"
+  }
+}
+
+async function uploadFile(file: File, chatId: string): Promise<Attachment> {
+  const formData = new FormData()
+  formData.append("file", file)
+  formData.append("chatId", chatId)
+
+  const res = await fetch("/api/upload", {
+    method: "POST",
+    headers: getCsrfHeader(),
+    body: formData,
+  })
+
+  const data = await res.json()
+
+  if (!res.ok) {
+    if (data.code === "DAILY_FILE_LIMIT_REACHED") {
+      throw new FileUploadLimitError(data.error)
+    }
+    throw new Error(data.error || "Error uploading file")
+  }
+
+  return data as Attachment
+}
+
 export async function processFiles(
   files: File[],
   chatId: string,
-  userId: string
+  _userId: string
 ): Promise<Attachment[]> {
-  const supabase = isSupabaseEnabled ? createClient() : null
   const attachments: Attachment[] = []
 
   for (const file of files) {
@@ -123,70 +107,29 @@ export async function processFiles(
     }
 
     try {
-      const url = supabase
-        ? await uploadFile(supabase, file)
-        : URL.createObjectURL(file)
-
-      if (supabase) {
-        const { error } = await supabase.from("chat_attachments").insert({
-          chat_id: chatId,
-          user_id: userId,
-          file_url: url,
-          file_name: file.name,
-          file_type: file.type,
-          file_size: file.size,
-        })
-
-        if (error) {
-          throw new Error(`Database insertion failed: ${error.message}`)
-        }
-      }
-
-      attachments.push(createAttachment(file, url))
+      const attachment = await uploadFile(file, chatId)
+      attachments.push(attachment)
     } catch (error) {
       console.error(`Error processing file ${file.name}:`, error)
+      if (error instanceof FileUploadLimitError) {
+        throw error
+      }
     }
   }
 
   return attachments
 }
 
-export class FileUploadLimitError extends Error {
-  code: string
-  constructor(message: string) {
-    super(message)
-    this.code = "DAILY_FILE_LIMIT_REACHED"
-  }
-}
+export async function checkFileUploadLimit(_userId: string) {
+  const res = await fetchClient("/api/file-upload-limit")
+  const data = await res.json()
 
-export async function checkFileUploadLimit(userId: string) {
-  if (!isSupabaseEnabled) return 0
-
-  const supabase = createClient()
-
-  if (!supabase) {
-    toast({
-      title: "File upload is not supported in this deployment",
-      status: "info",
-    })
-    return 0
+  if (!res.ok) {
+    if (data.code === "DAILY_FILE_LIMIT_REACHED") {
+      throw new FileUploadLimitError(data.error)
+    }
+    throw new Error(data.error || "Failed to check upload limit")
   }
 
-  const now = new Date()
-  const startOfToday = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  )
-
-  const { count, error } = await supabase
-    .from("chat_attachments")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .gte("created_at", startOfToday.toISOString())
-
-  if (error) throw new Error(error.message)
-  if (count && count >= DAILY_FILE_UPLOAD_LIMIT) {
-    throw new FileUploadLimitError("Daily file upload limit reached.")
-  }
-
-  return count
+  return data.count
 }

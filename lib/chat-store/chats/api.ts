@@ -1,7 +1,5 @@
 import { readFromIndexedDB, writeToIndexedDB } from "@/lib/chat-store/persist"
 import type { Chat, Chats } from "@/lib/chat-store/types"
-import { createClient } from "@/lib/supabase/client"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
 import { MODEL_DEFAULT } from "../../config"
 import { fetchClient } from "../../fetch"
 import {
@@ -10,82 +8,36 @@ import {
 } from "../../routes"
 
 export async function getChatsForUserInDb(userId: string): Promise<Chats[]> {
-  const supabase = createClient()
-  if (!supabase) return []
+  if (!userId) return []
 
-  const { data, error } = await supabase
-    .from("chats")
-    .select("*")
-    .eq("user_id", userId)
-    .order("pinned", { ascending: false })
-    .order("pinned_at", { ascending: false, nullsFirst: false })
-    .order("updated_at", { ascending: false })
+  const res = await fetchClient("/api/chats")
+  if (!res.ok) return []
 
-  if (!data || error) {
-    console.error("Failed to fetch chats:", error)
-    return []
-  }
-
-  return data
+  const { chats } = (await res.json()) as { chats: Chats[] }
+  return chats
 }
 
 export async function updateChatTitleInDb(id: string, title: string) {
-  const supabase = createClient()
-  if (!supabase) return
-
-  const { error } = await supabase
-    .from("chats")
-    .update({ title, updated_at: new Date().toISOString() })
-    .eq("id", id)
-  if (error) throw error
+  const res = await fetchClient(`/api/chats/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ title }),
+  })
+  if (!res.ok) throw new Error("Failed to update chat title")
 }
 
 export async function deleteChatInDb(id: string) {
-  const supabase = createClient()
-  if (!supabase) return
-
-  const { error } = await supabase.from("chats").delete().eq("id", id)
-  if (error) throw error
+  const res = await fetchClient(`/api/chats/${id}`, { method: "DELETE" })
+  if (!res.ok) throw new Error("Failed to delete chat")
 }
 
 export async function getAllUserChatsInDb(userId: string): Promise<Chats[]> {
-  const supabase = createClient()
-  if (!supabase) return []
-
-  const { data, error } = await supabase
-    .from("chats")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-
-  if (!data || error) return []
-  return data
-}
-
-export async function createChatInDb(
-  userId: string,
-  title: string,
-  model: string,
-  systemPrompt: string
-): Promise<string | null> {
-  const supabase = createClient()
-  if (!supabase) return null
-
-  const { data, error } = await supabase
-    .from("chats")
-    .insert({ user_id: userId, title, model, system_prompt: systemPrompt })
-    .select("id")
-    .single()
-
-  if (error || !data?.id) return null
-  return data.id
+  const chats = await getChatsForUserInDb(userId)
+  return [...chats].sort(
+    (a, b) => +new Date(b.created_at || "") - +new Date(a.created_at || "")
+  )
 }
 
 export async function fetchAndCacheChats(userId: string): Promise<Chats[]> {
-  if (!isSupabaseEnabled) {
-    return await getCachedChats()
-  }
-
   const data = await getChatsForUserInDb(userId)
 
   if (data.length > 0) {
@@ -135,32 +87,10 @@ export async function getUserChats(userId: string): Promise<Chat[]> {
   return data
 }
 
-export async function createChat(
-  userId: string,
-  title: string,
-  model: string,
-  systemPrompt: string
-): Promise<string> {
-  const id = await createChatInDb(userId, title, model, systemPrompt)
-  const finalId = id ?? crypto.randomUUID()
-
-  await writeToIndexedDB("chats", {
-    id: finalId,
-    title,
-    model,
-    user_id: userId,
-    system_prompt: systemPrompt,
-    created_at: new Date().toISOString(),
-  })
-
-  return finalId
-}
-
 export async function updateChatModel(chatId: string, model: string) {
   try {
     const res = await fetchClient(API_ROUTE_UPDATE_CHAT_MODEL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chatId, model }),
     })
     const responseData = await res.json()
@@ -189,7 +119,6 @@ export async function toggleChatPin(chatId: string, pinned: boolean) {
   try {
     const res = await fetchClient(API_ROUTE_TOGGLE_CHAT_PIN, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chatId, pinned }),
     })
     const responseData = await res.json()
@@ -239,7 +168,6 @@ export async function createNewChat(
 
     const res = await fetchClient("/api/create-chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     })
 
@@ -249,18 +177,7 @@ export async function createNewChat(
       throw new Error(responseData.error || "Failed to create chat")
     }
 
-    const chat: Chats = {
-      id: responseData.chat.id,
-      title: responseData.chat.title,
-      created_at: responseData.chat.created_at,
-      model: responseData.chat.model,
-      user_id: responseData.chat.user_id,
-      public: responseData.chat.public,
-      updated_at: responseData.chat.updated_at,
-      project_id: responseData.chat.project_id || null,
-      pinned: responseData.chat.pinned ?? false,
-      pinned_at: responseData.chat.pinned_at ?? null,
-    }
+    const chat: Chats = responseData.chat
 
     await writeToIndexedDB("chats", chat)
     return chat

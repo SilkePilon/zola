@@ -2,8 +2,6 @@
 
 import { Button } from "@/components/ui/button"
 import { signInWithGoogle } from "@/lib/api"
-import { createClient } from "@/lib/supabase/client"
-import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
 import { HeaderGoBack } from "../components/header-go-back"
@@ -13,30 +11,18 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
 
   async function handleSignInWithGoogle() {
-    const supabase = createClient()
-
-    if (!supabase) {
-      throw new Error("Supabase is not configured")
-    }
-
     try {
       setIsLoading(true)
       setError(null)
 
       // From login page, always redirect to home after auth
-      const data = await signInWithGoogle(supabase, "/")
-
-      // Redirect to the provider URL
-      if (data?.url) {
-        window.location.href = data.url
-      }
+      await signInWithGoogle("/")
     } catch (err: unknown) {
       console.error("Error signing in with Google:", err)
       setError(
         (err as Error).message ||
           "An unexpected error occurred. Please try again."
       )
-    } finally {
       setIsLoading(false)
     }
   }
@@ -84,7 +70,6 @@ export default function LoginPage() {
       </main>
 
       <footer className="text-muted-foreground py-6 text-center text-sm">
-        {/* @todo */}
         <p>
           By continuing, you agree to our{" "}
           <Link href="/" className="text-foreground hover:underline">

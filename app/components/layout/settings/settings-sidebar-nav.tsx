@@ -22,7 +22,6 @@ type NavItem = {
   tab: TabType
   label: string
   icon: React.ReactNode
-  supabaseOnly?: boolean
 }
 
 type NavGroup = {
@@ -39,8 +38,8 @@ const NAV_GROUPS: NavGroup[] = [
       { tab: "prompts", label: "Prompts", icon: <NotePencilIcon className="size-4" /> },
       { tab: "apikeys", label: "API Keys", icon: <KeyIcon className="size-4" /> },
       { tab: "models", label: "Models", icon: <CubeIcon className="size-4" /> },
-      { tab: "usage", label: "Usage & Cost", icon: <Database className="size-4" />, supabaseOnly: true },
-      { tab: "budget", label: "Budget", icon: <DollarSign className="size-4" />, supabaseOnly: true },
+      { tab: "usage", label: "Usage & Cost", icon: <Database className="size-4" /> },
+      { tab: "budget", label: "Budget", icon: <DollarSign className="size-4" /> },
     ],
   },
   {
@@ -58,7 +57,6 @@ type SettingsSidebarNavProps = {
   searchQuery: string
   onSearchQueryChange: (query: string) => void
   onResultSelect: (entry: SettingsSearchEntry) => void
-  supabaseEnabled: boolean
 }
 
 export function SettingsSidebarNav({
@@ -67,9 +65,8 @@ export function SettingsSidebarNav({
   searchQuery,
   onSearchQueryChange,
   onResultSelect,
-  supabaseEnabled,
 }: SettingsSidebarNavProps) {
-  const searchResults = searchSettingsIndex(searchQuery, supabaseEnabled)
+  const searchResults = searchSettingsIndex(searchQuery)
   const isSearching = searchQuery.trim().length > 0
 
   return (
@@ -118,9 +115,7 @@ export function SettingsSidebarNav({
           )
         ) : (
           NAV_GROUPS.map((group) => {
-            const items = group.items.filter(
-              (item) => !item.supabaseOnly || supabaseEnabled
-            )
+            const items = group.items
             if (items.length === 0) return null
             return (
               <div key={group.label}>

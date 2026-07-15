@@ -1,64 +1,76 @@
+import "server-only"
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db/client"
+import { customModels } from "@/lib/db/schema"
+import { eq } from "drizzle-orm"
+import { headers } from "next/headers"
 import { ModelConfig } from "./types"
-import { createClient } from "../supabase/server"
 
 export async function getCustomModels(): Promise<ModelConfig[]> {
   try {
-    const supabase = await createClient()
-    if (!supabase) return []
-    
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return []
-    
-    const { data } = await (supabase as any)
-      .from("custom_models")
-      .select("*")
-      .eq("user_id", user.id)
-    
-    if (!data) return []
-    
-    return data.map((m: any) => {
-      const modelId = m.model_id.includes('/') ? m.model_id.split('/')[1] : m.model_id
-      
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) return []
+
+    const rows = await db
+      .select()
+      .from(customModels)
+      .where(eq(customModels.userId, session.user.id))
+
+    return rows.map((m) => {
+      const modelId = m.modelId.includes("/")
+        ? m.modelId.split("/")[1]
+        : m.modelId
+
       return {
         id: modelId,
         name: m.name,
-        providerId: m.provider_id,
-        uniqueId: `${m.provider_id}:${modelId}`,
-        provider: m.provider_id,
-        icon: m.provider_id,
-        baseProviderId: m.provider_id,
-        contextWindow: m.context_window || 128000,
-        inputCost: m.input_cost || 0,
-        outputCost: m.output_cost || 0,
+        providerId: m.providerId,
+        uniqueId: `${m.providerId}:${modelId}`,
+        provider: m.providerId,
+        icon: m.providerId,
+        baseProviderId: m.providerId,
+        contextWindow: m.contextWindow || 128000,
+        inputCost: m.inputCost ? Number(m.inputCost) : 0,
+        outputCost: m.outputCost ? Number(m.outputCost) : 0,
         vision: m.vision || false,
         tools: m.tools || false,
         reasoning: m.reasoning || false,
         audio: m.audio || false,
         video: m.video || false,
-        baseUrl: m.base_url,
+        baseUrl: m.baseUrl ?? undefined,
         isCustom: true,
-        apiSdk: m.base_url 
+        apiSdk: m.baseUrl
           ? async (apiKey?: string) => {
-              const { createOpenAICompatible } = await import("@ai-sdk/openai-compatible")
+              const { createOpenAICompatible } = await import(
+                "@ai-sdk/openai-compatible"
+              )
               const instance = createOpenAICompatible({
-                name: m.provider_id,
+                name: m.providerId,
                 apiKey: apiKey,
-                baseURL: m.base_url,
+                baseURL: m.baseUrl!,
               })
               return instance(modelId)
             }
           : async (apiKey?: string) => {
-              const { getRawModelsDevAPI } = await import("../providers/registry")
-              const providersData = await getRawModelsDevAPI() as any
-              const providerInfo = providersData[m.provider_id]
-              
+              const { getRawModelsDevAPI } = await import(
+                "../providers/registry"
+              )
+              const providersData = (await getRawModelsDevAPI()) as any
+              const providerInfo = providersData[m.providerId]
+
               if (!providerInfo) {
-                throw new Error(`Provider ${m.provider_id} not found. Custom models without a base URL must use a known provider.`)
+                throw new Error(
+                  `Provider ${m.providerId} not found. Custom models without a base URL must use a known provider.`
+                )
               }
-              
+
               const { createModelSDK } = await import("./sdk")
               return await createModelSDK(
-                { id: m.provider_id, npm: providerInfo.npm, api: providerInfo.api },
+                {
+                  id: m.providerId,
+                  npm: providerInfo.npm,
+                  api: providerInfo.api,
+                },
                 modelId,
                 apiKey
               )

@@ -15,7 +15,7 @@ import {
   updateMCPServerInSupabase,
   deleteMCPServerFromSupabase,
   clearAllMCPServersInSupabase,
-} from "./supabase"
+} from "./api"
 
 export type MCPStore = {
   servers: MCPServerConfig[]
@@ -49,7 +49,7 @@ export const useMCPStore = create<MCPStore>((set, get) => ({
     try {
       const { userId } = get()
       
-      // Use Supabase for authenticated users, IndexedDB for guests
+      // Use the database for authenticated users, IndexedDB for guests
       const servers = userId 
         ? await readMCPServersFromSupabase(userId)
         : await readMCPServers()
@@ -65,7 +65,7 @@ export const useMCPStore = create<MCPStore>((set, get) => ({
     const { userId } = get()
 
     if (userId) {
-      // Use Supabase for authenticated users
+      // Use the database for authenticated users
       const newServer = await addMCPServerToSupabase(userId, serverData)
       if (!newServer) {
         throw new Error("Failed to add MCP server")

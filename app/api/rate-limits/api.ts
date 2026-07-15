@@ -3,31 +3,36 @@ import {
   DAILY_LIMIT_PRO_MODELS,
   NON_AUTH_DAILY_MESSAGE_LIMIT,
 } from "@/lib/config"
+import { db } from "@/lib/db/client"
+import { users } from "@/lib/db/schema"
 import { validateUserIdentity } from "@/lib/server/api"
+import { eq } from "drizzle-orm"
 
 export async function getMessageUsage(
   userId: string,
   isAuthenticated: boolean
 ) {
-  const supabase = await validateUserIdentity(userId, isAuthenticated)
-  if (!supabase) return null
+  await validateUserIdentity(userId, isAuthenticated)
 
-  const { data, error } = await supabase
-    .from("users")
-    .select("daily_message_count, daily_pro_message_count")
-    .eq("id", userId)
-    .maybeSingle()
+  const [data] = await db
+    .select({
+      dailyMessageCount: users.dailyMessageCount,
+      dailyProMessageCount: users.dailyProMessageCount,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
 
-  if (error || !data) {
-    throw new Error(error?.message || "Failed to fetch message usage")
+  if (!data) {
+    throw new Error("Failed to fetch message usage")
   }
 
   const dailyLimit = isAuthenticated
     ? AUTH_DAILY_MESSAGE_LIMIT
     : NON_AUTH_DAILY_MESSAGE_LIMIT
 
-  const dailyCount = data.daily_message_count || 0
-  const dailyProCount = data.daily_pro_message_count || 0
+  const dailyCount = data.dailyMessageCount || 0
+  const dailyProCount = data.dailyProMessageCount || 0
 
   return {
     dailyCount,

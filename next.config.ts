@@ -27,14 +27,7 @@ const nextConfig: NextConfig = {
     "@basetenlabs/performance-client-linux-x64-musl",
   ],
   images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "*.supabase.co",
-        port: "",
-        pathname: "/storage/v1/object/public/**",
-      },
-    ],
+    remotePatterns: [],
   },
 }
 

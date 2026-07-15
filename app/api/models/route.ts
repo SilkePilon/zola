@@ -4,7 +4,11 @@ import {
   refreshModelsCache,
 } from "@/lib/models"
 import { getCustomModels } from "@/lib/models/custom"
-import { createClient } from "@/lib/supabase/server"
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db/client"
+import { userKeys } from "@/lib/db/schema"
+import { eq } from "drizzle-orm"
+import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 import { ensureProviderLogosCached } from "@/lib/server/provider-logos"
 
@@ -20,36 +24,24 @@ async function respondWithModels(models: any[]) {
 
 export async function GET() {
   try {
-    const supabase = await createClient()
+    const session = await auth.api.getSession({ headers: await headers() })
 
-    if (!supabase) {
+    if (!session?.user) {
       const models = await getAllModels()
       return respondWithModels(models)
     }
 
-    const { data: authData } = await supabase.auth.getUser()
-
-    if (!authData?.user?.id) {
-      const models = await getAllModels()
-      return respondWithModels(models)
-    }
-
-    // Convert empty array to undefined to avoid cache miss in getAllModels
     const customModelsResult = await getCustomModels()
-    const customModels = customModelsResult?.length ? customModelsResult : undefined
-    
-    const { data, error } = await supabase
-      .from("user_keys")
-      .select("provider")
-      .eq("user_id", authData.user.id)
+    const customModels = customModelsResult?.length
+      ? customModelsResult
+      : undefined
 
-    if (error) {
-      console.error("Error fetching user keys:", error)
-      const models = await getAllModels(customModels)
-      return respondWithModels(models)
-    }
+    const rows = await db
+      .select({ provider: userKeys.provider })
+      .from(userKeys)
+      .where(eq(userKeys.userId, session.user.id))
 
-    const userProviders = data?.map((k) => k.provider) || []
+    const userProviders = rows.map((k) => k.provider)
 
     if (userProviders.length === 0) {
       const models = await getAllModels(customModels)

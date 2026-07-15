@@ -1,72 +1,46 @@
-import { createClient } from "@/lib/supabase/server"
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db/client"
+import { mapProjectRow } from "@/lib/db/mappers"
+import { projects } from "@/lib/db/schema"
+import { asc, eq } from "drizzle-orm"
+import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
-
-    if (!supabase) {
-      return new Response(
-        JSON.stringify({ error: "Supabase not available in this deployment." }),
-        { status: 200 }
-      )
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-
-    const { data: authData } = await supabase.auth.getUser()
-
-    if (!authData?.user?.id) {
-      return new Response(JSON.stringify({ error: "Missing userId" }), {
-        status: 400,
-      })
-    }
-
-    const userId = authData.user.id
 
     const { name } = await request.json()
 
-    const { data, error } = await supabase
-      .from("projects")
-      .insert({ name, user_id: userId })
-      .select()
-      .single()
+    const [data] = await db
+      .insert(projects)
+      .values({ name, userId: session.user.id })
+      .returning()
 
-    if (error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json(data)
+    return NextResponse.json(mapProjectRow(data))
   } catch (err: unknown) {
     console.error("Error in projects endpoint:", err)
-
-    return new Response(
-      JSON.stringify({
-        error: (err as Error).message || "Internal server error",
-      }),
+    return NextResponse.json(
+      { error: (err as Error).message || "Internal server error" },
       { status: 500 }
     )
   }
 }
 
 export async function GET() {
-  const supabase = await createClient()
-
-  if (!supabase) {
-    return new Response(
-      JSON.stringify({ error: "Supabase not available in this deployment." }),
-      { status: 200 }
-    )
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { data: authData } = await supabase.auth.getUser()
+  const data = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.userId, session.user.id))
+    .orderBy(asc(projects.createdAt))
 
-  const userId = authData?.user?.id
-  if (!userId)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data, error } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: true })
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json(data.map(mapProjectRow))
 }

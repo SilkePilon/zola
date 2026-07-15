@@ -4,11 +4,10 @@
 import {
   fetchUserProfile,
   signOutUser,
-  subscribeToUserUpdates,
   updateUserProfile,
 } from "@/lib/user-store/api"
 import type { UserProfile } from "@/lib/user/types"
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useState } from "react"
 
 type UserContextType = {
   user: UserProfile | null
@@ -35,7 +34,7 @@ export function UserProvider({
 
     setIsLoading(true)
     try {
-      const updatedUser = await fetchUserProfile(user.id)
+      const updatedUser = await fetchUserProfile()
       if (updatedUser) setUser(updatedUser)
     } finally {
       setIsLoading(false)
@@ -65,19 +64,6 @@ export function UserProvider({
       setIsLoading(false)
     }
   }
-
-  // Set up realtime subscription for user data changes
-  useEffect(() => {
-    if (!user?.id) return
-
-    const unsubscribe = subscribeToUserUpdates(user.id, (newData) => {
-      setUser((prev) => (prev ? { ...prev, ...newData } : null))
-    })
-
-    return () => {
-      unsubscribe()
-    }
-  }, [user?.id])
 
   return (
     <UserContext.Provider

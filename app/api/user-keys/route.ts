@@ -1,6 +1,10 @@
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db/client"
+import { userKeys, users } from "@/lib/db/schema"
 import { encryptKey } from "@/lib/encryption"
 import { getModelsForProvider } from "@/lib/models"
-import { createClient } from "@/lib/supabase/server"
+import { and, eq } from "drizzle-orm"
+import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
@@ -14,57 +18,49 @@ export async function POST(request: Request) {
       )
     }
 
-    const supabase = await createClient()
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Supabase not available" },
-        { status: 500 }
-      )
-    }
-
-    const { data: authData } = await supabase.auth.getUser()
-    if (!authData?.user?.id) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { encrypted, iv } = encryptKey(apiKey)
 
-    // Check if this is a new API key (not an update)
-    const { data: existingKey } = await supabase
-      .from("user_keys")
-      .select("provider")
-      .eq("user_id", authData.user.id)
-      .eq("provider", provider)
-      .single()
+    const [existingKey] = await db
+      .select({ provider: userKeys.provider })
+      .from(userKeys)
+      .where(
+        and(
+          eq(userKeys.userId, session.user.id),
+          eq(userKeys.provider, provider)
+        )
+      )
+      .limit(1)
 
     const isNewKey = !existingKey
 
-    // Save the API key
-    const { error } = await supabase.from("user_keys").upsert({
-      user_id: authData.user.id,
-      provider,
-      encrypted_key: encrypted,
-      iv,
-      updated_at: new Date().toISOString(),
-    })
+    await db
+      .insert(userKeys)
+      .values({
+        userId: session.user.id,
+        provider,
+        encryptedKey: encrypted,
+        iv,
+      })
+      .onConflictDoUpdate({
+        target: [userKeys.userId, userKeys.provider],
+        set: { encryptedKey: encrypted, iv, updatedAt: new Date() },
+      })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    // If this is a new API key, add only the most recently updated provider model to favorites
     if (isNewKey) {
       try {
-        // Get current user's favorite models
-        const { data: userData } = await supabase
-          .from("users")
-          .select("favorite_models")
-          .eq("id", authData.user.id)
-          .single()
+        const [userData] = await db
+          .select({ favoriteModels: users.favoriteModels })
+          .from(users)
+          .where(eq(users.id, session.user.id))
+          .limit(1)
 
-        const currentFavorites = userData?.favorite_models || []
+        const currentFavorites = userData?.favoriteModels || []
 
-        // Get models for this provider and pick the most recently updated
         const providerModels = await getModelsForProvider(provider)
         if (!providerModels || providerModels.length === 0) {
           return NextResponse.json({
@@ -78,26 +74,17 @@ export async function POST(request: Request) {
           .sort((a, b) => {
             const ta = a.updatedAt || a.releasedAt || ""
             const tb = b.updatedAt || b.releasedAt || ""
-            // Newest first
             return (tb || "").localeCompare(ta || "")
           })[0]
 
         if (mostRecent && !currentFavorites.includes(mostRecent.id)) {
-          const updatedFavorites = [...currentFavorites, mostRecent.id]
-
-          // Update user's favorite models
-          const { error: favoritesError } = await supabase
-            .from("users")
-            .update({ favorite_models: updatedFavorites })
-            .eq("id", authData.user.id)
-
-          if (favoritesError) {
-            console.error("Failed to update favorite models:", favoritesError)
-          }
+          await db
+            .update(users)
+            .set({ favoriteModels: [...currentFavorites, mostRecent.id] })
+            .where(eq(users.id, session.user.id))
         }
       } catch (modelsError) {
         console.error("Failed to update favorite models:", modelsError)
-        // Don't fail the main request if favorite models update fails
       }
     }
 
@@ -128,28 +115,19 @@ export async function DELETE(request: Request) {
       )
     }
 
-    const supabase = await createClient()
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Supabase not available" },
-        { status: 500 }
-      )
-    }
-
-    const { data: authData } = await supabase.auth.getUser()
-    if (!authData?.user?.id) {
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { error } = await supabase
-      .from("user_keys")
-      .delete()
-      .eq("user_id", authData.user.id)
-      .eq("provider", provider)
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    await db
+      .delete(userKeys)
+      .where(
+        and(
+          eq(userKeys.userId, session.user.id),
+          eq(userKeys.provider, provider)
+        )
+      )
 
     return NextResponse.json({ success: true })
   } catch (error) {

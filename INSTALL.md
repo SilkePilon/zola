@@ -34,11 +34,9 @@ Before you begin, ensure you have the following installed:
 - Node.js 18.x or later - Runtime environment
 - npm or yarn (latest) - Package manager
 - Git (latest) - Version control
-- Supabase Account - For authentication and database (optional for basic use)
+- Docker and Docker Compose - For self-hosted Postgres, MinIO, and (optionally) the app itself
 - API Keys - For AI providers like OpenAI, Anthropic, Google, etc.
 - Ollama (optional) - For running local AI models
-
-Note: You can run Zola without Supabase for basic functionality, but you'll lose authentication, file uploads, and user preferences.
 
 ## Environment Setup
 
@@ -57,10 +55,18 @@ Edit `.env.local` with your credentials:
 #### Database (Required for full features)
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE=your_supabase_service_role_key
-NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET=chat-attachments
+DATABASE_URL=postgres://zola:zola@localhost:5432/zola
+BETTER_AUTH_SECRET=your_32_character_random_string
+BETTER_AUTH_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=your_google_oauth_client_id
+GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+MINIO_ENDPOINT=localhost
+MINIO_PORT=9000
+MINIO_USE_SSL=false
+MINIO_ACCESS_KEY=zola
+MINIO_SECRET_KEY=zola-minio-secret
+MINIO_BUCKET=chat-attachments
+MINIO_PUBLIC_URL=http://localhost:9000
 ```
 
 #### Security (Required)
@@ -138,102 +144,36 @@ python -c "import base64, secrets; print(base64.b64encode(secrets.token_bytes(32
 
 ## Authentication Setup
 
-Zola supports multiple authentication methods through Supabase.
+Zola uses [Better Auth](https://www.better-auth.com) for authentication: Google OAuth for real accounts, and an automatic anonymous/guest session for users who haven't signed in — no dashboard toggle needed for guest mode, it's on by default.
 
 ### Google OAuth Setup
 
-#### Step 1: Create Google OAuth Credentials
-
 1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project or select existing
+2. Create a new project or select an existing one
 3. Navigate to **APIs & Services** > **Credentials**
 4. Click **Create Credentials** > **OAuth Client ID**
 5. Configure the OAuth consent screen if prompted
 6. Select application type: **Web application**
 7. Add **Authorized redirect URIs**:
    ```
-   https://[YOUR_PROJECT_REF].supabase.co/auth/v1/callback
-   http://localhost:3000/auth/callback
+   http://localhost:3000/api/auth/callback/google
+   https://your-production-domain.com/api/auth/callback/google
    ```
-8. Click **Create** and save the **Client ID** and **Client Secret**
-
-#### Step 2: Configure in Supabase
-
-1. Go to your [Supabase Dashboard](https://app.supabase.com)
-2. Navigate to **Authentication** > **Providers**
-3. Find **Google** and toggle it on
-4. Paste your **Client ID** and **Client Secret**
-5. Click **Save**
-
-#### Step 3: Add Production Redirect URL
-
-For production deployments (e.g., Vercel), you need to add your production domain to the authorized redirect URLs:
-
-1. Go back to **Google Cloud Console** > **Credentials**
-2. Edit your OAuth 2.0 Client ID
-3. Add your production redirect URI:
-   ```
-   https://zola.silkepilon.dev/auth/callback
-   ```
-4. Click **Save**
-
-5. In **Supabase Dashboard** > **Authentication** > **URL Configuration**:
-   - Add `https://zola.silkepilon.dev` to **Redirect URLs**
-   - Set **Site URL** to `https://zola.silkepilon.dev`
-
-6. In your Vercel deployment, ensure environment variable is set:
-   ```
-   NEXT_PUBLIC_SITE_URL=https://zola.silkepilon.dev
-   ```
-
-This ensures that after authentication, users are redirected back to your production domain instead of localhost.
-
-### Guest Mode Setup
-
-Enable anonymous sign-ins for users to try Zola without creating an account:
-
-1. Go to **Supabase Dashboard** > **Authentication** > **Providers**
-2. Scroll to **Anonymous sign-ins**
-3. Toggle **Enable anonymous sign-ins** to **ON**
+8. Click **Create** and copy the **Client ID** and **Client Secret** into `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` in `.env.local`
+9. Set `BETTER_AUTH_URL` to your app's base URL (`http://localhost:3000` locally, your real domain in production) — Better Auth uses this to build the OAuth callback URL
 
 ---
 
 ## Database Configuration
 
+Zola's schema is defined in `lib/db/schema.ts` (app tables) and `lib/db/auth-schema.ts` (Better Auth's tables), managed by [Drizzle ORM](https://orm.drizzle.team).
+
 ### Quick Setup
 
-Zola includes a complete database schema in `supabase/schema.sql`.
+1. Start Postgres: `docker compose up -d postgres` (or point `DATABASE_URL` at any Postgres 13+ instance you already run)
+2. Apply the schema: `npm run db:migrate`
 
-#### Method 1: Use the Provided Schema (Recommended)
-
-1. Go to your Supabase Dashboard
-2. Navigate to **SQL Editor**
-3. Copy the contents of `supabase/schema.sql`
-4. Paste and run the SQL script
-5. Done! All tables, triggers, and policies are created
-
-#### Method 2: Manual Setup
-
-If you prefer to create tables manually, here's the schema:
-
-### Email Authentication (Optional)
-
-Supabase supports email/password authentication out of the box:
-
-1. Already enabled by default in Supabase
-2. Users can sign up with email and password
-3. Configure email templates in **Authentication** > **Email Templates**
-
-### Additional Providers
-
-Supabase supports many OAuth providers:
-
-- GitHub, GitLab, Bitbucket
-- Facebook, Twitter, Discord
-- Azure, Apple, LinkedIn
-- And more...
-
-Configure them similarly to Google OAuth in the **Authentication** > **Providers** section.
+That's it — both the app tables and Better Auth's tables are created by this one command. To change the schema, edit `lib/db/schema.ts`, run `npm run db:generate` to create a new migration file under `lib/db/migrations/`, then `npm run db:migrate` again.
 
 The `CSRF_SECRET` is used to protect your application against Cross-Site Request Forgery attacks. You need to generate a secure random string for this value. Here are a few ways to generate one:
 
@@ -291,142 +231,18 @@ ENCRYPTION_KEY=your_generated_base64_encryption_key
 
 With BYOK enabled, users can securely add their own API keys through the settings interface, giving them access to AI models using their personal accounts and usage limits.
 
-#### Google OAuth Authentication
-
-1. Go to your Supabase project dashboard
-2. Navigate to Authentication > Providers
-3. Find the "Google" provider
-4. Enable it by toggling the switch
-5. Configure the Google OAuth credentials:
-   - You'll need to set up OAuth 2.0 credentials in the Google Cloud Console
-   - Add your application's redirect URL: https://[YOUR_PROJECT_REF].supabase.co/auth/v1/callback
-   - Get the Client ID and Client Secret from Google Cloud Console
-   - Add these credentials to the Google provider settings in Supabase
-
-Here are the detailed steps to set up Google OAuth:
-
-1. Go to the Google Cloud Console
-2. Create a new project or select an existing one
-3. Enable the Google+ API
-4. Go to Credentials > Create Credentials > OAuth Client ID
-5. Configure the OAuth consent screen if you haven't already
-6. Set the application type as "Web application"
-7. Add these authorized redirect URIs:
-
-- https://[YOUR_PROJECT_REF].supabase.co/auth/v1/callback
-- http://localhost:3000/auth/callback (for local development)
-
-8. Copy the Client ID and Client Secret
-9. Go back to your Supabase dashboard
-10. Paste the Client ID and Client Secret in the Google provider settings
-11. Save the changes
-
-#### Guest user setup
-
-1. Go to your Supabase project dashboard
-2. Navigate to Authentication > Providers
-3. Toggle on "Allow anonymous sign-ins"
-   -- Custom models table (for user-added models)
-   CREATE TABLE custom_models (
-   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-   name TEXT NOT NULL,
-   model_id TEXT NOT NULL,
-   provider_id TEXT NOT NULL,
-   base_url TEXT,
-   context_window INTEGER,
-   input_cost DECIMAL(10, 6),
-   output_cost DECIMAL(10, 6),
-   vision BOOLEAN DEFAULT false,
-   tools BOOLEAN DEFAULT false,
-   reasoning BOOLEAN DEFAULT false,
-   audio BOOLEAN DEFAULT false,
-   video BOOLEAN DEFAULT false,
-   created_at TIMESTAMPTZ DEFAULT NOW(),
-   updated_at TIMESTAMPTZ DEFAULT NOW()
-   );
-
-CREATE INDEX idx_custom_models_user_id ON custom_models(user_id);
-CREATE UNIQUE INDEX idx_custom_models_user_model ON custom_models(user_id, provider_id, model_id);
-
-````
-
-Tip: The complete, production-ready schema is in `supabase/schema.sql` with all triggers, indexes, and RLS policies.
-
-### Row Level Security (RLS)
-
-For production, enable RLS policies to secure your data. The schema file includes commented examples:
-
-```sql
--- Enable RLS on tables
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE chats ENABLE ROW LEVEL SECURITY;
-ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
-
--- Example: Users can only access their own data
-CREATE POLICY "Users can view own data" ON users FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can update own data" ON users FOR UPDATE USING (auth.uid() = id);
-````
-
-Uncomment the RLS section in `supabase/schema.sql` for production deployments.
-
 ---
 
 ## Storage Configuration
 
-Zola uses Supabase Storage for file uploads (images, documents, PDFs).
+Zola stores file attachments (images, documents, PDFs) in MinIO, an S3-compatible object store, provisioned as the `minio` service in `docker-compose.yml`.
 
-### Step 1: Create Storage Buckets
+### Quick Setup
 
-1. Go to **Supabase Dashboard** > **Storage**
-2. Click **New bucket**
-3. Create two buckets:
-   - **Name**: `chat-attachments` | **Public**: ✅ Yes (used for file attachments in chats)
-   - **Name**: `avatars` | **Public**: ✅ Yes (used for user profile pictures)
+1. Start MinIO: `docker compose up -d minio`
+2. Set the MinIO env vars in `.env.local` (see the Environment Setup section above) — `MINIO_ENDPOINT`/`MINIO_PORT` for server-side access, and `MINIO_PUBLIC_URL` for the browser-reachable base URL used in uploaded file links (override this to your real domain in production; `localhost:9000` only works when the app and browser are on the same machine)
 
-### Step 2: Configure Storage Bucket in Environment
-
-Add the storage bucket name to your `.env.local`:
-
-```bash
-NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET=chat-attachments
-```
-
-This tells Zola which bucket to use for chat file attachments. The bucket name must match the one you created in your Supabase project.
-
-### Step 3: Configure Bucket Policies
-
-The `supabase/schema.sql` file includes storage policies that:
-
-- Allow authenticated users to upload files
-- Allow public read access to files
-- Allow users to delete their own files
-- Restrict file paths to prevent unauthorized access
-
-These policies are automatically created when you run the schema SQL script.
-
-### Manual Policy Setup (Optional)
-
-If you need to create policies manually:
-
-```sql
--- Allow authenticated uploads
-CREATE POLICY "Authenticated users can upload"
-ON storage.objects FOR INSERT TO authenticated
-WITH CHECK (bucket_id = 'chat-attachments');
-
----
-
-## Ollama Setup (Local AI)
-CREATE POLICY "Public can download"
-ON storage.objects FOR SELECT TO public
-USING (bucket_id = 'chat-attachments');
-
--- Allow users to delete own files
-CREATE POLICY "Users can delete own files"
-ON storage.objects FOR DELETE TO authenticated
-USING (bucket_id = 'chat-attachments' AND auth.uid()::text = (storage.foldername(name))[1]);
-```
+The `chat-attachments` bucket and its public-read policy are created automatically on first upload — no manual bucket creation step, unlike the old Supabase Storage setup.
 
 ### File Upload Limits
 
@@ -435,140 +251,6 @@ Configure in `lib/config.ts`:
 ```typescript
 export const DAILY_FILE_UPLOAD_LIMIT = 5 // Uploads per day for non-premium users
 ```
-
-message_count INTEGER,
-premium BOOLEAN,
-profile_image TEXT,
-created_at TIMESTAMPTZ DEFAULT NOW(),
-last_active_at TIMESTAMPTZ DEFAULT NOW(),
-daily_pro_message_count INTEGER,
-daily_pro_reset TIMESTAMPTZ,
-system_prompt TEXT,
-CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE -- Explicit FK definition
-);
-
--- Projects table
-CREATE TABLE projects (
-id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-name TEXT NOT NULL,
-user_id UUID NOT NULL,
-created_at TIMESTAMPTZ DEFAULT NOW(),
-CONSTRAINT projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Chats table
-CREATE TABLE chats (
-id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-user_id UUID NOT NULL,
-project_id UUID,
-title TEXT,
-model TEXT,
-system_prompt TEXT,
-created_at TIMESTAMPTZ DEFAULT NOW(),
-updated_at TIMESTAMPTZ DEFAULT NOW(),
-public BOOLEAN DEFAULT FALSE NOT NULL,
-pinned BOOLEAN DEFAULT FALSE NOT NULL,
-pinned_at TIMESTAMPTZ NULL,
-CONSTRAINT chats_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-);
-
--- Messages table
-CREATE TABLE messages (
-id SERIAL PRIMARY KEY, -- Using SERIAL for auto-incrementing integer ID
-chat_id UUID NOT NULL,
-user_id UUID,
-content TEXT,
-role TEXT NOT NULL CHECK (role IN ('system', 'user', 'assistant', 'data')), -- Added CHECK constraint
-experimental_attachments JSONB, -- Storing Attachment[] as JSONB
-parts JSONB,
-created_at TIMESTAMPTZ DEFAULT NOW(),
-CONSTRAINT messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
-CONSTRAINT messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-message_group_id TEXT,
-model TEXT
-);
-
--- Chat attachments table
-CREATE TABLE chat_attachments (
-id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-chat_id UUID NOT NULL,
-user_id UUID NOT NULL,
-file_url TEXT NOT NULL,
-file_name TEXT,
-file_type TEXT,
-file_size INTEGER, -- Assuming INTEGER for file size
-created_at TIMESTAMPTZ DEFAULT NOW(),
-CONSTRAINT fk_chat FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
-CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Feedback table
-CREATE TABLE feedback (
-id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-user_id UUID NOT NULL,
-message TEXT NOT NULL,
-created_at TIMESTAMPTZ DEFAULT NOW(),
-CONSTRAINT feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
--- User keys table for BYOK (Bring Your Own Key) integration
-CREATE TABLE user_keys (
-user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-provider TEXT NOT NULL,
-encrypted_key TEXT NOT NULL,
-iv TEXT NOT NULL,
-created_at TIMESTAMPTZ DEFAULT NOW(),
-updated_at TIMESTAMPTZ DEFAULT NOW(),
-PRIMARY KEY (user_id, provider)
-);
-
--- User preferences table
-CREATE TABLE user_preferences (
-user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-layout TEXT DEFAULT 'fullscreen',
-prompt_suggestions BOOLEAN DEFAULT true,
-show_tool_invocations BOOLEAN DEFAULT true,
-show_conversation_previews BOOLEAN DEFAULT true,
-multi_model_enabled BOOLEAN DEFAULT false,
-hidden_models TEXT[] DEFAULT '{}',
-created_at TIMESTAMPTZ DEFAULT NOW(),
-updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Optional: keep updated_at in sync for user_preferences
-CREATE OR REPLACE FUNCTION update_user_preferences_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-NEW.updated_at = NOW();
-RETURN NEW;
-END;
-
-$$
-LANGUAGE plpgsql;
-
-CREATE TRIGGER update_user_preferences_timestamp
-BEFORE UPDATE ON user_preferences
-FOR EACH ROW
-EXECUTE PROCEDURE update_user_preferences_updated_at();
-
--- RLS (Row Level Security) Reminder
--- Ensure RLS is enabled on these tables in your Supabase dashboard
--- and appropriate policies are created.
--- Example policies (adapt as needed):
--- ALTER TABLE users ENABLE ROW LEVEL SECURITY;
--- CREATE POLICY "Users can view their own data." ON users FOR SELECT USING (auth.uid() = id);
--- CREATE POLICY "Users can update their own data." ON users FOR UPDATE USING (auth.uid() = id);
--- ... add policies for other tables (chats, messages, etc.) ...
-```
-
-### Storage Setup
-
-Create the buckets `chat-attachments` and `avatars` in your Supabase dashboard:
-
-1. Go to Storage in your Supabase dashboard
-2. Click "New bucket" and create two buckets: `chat-attachments` and `avatars`
-3. Configure public access permissions for both buckets
 
 ## Ollama Setup (Local AI Models)
 
@@ -834,16 +516,15 @@ vercel --prod
 ### Common Issues
 
 <details>
-<summary><strong>Supabase connection fails</strong></summary>
+<summary><strong>Database connection fails</strong></summary>
 
 Symptoms: "Database connection failed" errors
 
 **Solutions**:
-1. Verify `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local`
-2. Check Supabase project status at [Supabase Dashboard](https://app.supabase.com)
-3. Ensure IP address is not blocked (check Supabase logs)
-4. Verify database schema is set up correctly
-5. For minimal testing, comment out Supabase env vars (works without auth)
+1. Verify `DATABASE_URL` in `.env.local` points at a reachable Postgres instance
+2. Check the Postgres container is healthy: `docker compose ps postgres`
+3. Confirm migrations have been applied: `npm run db:migrate`
+4. Check Postgres logs: `docker compose logs postgres`
 
 </details>
 
@@ -887,7 +568,7 @@ Symptoms: Container starts then stops
 2. Verify all required env vars are set
 3. Check if port 3000 is already in use
 4. Ensure `.env.local` is not being used (use `-e` flags or `.env` file)
-5. Try running without Supabase first (minimal config)
+5. Confirm `DATABASE_URL`, `BETTER_AUTH_SECRET`, and MinIO env vars are all set — the app throws on startup if any are missing (Postgres/Better Auth/MinIO are hard requirements, there's no reduced-functionality mode to fall back to)
 
 </details>
 
@@ -897,11 +578,11 @@ Symptoms: Container starts then stops
 Symptoms: Upload button doesn't work or files don't save
 
 **Solutions**:
-1. Verify Supabase Storage buckets exist: `chat-attachments` and `avatars`
-2. Check bucket policies allow uploads (see Storage Configuration section)
-3. Ensure user is authenticated
-4. Check file size limits (default: 10MB per file)
-5. Verify `SUPABASE_SERVICE_ROLE` key has admin access
+1. Verify the `minio` container is running and healthy: `docker compose ps minio`
+2. Check `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` in `.env.local` match `docker-compose.yml`'s `minio` service credentials
+3. Ensure user is authenticated (uploads require a session)
+4. Check file size limits (default: 10MB per file) and allowed file types (`lib/file-handling.ts`)
+5. Check the MinIO console at `http://localhost:9001` to confirm the `chat-attachments` bucket exists and has objects
 
 </details>
 
@@ -978,7 +659,8 @@ Check browser console and terminal for detailed logs.
 
 - [Main README](./README.md) - Overview and features
 - [models.dev](https://models.dev) - AI model registry
-- [Supabase Docs](https://supabase.com/docs) - Database and auth
+- [Drizzle ORM Docs](https://orm.drizzle.team) - Database schema and queries
+- [Better Auth Docs](https://www.better-auth.com) - Authentication
 - [Vercel AI SDK](https://sdk.vercel.ai) - AI integration
 - [Next.js Docs](https://nextjs.org/docs) - Framework documentation
 - [shadcn/ui](https://ui.shadcn.com) - UI components
@@ -1010,7 +692,7 @@ Made with care by the open-source community
 
 </div>TTPS
 - [ ] Configure CORS if needed
-- [ ] Enable Supabase RLS policies
+- [ ] Confirm `DATABASE_URL` points at a production-grade Postgres instance with backups enabled
 - [ ] Set up monitoring (Sentry, LogRocket, etc.)
 - [ ] Configure backups for database
 
@@ -1160,10 +842,10 @@ You can customize various aspects of Zola by modifying the configuration files:
 
 ### Common Issues
 
-1. **Connection to Supabase fails**
+1. **Database connection fails**
 
-   - Check your Supabase URL and API keys
-   - Ensure your IP address is allowed in Supabase
+   - Check your `DATABASE_URL` and that the Postgres container is running
+   - Confirm migrations have been applied: `npm run db:migrate`
 
 2. **AI models not responding**
 

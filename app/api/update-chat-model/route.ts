@@ -1,46 +1,36 @@
-import { createClient } from "@/lib/supabase/server"
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db/client"
+import { chats } from "@/lib/db/schema"
+import { and, eq } from "drizzle-orm"
+import { headers } from "next/headers"
+import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
     const { chatId, model } = await request.json()
 
     if (!chatId || !model) {
-      return new Response(
-        JSON.stringify({ error: "Missing chatId or model" }),
+      return NextResponse.json(
+        { error: "Missing chatId or model" },
         { status: 400 }
       )
     }
 
-    // If Supabase is not available, we still return success
-    if (!supabase) {
-      console.log("Supabase not enabled, skipping DB update")
-      return new Response(JSON.stringify({ success: true }), { status: 200 })
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { error } = await supabase
-      .from("chats")
-      .update({ model })
-      .eq("id", chatId)
+    await db
+      .update(chats)
+      .set({ model, updatedAt: new Date() })
+      .where(and(eq(chats.id, chatId), eq(chats.userId, session.user.id)))
 
-    if (error) {
-      console.error("Error updating chat model:", error)
-      return new Response(
-        JSON.stringify({
-          error: "Failed to update chat model",
-          details: error.message,
-        }),
-        { status: 500 }
-      )
-    }
-
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-    })
+    return NextResponse.json({ success: true }, { status: 200 })
   } catch (err: unknown) {
     console.error("Error in update-chat-model endpoint:", err)
-    return new Response(
-      JSON.stringify({ error: (err as Error).message || "Internal server error" }),
+    return NextResponse.json(
+      { error: (err as Error).message || "Internal server error" },
       { status: 500 }
     )
   }

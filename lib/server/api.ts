@@ -1,51 +1,40 @@
-import { createClient } from "@/lib/supabase/server"
-import { createGuestServerClient } from "@/lib/supabase/server-guest"
-import { isSupabaseEnabled } from "../supabase/config"
+import "server-only"
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db/client"
+import { users } from "@/lib/db/schema"
+import { and, eq } from "drizzle-orm"
+import { headers } from "next/headers"
 
 /**
- * Validates the user's identity
- * @param userId - The ID of the user.
- * @param isAuthenticated - Whether the user is authenticated.
- * @returns The Supabase client.
+ * Validates that the claimed userId matches the actual session (for
+ * authenticated requests) or an existing anonymous guest row (for
+ * unauthenticated requests). Throws on any mismatch.
  */
 export async function validateUserIdentity(
   userId: string,
   isAuthenticated: boolean
-) {
-  if (!isSupabaseEnabled) {
-    return null
-  }
-
-  const supabase = isAuthenticated
-    ? await createClient()
-    : await createGuestServerClient()
-
-  if (!supabase) {
-    throw new Error("Failed to initialize Supabase client")
-  }
-
+): Promise<boolean> {
   if (isAuthenticated) {
-    const { data: authData, error: authError } = await supabase.auth.getUser()
+    const session = await auth.api.getSession({ headers: await headers() })
 
-    if (authError || !authData?.user?.id) {
+    if (!session?.user?.id) {
       throw new Error("Unable to get authenticated user")
     }
 
-    if (authData.user.id !== userId) {
+    if (session.user.id !== userId) {
       throw new Error("User ID does not match authenticated user")
     }
   } else {
-    const { data: userRecord, error: userError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("id", userId)
-      .eq("anonymous", true)
-      .maybeSingle()
+    const [userRecord] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, userId), eq(users.anonymous, true)))
+      .limit(1)
 
-    if (userError || !userRecord) {
+    if (!userRecord) {
       throw new Error("Invalid or missing guest user")
     }
   }
 
-  return supabase
+  return true
 }

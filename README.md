@@ -150,10 +150,10 @@ Access Zola at [http://localhost:3000](http://localhost:3000). Add API keys for 
 
 ### Full Installation Guide
 
-For complete setup instructions including database configuration (Supabase), authentication setup (Google OAuth, guest mode), file upload configuration, and environment variables, see the [INSTALL.md](./INSTALL.md) guide.
+For complete setup instructions including database configuration (self-hosted Postgres + Drizzle), authentication setup (Google OAuth, guest mode via Better Auth), file upload configuration (MinIO), and environment variables, see the [INSTALL.md](./INSTALL.md) guide.
 
 > [!NOTE]
-> Zola requires a Supabase account for authentication and data storage. A free tier is available and sufficient for personal use.
+> Zola requires a self-hosted Postgres database (via Docker Compose) for authentication and data storage — see [INSTALL.md](./INSTALL.md) for setup.
 
 ### Adding Custom Models
 

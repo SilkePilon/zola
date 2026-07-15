@@ -4,8 +4,6 @@ import { Button } from "@/components/ui/button"
 import { PopoverContent } from "@/components/ui/popover"
 import { signInWithGoogle } from "@/lib/api"
 import { APP_NAME } from "@/lib/config"
-import { createClient } from "@/lib/supabase/client"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
 import Image from "next/image"
 import { useState } from "react"
 
@@ -13,36 +11,20 @@ export function PopoverContentAuth() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (!isSupabaseEnabled) {
-    return null
-  }
-
   const handleSignInWithGoogle = async () => {
-    const supabase = createClient()
-
-    if (!supabase) {
-      throw new Error("Supabase is not configured")
-    }
-
     try {
       setIsLoading(true)
       setError(null)
 
       // Pass current path so user returns here after login
       const currentPath = `${window.location.pathname}${window.location.search}`
-      const data = await signInWithGoogle(supabase, currentPath)
-
-      // Redirect to the provider URL
-      if (data?.url) {
-        window.location.href = data.url
-      }
+      await signInWithGoogle(currentPath)
     } catch (err: unknown) {
       console.error("Error signing in with Google:", err)
       setError(
         (err as Error).message ||
           "An unexpected error occurred. Please try again."
       )
-    } finally {
       setIsLoading(false)
     }
   }
