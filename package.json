@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
-    "analyze": "ANALYZE=true next build --webpack"
+    "analyze": "ANALYZE=true next build --webpack",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.14",
