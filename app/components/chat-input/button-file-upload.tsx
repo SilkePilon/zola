@@ -16,12 +16,10 @@ import {
 } from "@/components/ui/tooltip"
 import { getModelInfo } from "@/lib/models"
 import { useModel } from "@/lib/model-store/provider"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
 import { cn } from "@/lib/utils"
 import { FileArrowUp, Paperclip } from "@phosphor-icons/react"
 import React from "react"
 import { PopoverContentAuth } from "./popover-content-auth"
-import { PopoverContentStorage } from "./popover-content-storage"
 
 type ButtonFileUploadProps = {
   onFileUpload: (files: File[]) => void
@@ -37,8 +35,7 @@ export function ButtonFileUpload({
   disabled = false,
 }: ButtonFileUploadProps) {
   const { models } = useModel()
-  const hasStorageBucket = Boolean(process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET)
-  
+
   if (disabled) {
     return (
       <Tooltip>
@@ -57,9 +54,6 @@ export function ButtonFileUpload({
         <TooltipContent>Add files (disabled in multi-model)</TooltipContent>
       </Tooltip>
     )
-  }
-  if (!isSupabaseEnabled) {
-    return null
   }
 
   // Derive accepted MIME types/extensions from model capabilities; text is always allowed
@@ -163,31 +157,6 @@ export function ButtonFileUpload({
           <TooltipContent>Add files</TooltipContent>
         </Tooltip>
         <PopoverContentAuth />
-      </Popover>
-    )
-  }
-
-  // Show storage configuration prompt if bucket is not configured
-  if (!hasStorageBucket) {
-    return (
-      <Popover>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="border-border dark:bg-secondary size-9 rounded-[8px] border bg-transparent"
-                type="button"
-                aria-label="Add files"
-              >
-                <Paperclip className="size-4" />
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Add files</TooltipContent>
-        </Tooltip>
-        <PopoverContentStorage />
       </Popover>
     )
   }
