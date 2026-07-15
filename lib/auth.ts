@@ -1,4 +1,5 @@
 import "server-only"
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth-shared"
 import * as authSchema from "@/lib/db/auth-schema"
 import { db } from "@/lib/db/client"
 import { reassignUserData } from "@/lib/db/reassign-user"
@@ -10,10 +11,27 @@ import { anonymous } from "better-auth/plugins"
 if (!process.env.BETTER_AUTH_SECRET) {
   throw new Error("BETTER_AUTH_SECRET environment variable is required")
 }
-if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-  throw new Error(
-    "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables are required"
-  )
+
+// Social providers are optional: each is only registered when both of its
+// credentials are set. Email/password is always enabled, so there is always at
+// least one way to sign in. `getAuthProviders()` in lib/auth-providers.ts reads
+// the same env vars to tell the UI which buttons to render — keep the two in sync.
+const socialProviders: NonNullable<
+  Parameters<typeof betterAuth>[0]["socialProviders"]
+> = {}
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  socialProviders.google = {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  }
+}
+
+if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+  socialProviders.github = {
+    clientId: process.env.GITHUB_CLIENT_ID,
+    clientSecret: process.env.GITHUB_CLIENT_SECRET,
+  }
 }
 
 export const auth = betterAuth({
@@ -23,12 +41,14 @@ export const auth = betterAuth({
   }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
-  socialProviders: {
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    },
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: MIN_PASSWORD_LENGTH,
+    // No transactional email sender is configured in this app, so verification
+    // emails cannot be delivered — requiring them would lock every new account out.
+    requireEmailVerification: false,
   },
+  socialProviders,
   plugins: [
     anonymous({
       // Confirmed against node_modules/better-auth/dist/plugins/anonymous/types.d.mts:

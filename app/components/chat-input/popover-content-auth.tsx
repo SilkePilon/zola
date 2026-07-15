@@ -2,32 +2,17 @@
 
 import { Button } from "@/components/ui/button"
 import { PopoverContent } from "@/components/ui/popover"
-import { signInWithGoogle } from "@/lib/api"
 import { APP_NAME } from "@/lib/config"
 import Image from "next/image"
+import Link from "next/link"
 import { useState } from "react"
+import { SocialAuthButtons } from "../auth/social-auth-buttons"
+import { useAuthProviders } from "../auth/use-auth-providers"
 
 export function PopoverContentAuth() {
-  const [isLoading, setIsLoading] = useState(false)
+  const { providers } = useAuthProviders()
   const [error, setError] = useState<string | null>(null)
 
-  const handleSignInWithGoogle = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-
-      // Pass current path so user returns here after login
-      const currentPath = `${window.location.pathname}${window.location.search}`
-      await signInWithGoogle(currentPath)
-    } catch (err: unknown) {
-      console.error("Error signing in with Google:", err)
-      setError(
-        (err as Error).message ||
-          "An unexpected error occurred. Please try again."
-      )
-      setIsLoading(false)
-    }
-  }
   return (
     <PopoverContent
       className="w-[300px] overflow-hidden rounded-xl p-0"
@@ -53,22 +38,19 @@ export function PopoverContentAuth() {
         <p className="text-muted-foreground mb-5 text-base">
           Add files, use more models, BYOK, and more.
         </p>
-        <Button
-          variant="secondary"
-          className="w-full text-base"
-          size="lg"
-          onClick={handleSignInWithGoogle}
-          disabled={isLoading}
-        >
-          <img
-            src="https://www.google.com/favicon.ico"
-            alt="Google logo"
-            width={20}
-            height={20}
-            className="mr-2 size-4"
-          />
-          <span>{isLoading ? "Connecting..." : "Continue with Google"}</span>
-        </Button>
+        <div className="flex flex-col gap-2">
+          <SocialAuthButtons providers={providers} onError={setError} />
+          {/* This popover is too narrow for the email/password form, so send
+              those users to the full auth page instead. */}
+          <Button
+            asChild
+            variant="secondary"
+            size="lg"
+            className="w-full text-base"
+          >
+            <Link href="/auth">Continue with email</Link>
+          </Button>
+        </div>
       </div>
     </PopoverContent>
   )

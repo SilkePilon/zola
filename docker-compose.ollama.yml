@@ -1,39 +1,43 @@
-version: '3.8'
+# Ollama override — adds a local Ollama container and points Zola at it.
+#
+# This is an OVERRIDE file, not a standalone stack: it layers on top of
+# docker-compose.yml so Postgres, MinIO, migrations, and env_file are inherited
+# rather than duplicated (and so they can't drift out of sync). Always pass both
+# files, base first:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d
+#
+# Then pull a model:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
+#
+# Zola detects the available models automatically.
 
 services:
-  # Ollama service for local LLM hosting
   ollama:
     image: ollama/ollama:latest
-    container_name: zola-ollama
     ports:
       - "11434:11434"
     volumes:
-      - ollama_data:/root/.ollama
+      - zola-ollama-data:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      # The image has no curl/wget, so use the ollama CLI itself.
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
       start_period: 30s
+    restart: unless-stopped
 
-  # Zola application
   zola:
-    build: .
-    container_name: zola-app
-    ports:
-      - "3000:3000"
+    # Reach Ollama by service name on the compose network, not localhost.
     environment:
-      - NODE_ENV=production
-      # Ollama configuration
       - OLLAMA_BASE_URL=http://ollama:11434
     depends_on:
       ollama:
         condition: service_healthy
-    restart: unless-stopped
 
 volumes:
-  ollama_data:
-    driver: local 
+  zola-ollama-data:

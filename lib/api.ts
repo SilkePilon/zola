@@ -1,5 +1,6 @@
 import { APP_DOMAIN } from "@/lib/config"
 import { authClient } from "@/lib/auth-client"
+import type { SocialProvider } from "@/lib/auth-shared"
 import type { UserProfile } from "@/lib/user/types"
 import { fetchClient } from "./fetch"
 import { API_ROUTE_UPDATE_CHAT_MODEL } from "./routes"
@@ -72,41 +73,106 @@ export async function updateChatModel(chatId: string, model: string) {
   }
 }
 
+function resolveCallbackUrl(redirectPath?: string) {
+  const baseUrl =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_SITE_URL
+        ? process.env.NEXT_PUBLIC_SITE_URL
+        : process.env.NEXT_PUBLIC_VERCEL_URL
+          ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+          : APP_DOMAIN
+
+  let nextPath = redirectPath
+
+  if (!nextPath && typeof window !== "undefined") {
+    const currentPath = `${window.location.pathname}${window.location.search}`
+    nextPath = currentPath.startsWith("/auth") ? "/" : currentPath || "/"
+  }
+
+  nextPath = nextPath || "/"
+
+  return `${baseUrl}${nextPath}`
+}
+
 /**
- * Signs in user with Google OAuth via Better Auth
+ * Signs in user with a social OAuth provider via Better Auth
+ * @param provider - The configured social provider to use
  * @param redirectPath - Optional path to redirect to after successful login (defaults to current path or /)
  */
-export async function signInWithGoogle(redirectPath?: string) {
+export async function signInWithSocial(
+  provider: SocialProvider,
+  redirectPath?: string
+) {
   try {
-    const baseUrl =
-      typeof window !== "undefined"
-        ? window.location.origin
-        : process.env.NEXT_PUBLIC_SITE_URL
-          ? process.env.NEXT_PUBLIC_SITE_URL
-          : process.env.NEXT_PUBLIC_VERCEL_URL
-            ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-            : APP_DOMAIN
-
-    let nextPath = redirectPath
-
-    if (!nextPath && typeof window !== "undefined") {
-      const currentPath = `${window.location.pathname}${window.location.search}`
-      nextPath = currentPath.startsWith("/auth") ? "/" : currentPath || "/"
-    }
-
-    nextPath = nextPath || "/"
-
     const { error } = await authClient.signIn.social({
-      provider: "google",
-      callbackURL: `${baseUrl}${nextPath}`,
+      provider,
+      callbackURL: resolveCallbackUrl(redirectPath),
     })
 
     if (error) {
       throw new Error(error.message)
     }
   } catch (err) {
-    console.error("Error signing in with Google:", err)
+    console.error(`Error signing in with ${provider}:`, err)
     throw err
+  }
+}
+
+/**
+ * Signs in an existing user with email and password via Better Auth.
+ * @param redirectPath - Optional path to redirect to after successful login (defaults to current path or /)
+ */
+export async function signInWithEmail(
+  email: string,
+  password: string,
+  redirectPath?: string
+) {
+  const { error } = await authClient.signIn.email({
+    email,
+    password,
+    callbackURL: resolveCallbackUrl(redirectPath),
+  })
+
+  if (error) {
+    throw new Error(error.message || "Unable to sign in. Please try again.")
+  }
+}
+
+/**
+ * Creates a new email/password account via Better Auth. Better Auth signs the
+ * new user in automatically, and the anonymous plugin's onLinkAccount hook
+ * moves any guest-session data onto the new account.
+ * @param redirectPath - Optional path to redirect to after successful signup (defaults to current path or /)
+ */
+export async function signUpWithEmail(
+  name: string,
+  email: string,
+  password: string,
+  redirectPath?: string
+) {
+  const callbackURL = resolveCallbackUrl(redirectPath)
+
+  const { error } = await authClient.signUp.email({
+    name,
+    email,
+    password,
+    callbackURL,
+  })
+
+  if (error) {
+    throw new Error(
+      error.message || "Unable to create your account. Please try again."
+    )
+  }
+
+  // Unlike sign-in, Better Auth's sign-up response carries no redirect/url, so
+  // its client-side redirect plugin never fires and callbackURL alone would
+  // leave the user sitting on the form. Navigate ourselves. A full page load
+  // (rather than a router push) rebuilds the provider tree against the new
+  // session, matching what the social and email sign-in flows already do.
+  if (typeof window !== "undefined") {
+    window.location.href = callbackURL
   }
 }
 

@@ -14,139 +14,151 @@
 
 ## Table of Contents
 
+- [Quick Start with Docker](#quick-start-with-docker)
 - [Prerequisites](#prerequisites)
 - [Environment Setup](#environment-setup)
-- [Database Configuration](#database-configuration)
 - [Authentication Setup](#authentication-setup)
+- [Database Configuration](#database-configuration)
 - [Storage Configuration](#storage-configuration)
-- [Ollama Setup](#ollama-setup-local-ai)
+- [Ollama Setup](#ollama-setup-local-ai-models)
 - [Local Development](#local-development)
 - [Docker Deployment](#docker-deployment)
 - [Production Deployment](#production-deployment)
+- [Configuration Options](#configuration-options)
 - [Troubleshooting](#troubleshooting)
+
+---
+
+## Quick Start with Docker
+
+Docker Compose is the recommended way to run Zola. It starts Postgres and MinIO, applies the database migrations, and runs the app — no Node.js toolchain and no manual database setup.
+
+```bash
+git clone https://github.com/SilkePilon/zola.git
+cd zola
+
+cp .env.example .env.local
+
+# Generate the three required secrets
+{
+  echo "ENCRYPTION_KEY=$(openssl rand -base64 32)"
+  echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)"
+  echo "CSRF_SECRET=$(openssl rand -hex 32)"
+} >> .env.local
+
+docker compose up -d
+```
+
+Open [http://localhost:3000](http://localhost:3000) and create an account with email and password. Add AI provider keys under **Settings > API Keys**.
+
+Nothing else is required — social sign-in, AI provider env vars, and Ollama are all optional. The rest of this guide covers those, plus production concerns.
+
+| Service | URL | Purpose |
+|---|---|---|
+| Zola | http://localhost:3000 | The app |
+| MinIO console | http://localhost:9001 | Uploaded file browser (login `zola` / `zola-minio-secret`) |
+| Postgres | localhost:5432 | Database (`zola` / `zola`) |
+
+```bash
+docker compose logs -f zola    # tail app logs
+docker compose down            # stop
+docker compose down -v         # stop and delete all data
+docker compose up -d --build   # rebuild after changing code
+```
+
+> [!WARNING]
+> The default Postgres and MinIO passwords in `docker-compose.yml` are for local use only. Change them before exposing Zola to a network — see [Production Deployment](#production-deployment).
 
 ---
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
+**For Docker (recommended):**
 
-- Node.js 18.x or later - Runtime environment
-- npm or yarn (latest) - Package manager
-- Git (latest) - Version control
-- Docker and Docker Compose - For self-hosted Postgres, MinIO, and (optionally) the app itself
-- API Keys - For AI providers like OpenAI, Anthropic, Google, etc.
-- Ollama (optional) - For running local AI models
+- Docker with Compose v2 — check with `docker compose version`
+- Git
+
+**Additionally, for local development:**
+
+- Node.js 18.x or later
+- npm
+
+**Optional:**
+
+- API keys for AI providers (OpenAI, Anthropic, Google, …) — users can also add their own in Settings
+- Ollama, for local AI models
 
 ## Environment Setup
 
 ### Step 1: Create Environment File
 
-Create a `.env.local` file in the root directory:
-
 ```bash
 cp .env.example .env.local
 ```
 
-### Step 2: Configure Environment Variables
+`.env.example` documents every variable. Docker Compose reads `.env.local` and refuses to start without it.
 
-Edit `.env.local` with your credentials:
+### Step 2: Generate the Required Secrets
 
-#### Database (Required for full features)
+Three secrets are required — the app throws on startup if any is missing:
+
+| Variable | Purpose | Generate with |
+|---|---|---|
+| `ENCRYPTION_KEY` | Encrypts user API keys at rest (AES-256-GCM). Must be exactly 32 bytes, base64-encoded. | `openssl rand -base64 32` |
+| `BETTER_AUTH_SECRET` | Signs sessions. | `openssl rand -hex 32` |
+| `CSRF_SECRET` | Signs CSRF tokens. | `openssl rand -hex 32` |
+
+Generate all three at once:
 
 ```bash
-DATABASE_URL=postgres://zola:zola@localhost:5432/zola
-BETTER_AUTH_SECRET=your_32_character_random_string
-BETTER_AUTH_URL=http://localhost:3000
-GOOGLE_CLIENT_ID=your_google_oauth_client_id
-GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
-MINIO_ENDPOINT=localhost
-MINIO_PORT=9000
-MINIO_USE_SSL=false
-MINIO_ACCESS_KEY=zola
-MINIO_SECRET_KEY=zola-minio-secret
-MINIO_BUCKET=chat-attachments
-MINIO_PUBLIC_URL=http://localhost:9000
+{
+  echo "ENCRYPTION_KEY=$(openssl rand -base64 32)"
+  echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)"
+  echo "CSRF_SECRET=$(openssl rand -hex 32)"
+} >> .env.local
 ```
 
-#### Security (Required)
+This appends, so the keys now appear twice — once empty from `.env.example`, once with a value. The last value wins, so it works either way; tidy the file by hand if you prefer.
+
+No OpenSSL? Equivalent commands:
 
 ```bash
-# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-CSRF_SECRET=your_csrf_secret_key
+# Node.js
+node -e "console.log('ENCRYPTION_KEY=' + require('crypto').randomBytes(32).toString('base64'))"
+node -e "console.log('BETTER_AUTH_SECRET=' + require('crypto').randomBytes(32).toString('hex'))"
 
-# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-ENCRYPTION_KEY=your_encryption_key  # Required for BYOK feature
+# Python
+python -c "import base64, secrets; print('ENCRYPTION_KEY=' + base64.b64encode(secrets.token_bytes(32)).decode())"
+python -c "import secrets; print('BETTER_AUTH_SECRET=' + secrets.token_hex(32))"
 ```
 
-#### AI Provider API Keys (Optional - choose what you need)
+> [!IMPORTANT]
+> Back up `ENCRYPTION_KEY` and reuse it across every environment. Losing or changing it makes all stored user API keys permanently undecryptable. Changing `BETTER_AUTH_SECRET` signs every user out.
 
-````bash
-# OpenAI (GPT-4, GPT-3.5, etc.)
-OPENAI_API_KEY=sk-...
+### Step 3: Everything Else Is Optional
 
-# Anthropic (Claude models)
-ANTHROPIC_API_KEY=sk-ant-...
+- **`BETTER_AUTH_URL`** — defaults to `http://localhost:3000`. Set it to your real domain in production; it builds the OAuth callback URLs.
+- **Social sign-in** — see [Authentication Setup](#authentication-setup). Email/password works with none of it set.
+- **AI provider keys** — set them to preconfigure a provider, or let users add their own in Settings (encrypted at rest).
+- **Infrastructure vars** (`DATABASE_URL`, `MINIO_*`) — **ignored under Docker**, which overrides them with the compose network's hostnames. They only matter for `npm run dev`.
 
-# Google (Gemini models)
-GOOGLE_GENERATIVE_AI_API_KEY=...
-
-# Mistral AI
-MISTRAL_API_KEY=...
-### Generating Security Keys
-
-#### CSRF Secret
-
-The `CSRF_SECRET` protects against Cross-Site Request Forgery attacks. Generate a secure random string:
-
-<table>
-<tr>
-<td width="33%">
-
-**Node.js**
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-````
-
-</td>
-<td width="33%">
-
-**OpenSSL**
-
-```bash
-openssl rand -hex 32
-```
-
-</td>
-#### Encryption Key (for BYOK)
-
-The `ENCRYPTION_KEY` encrypts user API keys in the database (AES-256-GCM). This enables the Bring Your Own Key feature.
-
-Using Node.js:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-```
-
-Using OpenSSL:
-
-```bash
-openssl rand -base64 32
-```
-
-Using Python:
-
-```bash
-python -c "import base64, secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())"
-```
-
-## Add to `.env.local`:
+---
 
 ## Authentication Setup
 
-Zola uses [Better Auth](https://www.better-auth.com) for authentication: Google OAuth for real accounts, and an automatic anonymous/guest session for users who haven't signed in — no dashboard toggle needed for guest mode, it's on by default.
+Zola uses [Better Auth](https://www.better-auth.com) for authentication. Three ways in:
 
-### Google OAuth Setup
+- **Email and password** — always enabled, no configuration required
+- **Google OAuth** — optional, enabled by setting `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`
+- **GitHub OAuth** — optional, enabled by setting `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET`
+
+Plus an automatic anonymous/guest session for users who haven't signed in — no dashboard toggle needed for guest mode, it's on by default. When a guest later signs in or signs up, their existing chats are reassigned to the new account.
+
+Each social provider is only registered when **both** of its variables are set, and the sign-in UI hides providers that aren't configured. Set neither and users get an email/password form only — a valid setup, and the fastest way to run Zola locally.
+
+Email verification is **off**: Zola ships no transactional email sender, so requiring verification would lock every new account out. If you add a mail provider, turn it on via `emailAndPassword.requireEmailVerification` in `lib/auth.ts`.
+
+### Google OAuth Setup (optional)
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com)
 2. Create a new project or select an existing one
@@ -162,74 +174,56 @@ Zola uses [Better Auth](https://www.better-auth.com) for authentication: Google 
 8. Click **Create** and copy the **Client ID** and **Client Secret** into `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` in `.env.local`
 9. Set `BETTER_AUTH_URL` to your app's base URL (`http://localhost:3000` locally, your real domain in production) — Better Auth uses this to build the OAuth callback URL
 
+### GitHub OAuth Setup (optional)
+
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Click **OAuth Apps** > **New OAuth App**
+3. Set **Homepage URL** to your app's base URL (`http://localhost:3000` locally)
+4. Set **Authorization callback URL**:
+   ```
+   http://localhost:3000/api/auth/callback/github
+   ```
+   A GitHub OAuth app accepts only one callback URL, so register separate apps for local development and production.
+5. Click **Register application**, then **Generate a new client secret**
+6. Copy the **Client ID** and **Client Secret** into `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` in `.env.local`
+
+> **Note:** `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` are for sign-in and are unrelated to the optional `GITHUB_TOKEN` used by developer tools.
+
 ---
 
 ## Database Configuration
 
 Zola's schema is defined in `lib/db/schema.ts` (app tables) and `lib/db/auth-schema.ts` (Better Auth's tables), managed by [Drizzle ORM](https://orm.drizzle.team).
 
-### Quick Setup
+### Under Docker (nothing to do)
 
-1. Start Postgres: `docker compose up -d postgres` (or point `DATABASE_URL` at any Postgres 13+ instance you already run)
-2. Apply the schema: `npm run db:migrate`
+The `migrate` service applies all migrations before the app starts, so a fresh `docker compose up` gives you a ready schema. It re-runs on every `up` and is a no-op when the schema is already current.
 
-That's it — both the app tables and Better Auth's tables are created by this one command. To change the schema, edit `lib/db/schema.ts`, run `npm run db:generate` to create a new migration file under `lib/db/migrations/`, then `npm run db:migrate` again.
+### Running Migrations Yourself
 
-The `CSRF_SECRET` is used to protect your application against Cross-Site Request Forgery attacks. You need to generate a secure random string for this value. Here are a few ways to generate one:
-
-#### Using Node.js
+Only needed for `npm run dev`, or when pointing `DATABASE_URL` at a Postgres you already run (13+):
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+docker compose up -d postgres   # or use your own instance
+npm run db:migrate
 ```
 
-#### Using OpenSSL
+One command creates both the app tables and Better Auth's tables.
+
+### Changing the Schema
+
+Edit `lib/db/schema.ts` (or `lib/db/auth-schema.ts`), then:
 
 ```bash
-openssl rand -hex 32
+npm run db:generate   # writes a new migration to lib/db/migrations/
+npm run db:migrate    # applies it
 ```
 
-#### Using Python
+Commit the generated migration — the Docker `migrate` service applies whatever is in that directory.
 
-```bash
-python -c "import secrets; print(secrets.token_hex(32))"
-```
+### BYOK (Bring Your Own Key)
 
-Copy the generated value and add it to your `.env.local` file as the `CSRF_SECRET` value.
-
-### BYOK (Bring Your Own Key) Setup
-
-Zola supports BYOK functionality, allowing users to securely store and use their own API keys for AI providers. To enable this feature, you need to configure an encryption key for secure storage of user API keys.
-
-#### Generating an Encryption Key
-
-The `ENCRYPTION_KEY` is used to encrypt user API keys before storing them in the database. Generate a 32-byte base64-encoded key:
-
-```bash
-# Using Node.js
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-
-# Using OpenSSL
-openssl rand -base64 32
-
-# Using Python
-python -c "import base64, secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())"
-```
-
-Add the generated key to your `.env.local` file:
-
-```bash
-# Required for BYOK functionality
-ENCRYPTION_KEY=your_generated_base64_encryption_key
-```
-
-**Important**:
-
-- Keep this key secure and backed up - losing it will make existing user API keys unrecoverable
-- Use the same key across all your deployment environments
-- The key must be exactly 32 bytes when base64 decoded
-
-With BYOK enabled, users can securely add their own API keys through the settings interface, giving them access to AI models using their personal accounts and usage limits.
+BYOK lets users store their own AI provider API keys, encrypted at rest with AES-256-GCM under your `ENCRYPTION_KEY`. It's enabled automatically — `ENCRYPTION_KEY` is already required for the app to boot (see [Environment Setup](#environment-setup)). Users add their keys in **Settings > API Keys**.
 
 ---
 
@@ -251,407 +245,346 @@ Configure in `lib/config.ts`:
 ```typescript
 export const DAILY_FILE_UPLOAD_LIMIT = 5 // Uploads per day for non-premium users
 ```
-
 ## Ollama Setup (Local AI Models)
 
-Ollama allows you to run AI models locally on your machine. Zola has built-in support for Ollama with automatic model detection.
+Ollama runs AI models locally — free, private, no API keys. Zola detects your models automatically.
 
-### Installing Ollama
+### With Docker (recommended)
 
-#### macOS and Linux
+`docker-compose.ollama.yml` is an **override** file: it adds an Ollama container and points Zola at it, reusing Postgres, MinIO, and migrations from the main compose file. Always pass both files, base first:
 
 ```bash
+docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d
+
+# Pull a model
+docker compose -f docker-compose.yml -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
+```
+
+### With Ollama on the Host
+
+Already running Ollama outside Docker? Point the container at it by adding this to `.env.local`:
+
+```bash
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+```
+
+Install Ollama with:
+
+```bash
+# macOS and Linux
 curl -fsSL https://ollama.ai/install.sh | sh
+
+# Windows: download from https://ollama.ai/download
 ```
 
-#### Windows
+Then `ollama pull llama3.2`.
 
-Download and install from [ollama.ai](https://ollama.ai/download)
+### Disabling Ollama
 
-#### Docker
+Ollama is enabled by default in development and disabled in production (avoiding connection errors where no Ollama exists). To disable it in development:
 
 ```bash
-docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+# .env.local
+DISABLE_OLLAMA=true
 ```
 
-### Setting up Models
+### Recommended Models
+
+| Use case | Models |
+|---|---|
+| General chat | `llama3.2:3b` (balanced), `gemma2:2b` (fast), `qwen2.5:3b` (multilingual) |
+| Coding | `codellama:7b`, `deepseek-coder:6.7b`, `phi3.5:3.8b` |
+| Creative writing | `llama3.2:8b`, `mistral:7b` |
+| Fastest | `llama3.2:1b`, `gemma2:2b` |
+
+Smaller models (1B–3B) respond faster. Enable GPU acceleration if available, and tune `OLLAMA_NUM_PARALLEL` for concurrency.
+
 ---
 
 ## Local Development
 
-### Quick Start
+Only needed if you're changing Zola's code. `npm run dev` does **not** start Postgres or MinIO — run those with Docker.
 
 ```bash
-# Clone the repository
 git clone https://github.com/SilkePilon/zola.git
 cd zola
-
-# Install dependencies
 npm install
 
-# Set up environment variables
 cp .env.example .env.local
-# Edit .env.local with your credentials
+{
+  echo "ENCRYPTION_KEY=$(openssl rand -base64 32)"
+  echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)"
+  echo "CSRF_SECRET=$(openssl rand -hex 32)"
+} >> .env.local
 
-# Run the development server
+# Start dependencies only
+docker compose up -d postgres minio
+
+# Create the schema, then run the dev server
+npm run db:migrate
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000). The default `DATABASE_URL` and `MINIO_*` values in `.env.example` already point at those containers.
 
-### Development Scripts
-
-```bash
-npm run dev          # Start development server with Turbopack
-npm run build        # Build for production
-npm run start        # Start production server
-npm run lint         # Run ESLint
-npm run type-check   # Run TypeScript type checking
-```
-
-### Development Tips
-
-- **Hot Reload**: Changes are automatically reflected in the browser
-- **Type Safety**: TypeScript catches errors before runtime
-- **Turbopack**: Fast bundling with Next.js 15
-- **Error Overlay**: Helpful error messages in development
-
-### Project Structure
-### Option 1: Single Container
-
-A `Dockerfile` is included in the repository:
-│   ├── components/        # Page-specific components
-│   └── lib/              # Client-side utilities
-├── components/            # Shared components
-**Build and run:**g remote Ollama
-
-#### Models not appearing
-
-1. Refresh the models list in Zola settings
-2. Check Ollama has models: `ollama list`
-3. Restart Zola if models were added after startup
-
-#### Performance optimization
-
-1. Use smaller models for faster responses (1B-3B parameters)
-2. Enable GPU acceleration if available
-3. Adjust Ollama's `OLLAMA_NUM_PARALLEL` environment variable
-
-## Disabling Ollama
-
-Ollama is automatically enabled in development and disabled in production. If you want to disable it in development, you can use an environment variable:
-
-### Environment Variable
-
-Add this to your `.env.local` file:
+### Scripts
 
 ```bash
-# Disable Ollama in development
-DISABLE_OLLAMA=true
+npm run dev          # Dev server (Turbopack)
+npm run build        # Production build (webpack)
+npm run start        # Run the production build
+npm run lint         # ESLint
+npm run type-check   # TypeScript, no emit
+npm run db:generate  # Generate a migration from schema changes
+npm run db:migrate   # Apply migrations
+npm run db:studio    # Browse the database
 ```
 
-### Note
+---
 
-- In **production**, Ollama is disabled by default to avoid connection errors
-- In **development**, Ollama is enabled by default for local AI model testing
-- Use `DISABLE_OLLAMA=true` to disable it in development
+## Docker Deployment
 
-### Recommended Models by Use Case
+### How the Stack Fits Together
 
-#### General Chat
+`docker-compose.yml` defines four services:
 
-- `llama3.2:3b` - Good balance of quality and speed
-- `gemma2:2b` - Fast and efficient
-- `qwen2.5:3b` - Excellent multilingual support
+| Service | Role |
+|---|---|
+| `postgres` | Database. Data persists in the `zola-postgres-data` volume. |
+| `minio` | S3-compatible store for file attachments. Volume `zola-minio-data`. |
+| `migrate` | Applies database migrations, then exits. The app waits for it to succeed. |
+| `zola` | The app. Waits for all three above. |
 
-#### Coding
+Because `migrate` runs first, `docker compose up` on a clean machine produces a working schema with no manual step. It re-runs on every `up` and is a no-op when already current.
 
-- `codellama:7b` - Specialized for code generation
-- `deepseek-coder:6.7b` - Strong coding capabilities
-- `phi3.5:3.8b` - Good for code explanation
+### Configuration
 
-#### Creative Writing
+- **Secrets** come from `.env.local` via `env_file`. Compose won't start without that file.
+- **Infrastructure vars** (`DATABASE_URL`, `MINIO_ENDPOINT`, …) are set in `docker-compose.yml` and **override** `.env.local` — inside the compose network, services resolve by service name, not `localhost`.
 
-- `llama3.2:8b` - Better for creative tasks
-- `mistral:7b` - Good instruction following
+That split means the same `.env.local` works for both `docker compose up` and `npm run dev`.
 
-#### Fast Responses
+### Build-Time Placeholders
 
-- `llama3.2:1b` - Ultra-fast, basic capabilities
-- `gemma2:2b` - Quick and capable
+`next build` imports modules that throw when `ENCRYPTION_KEY`, `DATABASE_URL`, `BETTER_AUTH_SECRET`, `CSRF_SECRET`, or `MINIO_*` are unset, so the `builder` stage sets dummy values. They are not secrets and never reach the final image — the `runner` stage starts from a clean base and gets real values at runtime. None are `NEXT_PUBLIC_*`, so nothing is baked into the client bundle.
 
-## Local Installation
-
-### macOS / Linux
+### Commands
 
 ```bash
-# Clone the repository
-git clone https://github.com/SilkePilon/zola.git
-cd zola
-
-# Install dependencies
-npm install
-
-# Run the development server
-npm run dev
+docker compose up -d            # start
+docker compose up -d --build    # rebuild after code changes
+docker compose logs -f zola     # tail app logs
+docker compose ps               # service health
+docker compose down             # stop, keep data
+docker compose down -v          # stop and delete all data
 ```
 
-### Windows
-
-```bash
-# Clone the repository
-git clone https://github.com/SilkePilon/zola.git
-cd zola
-
-# Install dependencies
-npm install
-
-### Option 2: Docker Compose (Standard)
-
-A `docker-compose.yml` file is included. **Run with:**ase
-
-# Install dependencies only when needed
-FROM base AS deps
-WORKDIR /app
-
-# Copy package files
-COPY package.json package-lock.json* ./
-
-# Install dependencies with clean slate
-RUN npm ci
-
-# Rebuild the source code only when needed
-FROM base AS builder
-WORKDIR /app
-
-# Copy node_modules from deps
-COPY --from=deps /app/node_modules ./node_modules
-
-# Copy all project files
-COPY . .
-
-# Set Next.js telemetry to disabled
-ENV NEXT_TELEMETRY_DISABLED 1
-
-# Build the application
-RUN npm run build
-
-# Production image, copy all the files and run next
-FROM base AS runner
-WORKDIR /app
-
-# Set environment variables
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
-### Option 3: Docker Compose with Ollama (Recommended)
-
-The **complete setup** with both Zola and Ollama is in `docker-compose.ollama.yml`:
-
-```bash
-# Start both services
-docker-compose -f docker-compose.ollama.yml up -d
-
-# View logs
-docker-compose -f docker-compose.ollama.yml logs -f
-
-# Stop everything
-docker-compose -f docker-compose.ollama.yml down
-```
-
-What's included:
-- Zola web interface
-- Ollama server with GPU support (if available)
-- Automatic model pulling (llama3.2:3b by default)
-- Health checks for both services
-- Proper networking (Zola to Ollama communication)
-- Volume persistence for models
-- Ready to use at [http://localhost:3000](http://localhost:3000)
-
-**Customize models:**
-
-Edit `docker-compose.ollama.yml` and change the `OLLAMA_MODELS` environment variable:
-
-```yaml
-environment:
-  - OLLAMA_MODELS=llama3.2:3b,gemma2:2b,qwen2.5:3b,codellama:7b
-```
 ---
 
 ## Production Deployment
 
-### Deploy to Vercel (Recommended)
+> [!WARNING]
+> Zola requires Postgres and MinIO. Vercel and similar platforms run only the Next.js app — you must supply managed Postgres and S3-compatible storage separately and point `DATABASE_URL`/`MINIO_*` at them. A Docker host (VPS, Fly.io, Railway, ECS, Cloud Run) running the full compose stack is the simpler path.
 
-Vercel is the easiest way to deploy Zola:
+### Checklist
 
-#### Option A: One-Click Deploy
+- [ ] Generate **fresh** `ENCRYPTION_KEY`, `BETTER_AUTH_SECRET`, and `CSRF_SECRET` — never reuse development values
+- [ ] Back up `ENCRYPTION_KEY`; losing it makes every stored user API key permanently undecryptable
+- [ ] Change the default Postgres and MinIO passwords in `docker-compose.yml`
+- [ ] Set `BETTER_AUTH_URL` to your real HTTPS domain
+- [ ] Set `MINIO_PUBLIC_URL` to a browser-reachable URL (`localhost:9000` only works on your own machine)
+- [ ] Register production OAuth callback URLs (`{BETTER_AUTH_URL}/api/auth/callback/google`, `.../github`)
+- [ ] Serve over HTTPS behind a reverse proxy
+- [ ] Point `DATABASE_URL` at a production-grade Postgres with backups enabled
+- [ ] Set up database and object-storage backups
+- [ ] Set up monitoring (Sentry, etc.)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/SilkePilon/zola)
+### Attachment Images
 
-#### Option B: Manual Deploy
+`next.config.ts` ships with `images.remotePatterns: []`. To render attachment images through `next/image`, add your storage domain:
 
-1. Push your code to GitHub/GitLab/Bitbucket
-2. Go to [Vercel Dashboard](https://vercel.com/dashboard)
-3. Click **Import Project**
-4. Select your repository
-5. Configure environment variables:
-   - Add all variables from `.env.local`
-   - Set `NEXT_PUBLIC_VERCEL_URL` to your domain
-6. Click **Deploy**
-
-#### Option C: Vercel CLI
-
-```bash
-# Install Vercel CLI
-npm install -g vercel
-
-# Deploy
-vercel
-
-# Deploy to production
-vercel --prod
+```typescript
+images: {
+  remotePatterns: [{ protocol: "https", hostname: "storage.example.com" }],
+}
 ```
 
-### Self-Hosted Production
+The domain varies per deployment, so this can't ship preconfigured.
 
-### Common Issues
+---
+
+## Configuration Options
+
+### Application Config
+
+Edit `lib/config.ts`:
+
+```typescript
+// Rate limits
+export const NON_AUTH_DAILY_MESSAGE_LIMIT = 5
+export const AUTH_DAILY_MESSAGE_LIMIT = 1000
+export const DAILY_LIMIT_PRO_MODELS = 500
+
+// Uploads per day
+export const DAILY_FILE_UPLOAD_LIMIT = 5
+
+// Free models (no authentication required)
+export const FREE_MODELS_IDS = ["google:gemini-2.5-pro"]
+
+// Default model
+export const MODEL_DEFAULT = "google:gemini-2.5-pro"
+
+// System prompt
+export const SYSTEM_PROMPT_DEFAULT = `You are Zola, a thoughtful and clear assistant...`
+```
+
+File size limits and allowed types live in `lib/file-handling.ts`.
+
+### Custom Models
+
+Users add custom models in **Settings > Models > Add Custom Model**; they're stored per-user in the `custom_models` table.
+
+Models are otherwise fetched from the [models.dev](https://models.dev) API. To add a provider for everyone, contribute to the [models.dev repository](https://github.com/modelcontextprotocol/models.dev) — no change to this repo is needed.
+
+---
+
+## Troubleshooting
+
+<details>
+<summary><strong>Docker: "env file .env.local not found"</strong></summary>
+
+Compose requires it. Create it:
+
+```bash
+cp .env.example .env.local
+{
+  echo "ENCRYPTION_KEY=$(openssl rand -base64 32)"
+  echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)"
+  echo "CSRF_SECRET=$(openssl rand -hex 32)"
+} >> .env.local
+```
+
+</details>
+
+<details>
+<summary><strong>Container exits immediately / app won't start</strong></summary>
+
+Symptoms: `zola` container starts then stops.
+
+The app throws on startup if a required variable is missing — Postgres, Better Auth, and MinIO are hard requirements with no reduced-functionality fallback.
+
+1. Check the logs: `docker compose logs zola` — the error names the missing variable
+2. Confirm `ENCRYPTION_KEY`, `BETTER_AUTH_SECRET`, and `CSRF_SECRET` are all set in `.env.local`
+3. `ENCRYPTION_KEY` must decode to exactly 32 bytes (`openssl rand -base64 32`)
+4. Check whether port 3000 is already in use
+
+</details>
 
 <details>
 <summary><strong>Database connection fails</strong></summary>
 
-Symptoms: "Database connection failed" errors
+1. Check Postgres health: `docker compose ps postgres`
+2. Check its logs: `docker compose logs postgres`
+3. Confirm migrations ran: `docker compose logs migrate` (should end "migrations applied successfully")
+4. For `npm run dev`, verify `DATABASE_URL` points at a reachable instance and run `npm run db:migrate`
 
-**Solutions**:
-1. Verify `DATABASE_URL` in `.env.local` points at a reachable Postgres instance
-2. Check the Postgres container is healthy: `docker compose ps postgres`
-3. Confirm migrations have been applied: `npm run db:migrate`
-4. Check Postgres logs: `docker compose logs postgres`
+</details>
+
+<details>
+<summary><strong>Can't sign in / no sign-in buttons</strong></summary>
+
+Email and password sign-in is always available and needs no configuration — if the form is missing entirely, the app failed to start (see above).
+
+Google and GitHub buttons appear **only** when both env vars for that provider are set. If a button is missing:
+
+1. Confirm both `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (or the GitHub pair) are in `.env.local`
+2. Restart: `docker compose up -d` — provider config is read at startup
+3. Check `curl http://localhost:3000/api/auth-providers` — it reports what the server actually registered
+
+OAuth failing after redirect usually means the callback URL registered with the provider doesn't match `{BETTER_AUTH_URL}/api/auth/callback/{provider}`.
 
 </details>
 
 <details>
 <summary><strong>AI models not responding</strong></summary>
 
-Symptoms: Empty responses, timeout errors
-
-**Solutions**:
-1. Verify API keys are correct and have sufficient credits
-2. Check provider status pages (OpenAI, Anthropic, etc.)
+1. Verify API keys are correct and have credits
+2. Check the provider's status page
 3. Test with a free model first: `google:gemini-2.5-pro`
-4. Check browser console for error messages
-5. Verify model ID matches provider's documentation
-6. Check for rate limiting (429 errors)
+4. Check the browser console for errors
+5. Check for rate limiting (429 errors)
 
 </details>
 
 <details>
 <summary><strong>Ollama models not detected</strong></summary>
 
-Symptoms: No local models appear in selector
-
-**Solutions**:
-1. Ensure Ollama is running: `ollama serve`
-2. Test Ollama API: `curl http://localhost:11434/api/tags`
-3. Verify `OLLAMA_BASE_URL` in `.env.local` (default: `http://localhost:11434`)
-4. Check if `DISABLE_OLLAMA=true` is set
-5. Pull at least one model: `ollama pull llama3.2`
-6. Restart Zola after adding models
-
-</details>
-
-<details>
-<summary><strong>Docker container exits immediately</strong></summary>
-
-Symptoms: Container starts then stops
-
-**Solutions**:
-1. Check logs: `docker logs <container_id>`
-2. Verify all required env vars are set
-3. Check if port 3000 is already in use
-4. Ensure `.env.local` is not being used (use `-e` flags or `.env` file)
-5. Confirm `DATABASE_URL`, `BETTER_AUTH_SECRET`, and MinIO env vars are all set — the app throws on startup if any are missing (Postgres/Better Auth/MinIO are hard requirements, there's no reduced-functionality mode to fall back to)
+1. Confirm Ollama is running: `curl http://localhost:11434/api/tags`
+2. Pull at least one model: `ollama pull llama3.2`
+3. In Docker, `OLLAMA_BASE_URL` must be `http://ollama:11434` (compose) or `http://host.docker.internal:11434` (host Ollama) — never `localhost`
+4. Check whether `DISABLE_OLLAMA=true` is set
+5. Restart Zola if models were added after startup
 
 </details>
 
 <details>
 <summary><strong>File uploads not working</strong></summary>
 
-Symptoms: Upload button doesn't work or files don't save
+1. Check MinIO health: `docker compose ps minio`
+2. Ensure the user is signed in — uploads require a session
+3. Check file size and type limits in `lib/file-handling.ts`
+4. Open the MinIO console at [http://localhost:9001](http://localhost:9001) and confirm the `chat-attachments` bucket has objects
 
-**Solutions**:
-1. Verify the `minio` container is running and healthy: `docker compose ps minio`
-2. Check `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` in `.env.local` match `docker-compose.yml`'s `minio` service credentials
-3. Ensure user is authenticated (uploads require a session)
-4. Check file size limits (default: 10MB per file) and allowed file types (`lib/file-handling.ts`)
-5. Check the MinIO console at `http://localhost:9001` to confirm the `chat-attachments` bucket exists and has objects
+The bucket and its public-read policy are created automatically on first upload.
+
+</details>
+
+<details>
+<summary><strong>Uploaded images don't render</strong></summary>
+
+Set `MINIO_PUBLIC_URL` to a URL your browser can reach, and add the domain to `images.remotePatterns` in `next.config.ts`. See [Production Deployment](#production-deployment).
 
 </details>
 
 <details>
 <summary><strong>BYOK (user API keys) not working</strong></summary>
 
-Symptoms: Can't save API keys in settings
-
-**Solutions**:
-1. Verify `ENCRYPTION_KEY` is set in `.env.local`
-2. Key must be 32 bytes base64-encoded
-3. Check `user_keys` table exists in database
-4. Ensure user is authenticated
-5. Check browser console for encryption errors
+1. Verify `ENCRYPTION_KEY` is set and decodes to 32 bytes
+2. If it changed, previously stored keys can no longer be decrypted — users must re-enter them
+3. Ensure the user is signed in
 
 </details>
 
 <details>
-<summary><strong>Build errors with Next.js 15</strong></summary>
+<summary><strong>Build errors</strong></summary>
 
-Symptoms: Build fails with type errors
-
-**Solutions**:
-1. Delete `.next` folder and `node_modules`
-2. Run `npm install` again
-3. Check Node.js version (requires 18.x+)
-4. Clear npm cache: `npm cache clean --force`
-5. Check TypeScript version: `npm list typescript`
+1. Delete `.next` and `node_modules`, then `npm install`
+2. Check Node.js is 18.x or later
+3. Clear the npm cache: `npm cache clean --force`
 
 </details>
 
 <details>
-<summary><strong>"models.dev API failed" errors</strong></summary>
+<summary><strong>"models.dev API failed"</strong></summary>
 
-Symptoms: No models load, console shows API errors
-
-**Solutions**:
-1. Check internet connection
-2. Verify models.dev is accessible: `curl https://models.dev/api.json`
-3. Check if corporate firewall blocks the API
-4. Try setting custom `MODELS_DEV_URL` if using mirror
-5. Cache will retry after 5 minutes
+1. Check internet access: `curl https://models.dev/api.json`
+2. Check whether a corporate firewall blocks it
+3. The cache retries after 5 minutes
 
 </details>
-
-### Getting Help
-
-Still having issues? Here's how to get help:
-
-1. **Check existing issues**: [GitHub Issues](https://github.com/SilkePilon/zola/issues)
-2. **Search discussions**: [GitHub Discussions](https://github.com/SilkePilon/zola/discussions)
-3. **Create new issue**: Include:
-   - Error messages (full stack trace)
-   - Environment (OS, Node version, deployment platform)
-   - Steps to reproduce
-   - Configuration (without sensitive keys!)
-4. **Join community**: Discord (coming soon)
 
 ### Debug Mode
 
-Enable verbose logging:
-
 ```bash
-# In .env.local
+# .env.local
 DEBUG=zola:*
 NODE_ENV=development
 ```
 
-Check browser console and terminal for detailed logs.
+### Getting Help
+
+1. Search [GitHub Issues](https://github.com/SilkePilon/zola/issues) and [Discussions](https://github.com/SilkePilon/zola/discussions)
+2. Opening an issue? Include the full error, your OS and deployment method, steps to reproduce, and your config **with secrets removed**
 
 ---
 
@@ -672,7 +605,6 @@ Check browser console and terminal for detailed logs.
 - **GitHub Issues** - [Report bugs](https://github.com/SilkePilon/zola/issues)
 - **GitHub Discussions** - [Ask questions](https://github.com/SilkePilon/zola/discussions)
 - **Discord** - Coming soon
-- **Twitter** - [@zola_chat](https://twitter.com/zola_chat)
 
 ---
 
@@ -690,178 +622,4 @@ Made with care by the open-source community
 
 [Back to Main README](./README.md)
 
-</div>TTPS
-- [ ] Configure CORS if needed
-- [ ] Confirm `DATABASE_URL` points at a production-grade Postgres instance with backups enabled
-- [ ] Set up monitoring (Sentry, LogRocket, etc.)
-- [ ] Configure backups for database
-
-### Deployment Platforms
-
-Zola works on various platforms:
-
-- Vercel - Recommended, zero-config deployment
-- Netlify - Requires build settings configuration
-- Railway - Good Docker support
-- Fly.io - Global edge deployment
-- AWS - Use AWS Amplify or ECS
-- Google Cloud - Use Cloud Run
-- Azure - Use App Service
-- DigitalOcean - Use App Platform
-- Self-hosted - Any VPS with Node.js
-
----
-
-## Configuration Options
-
-### Application Config
-
-Edit `lib/config.ts` to customize:
-
-```typescript
-// Rate limits
-export const NON_AUTH_DAILY_MESSAGE_LIMIT = 5
-export const AUTH_DAILY_MESSAGE_LIMIT = 1000
-export const DAILY_LIMIT_PRO_MODELS = 500
-
-// Free models (no authentication required)
-export const FREE_MODELS_IDS = [
-  "google:gemini-2.5-pro",
-]
-
-// Default model
-export const MODEL_DEFAULT = "google:gemini-2.5-pro"
-
-// System prompt
-export const SYSTEM_PROMPT_DEFAULT = `You are Zola, a thoughtful and clear assistant...`
-```
-
-### Custom Models
-
-Users can add custom models through the UI:
-1. Go to **Settings** > **Models**
-2. Click **Add Custom Model**
-3. Fill in model details
-4. Models are stored per-user in `custom_models` table
-
-### Provider Configuration
-
-Models are fetched from [models.dev](https://models.dev) API. To add new providers globally, contribute to the [models.dev repository](https://github.com/modelcontextprotocol/models.dev).
-
----
-
-## Troubleshooting
-      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
-    restart: unless-stopped
-```
-
-Run with Docker Compose:
-
-```bash
-# Start the services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop the services
-docker-compose down
-```
-
-### Option 3: Docker Compose with Ollama (Recommended for Local AI)
-
-For a complete setup with both Zola and Ollama running locally, use the provided `docker-compose.ollama.yml`:
-
-```bash
-# Start both Zola and Ollama services
-docker-compose -f docker-compose.ollama.yml up -d
-
-# View logs
-docker-compose -f docker-compose.ollama.yml logs -f
-
-# Stop the services
-docker-compose -f docker-compose.ollama.yml down
-```
-
-This setup includes:
-
-- **Ollama service** with GPU support (if available)
-- **Automatic model pulling** (llama3.2:3b by default)
-- **Health checks** for both services
-- **Proper networking** between Zola and Ollama
-- **Volume persistence** for Ollama models
-
-The Ollama service will be available at `http://localhost:11434` and Zola will automatically detect all available models.
-
-To customize which models are pulled, edit the `docker-compose.ollama.yml` file and modify the `OLLAMA_MODELS` environment variable:
-
-```yaml
-environment:
-  - OLLAMA_MODELS=llama3.2:3b,gemma2:2b,qwen2.5:3b
-```
-
-## Production Deployment
-
-### Deploy to Vercel
-
-The easiest way to deploy Zola is using Vercel:
-
-1. Push your code to a Git repository (GitHub, GitLab, etc.)
-2. Import the project into Vercel
-3. Configure your environment variables
-4. Deploy
-
-```bash
-# Install Vercel CLI
-npm install -g vercel
-
-# Deploy
-vercel
-```
-
-### Self-Hosted Production
-
-For a self-hosted production environment, you'll need to build the application and run it:
-
-```bash
-# Build the application
-npm run build
-
-# Start the production server
-npm start
-```
-
-## Configuration Options
-
-You can customize various aspects of Zola by modifying the configuration files:
-
-- `app/lib/config.ts`: Configure AI models, daily message limits, etc.
-- `.env.local`: Set environment variables and API keys
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Database connection fails**
-
-   - Check your `DATABASE_URL` and that the Postgres container is running
-   - Confirm migrations have been applied: `npm run db:migrate`
-
-2. **AI models not responding**
-
-   - Verify your API keys for OpenAI/Mistral
-   - Check that the models specified in config are available
-
-3. **Docker container exits immediately**
-   - Check logs using `docker logs <container_id>`
-   - Ensure all required environment variables are set
-
-## Community and Support
-
-- GitHub Issues: Report bugs or request features
-- GitHub Discussions: Ask questions and share ideas
-
-## License
-
-Apache License 2.0
-$$
+</div>
